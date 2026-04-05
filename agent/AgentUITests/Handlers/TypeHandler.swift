@@ -21,6 +21,17 @@ final class TypeHandler: @unchecked Sendable {
         let app = appManager.currentApp()
 
         if let query = query, !query.isEmpty {
+            #if os(tvOS)
+            do {
+                let _ = try ElementResolver.resolve(query: query, in: app)
+                XCUIRemote.shared.press(.select)
+            } catch {
+                return HTTPResponseBuilder.error(
+                    "Element not found for query: \(query)",
+                    code: "element_not_found"
+                )
+            }
+            #else
             guard let found = DebugDescriptionParser.findElement(query: query, in: app) else {
                 return HTTPResponseBuilder.error(
                     "Element not found for query: \(query)",
@@ -30,6 +41,7 @@ final class TypeHandler: @unchecked Sendable {
             let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
                 .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
             coord.tap()
+            #endif
         }
 
         app.typeText(text)

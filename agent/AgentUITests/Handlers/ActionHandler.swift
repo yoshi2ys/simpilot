@@ -29,6 +29,7 @@ final class ActionHandler {
                 guard let query = query else {
                     return HTTPResponseBuilder.error("Missing 'query' for tap action", code: "invalid_request")
                 }
+                #if !os(tvOS)
                 if let found = DebugDescriptionParser.findElement(query: query, in: app) {
                     let coordTapFailed = catchObjCException {
                         let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
@@ -41,7 +42,6 @@ final class ActionHandler {
                             "frame": ["x": found.frame.x, "y": found.frame.y, "width": found.frame.w, "height": found.frame.h]
                         ] as [String: Any]
                     } else {
-                        // Coordinate tap failed — fall through to element.tap()
                         let element = try ElementResolver.resolve(query: query, in: app)
                         element.tap()
                         responseData["action_result"] = ElementResolver.describe(element)
@@ -49,12 +49,18 @@ final class ActionHandler {
                 } else {
                     return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
                 }
+                #else
+                let element = try ElementResolver.resolve(query: query, in: app)
+                XCUIRemote.shared.press(.select)
+                responseData["action_result"] = ElementResolver.describe(element)
+                #endif
 
             case "type":
                 guard let text = json["text"] as? String else {
                     return HTTPResponseBuilder.error("Missing 'text' for type action", code: "invalid_request")
                 }
                 if let query = query {
+                    #if !os(tvOS)
                     if let found = DebugDescriptionParser.findElement(query: query, in: app) {
                         let coordTapFailed = catchObjCException {
                             let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
@@ -62,12 +68,16 @@ final class ActionHandler {
                             coord.tap()
                         }
                         if coordTapFailed != nil {
-                            let element = try ElementResolver.resolve(query: query, in: app)
-                            element.tap()
+                            let tapElement = try ElementResolver.resolve(query: query, in: app)
+                            tapElement.tap()
                         }
                     } else {
                         return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
                     }
+                    #else
+                    let _ = try ElementResolver.resolve(query: query, in: app)
+                    XCUIRemote.shared.press(.select)
+                    #endif
                 }
                 app.typeText(text)
                 responseData["action_result"] = ["action": "type", "text": text]
@@ -83,6 +93,16 @@ final class ActionHandler {
                 } else {
                     target = app
                 }
+                #if os(tvOS)
+                switch direction {
+                case "up": XCUIRemote.shared.press(.up)
+                case "down": XCUIRemote.shared.press(.down)
+                case "left": XCUIRemote.shared.press(.left)
+                case "right": XCUIRemote.shared.press(.right)
+                default:
+                    return HTTPResponseBuilder.error("Invalid direction: \(direction)", code: "invalid_request")
+                }
+                #else
                 switch direction {
                 case "up": target.swipeUp()
                 case "down": target.swipeDown()
@@ -91,9 +111,13 @@ final class ActionHandler {
                 default:
                     return HTTPResponseBuilder.error("Invalid direction: \(direction)", code: "invalid_request")
                 }
+                #endif
                 responseData["action_result"] = ["action": "swipe", "direction": direction]
 
             case "tapcoord":
+                #if os(tvOS)
+                return HTTPResponseBuilder.error("tapcoord is not supported on tvOS", code: "unsupported_platform")
+                #else
                 guard let x = json["x"] as? Double, let y = json["y"] as? Double else {
                     return HTTPResponseBuilder.error("Missing 'x' or 'y' for tapcoord", code: "invalid_request")
                 }
@@ -101,6 +125,7 @@ final class ActionHandler {
                 let coord = normalized.withOffset(CGVector(dx: x, dy: y))
                 coord.tap()
                 responseData["action_result"] = ["action": "tapcoord", "x": x, "y": y]
+                #endif
 
             default:
                 return HTTPResponseBuilder.error("Unknown action: \(action)", code: "invalid_request")

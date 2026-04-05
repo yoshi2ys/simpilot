@@ -17,7 +17,15 @@ final class LaunchHandler: @unchecked Sendable {
             )
         }
 
-        let app = appManager.launch(bundleId: bundleId)
+        let app: XCUIApplication
+        do {
+            app = try appManager.launch(bundleId: bundleId)
+        } catch AppManager.LaunchError.unsupportedPlatform(let msg) {
+            return HTTPResponseBuilder.error(msg, code: "unsupported_platform")
+        } catch {
+            return HTTPResponseBuilder.error(error.localizedDescription, code: "launch_failed")
+        }
+
         let state: String
         switch app.state {
         case .notRunning: state = "notRunning"

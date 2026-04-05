@@ -29,6 +29,23 @@ final class SwipeHandler: @unchecked Sendable {
                 target = app
             }
 
+            #if os(tvOS)
+            switch direction.lowercased() {
+            case "up":
+                XCUIRemote.shared.press(.up)
+            case "down":
+                XCUIRemote.shared.press(.down)
+            case "left":
+                XCUIRemote.shared.press(.left)
+            case "right":
+                XCUIRemote.shared.press(.right)
+            default:
+                return HTTPResponseBuilder.error(
+                    "Invalid direction: \(direction). Use up, down, left, or right.",
+                    code: "invalid_direction"
+                )
+            }
+            #else
             let swipeVelocity: XCUIGestureVelocity
             switch velocity {
             case "slow": swipeVelocity = .slow
@@ -51,6 +68,7 @@ final class SwipeHandler: @unchecked Sendable {
                     code: "invalid_direction"
                 )
             }
+            #endif
 
             var responseData: [String: Any] = [
                 "direction": direction,

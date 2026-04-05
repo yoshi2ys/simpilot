@@ -18,11 +18,15 @@ final class TapCoordHandler: @unchecked Sendable {
             )
         }
 
+        #if os(tvOS)
+        return HTTPResponseBuilder.error("tapcoord is not supported on tvOS", code: "unsupported_platform")
+        #else
         let app = appManager.currentApp()
         let normalized = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
         let target = normalized.withOffset(CGVector(dx: x, dy: y))
         target.tap()
 
         return HTTPResponseBuilder.json(["x": x, "y": y, "action": "tap"])
+        #endif
     }
 }

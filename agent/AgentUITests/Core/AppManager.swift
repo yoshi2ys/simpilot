@@ -5,8 +5,15 @@ final class AppManager: @unchecked Sendable {
     private var apps: [String: XCUIApplication] = [:]
     private(set) var currentBundleId: String?
 
+    enum LaunchError: Error {
+        case unsupportedPlatform(String)
+    }
+
     /// Launch an app by bundle ID. Returns the XCUIApplication instance.
-    func launch(bundleId: String) -> XCUIApplication {
+    func launch(bundleId: String) throws -> XCUIApplication {
+        #if os(tvOS) || os(watchOS)
+        throw LaunchError.unsupportedPlatform("External app launch is not supported on this platform. Use the host app.")
+        #else
         let app: XCUIApplication
         if let existing = apps[bundleId] {
             app = existing
@@ -17,6 +24,7 @@ final class AppManager: @unchecked Sendable {
         app.launch()
         currentBundleId = bundleId
         return app
+        #endif
     }
 
     /// Terminate an app by bundle ID.
