@@ -19,17 +19,22 @@ cd cli && swift build                    # CLI
 cd agent && xcodebuild build-for-testing \
   -project AgentApp.xcodeproj \
   -scheme AgentUITests \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet  # Agent
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -quiet       # iOS Agent
+cd agent && xcodebuild build-for-testing \
+  -project AgentApp.xcodeproj \
+  -scheme AgentUITests \
+  -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -quiet  # visionOS Agent
 ```
 
 ## Run Agent
 
 ```bash
-cd agent && xcodebuild test \
-  -project AgentApp.xcodeproj -scheme AgentUITests \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:AgentUITests/AgentUITests/testAgent \
-  -parallel-testing-enabled NO &
+# iOS
+simpilot start                                    # default: iPhone 17 Pro
+simpilot start --device 'iPhone Air'              # specify device
+
+# visionOS
+simpilot start --device 'Apple Vision Pro'        # auto-detects visionOS platform
 ```
 
 ## Key Design Decisions

@@ -34,7 +34,6 @@
 		AA00000000000000003D /* ActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003C /* ActionHandler.swift */; };
 		AA000000000000000045 /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003F /* ObjCExceptionCatcher.m */; };
 		AA000000000000000047 /* DebugDescriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000046 /* DebugDescriptionParser.swift */; };
-		AA000000000000000029 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002A /* XCTest.framework */; };
 		AA00000000000000002B /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002C /* Network.framework */; };
 /* End PBXBuildFile section */
 
@@ -78,7 +77,6 @@
 		AA00000000000000003F /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
 		AA000000000000000044 /* AgentUITests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AgentUITests-Bridging-Header.h"; sourceTree = "<group>"; };
 		AA000000000000000046 /* DebugDescriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDescriptionParser.swift; sourceTree = "<group>"; };
-		AA00000000000000002A /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		AA00000000000000002C /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		AA00000000000000002E /* AgentApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000000000000002F /* AgentUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,7 +94,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA000000000000000029 /* XCTest.framework in Frameworks */,
 				AA00000000000000002B /* Network.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -137,7 +134,6 @@
 		AA000000000000000053 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000002A /* XCTest.framework */,
 				AA00000000000000002C /* Network.framework */,
 			);
 			name = Frameworks;
@@ -342,10 +338,11 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos xrsimulator xros";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
@@ -367,10 +364,11 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos xrsimulator xros";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -393,7 +391,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 			};
 			name = Debug;
 		};
@@ -416,7 +414,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 			};
 			name = Release;
 		};
@@ -432,12 +430,16 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"-framework",
+					XCTest,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "AgentUITests/AgentUITests-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = AgentApp;
 			};
 			name = Debug;
@@ -454,12 +456,16 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"-framework",
+					XCTest,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "AgentUITests/AgentUITests-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = AgentApp;
 			};
 			name = Release;

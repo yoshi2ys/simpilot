@@ -21,25 +21,30 @@ final class TapHandler: @unchecked Sendable {
 
         // Fast path: resolve via debugDescription parsing (~0.2s) + coordinate tap
         if let found = DebugDescriptionParser.findElement(query: query, in: app) {
-            let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-            coord.tap()
+            let coordTapFailed = catchObjCException {
+                let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                    .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                coord.tap()
+            }
 
-            return HTTPResponseBuilder.json([
-                "element": [
-                    "type": found.type,
-                    "label": found.label,
-                    "identifier": found.identifier,
-                    "frame": [
-                        "x": found.frame.x, "y": found.frame.y,
-                        "width": found.frame.w, "height": found.frame.h
-                    ],
-                    "enabled": found.enabled
-                ] as [String: Any]
-            ])
+            if coordTapFailed == nil {
+                return HTTPResponseBuilder.json([
+                    "element": [
+                        "type": found.type,
+                        "label": found.label,
+                        "identifier": found.identifier,
+                        "frame": [
+                            "x": found.frame.x, "y": found.frame.y,
+                            "width": found.frame.w, "height": found.frame.h
+                        ],
+                        "enabled": found.enabled
+                    ] as [String: Any]
+                ])
+            }
+            // Coordinate tap failed (e.g. visionOS spatial windows) — fall through to element.tap()
         }
 
-        // Fallback: XCUITest element resolution
+        // Fallback: XCUITest element resolution + native tap
         do {
             let element = try ElementResolver.resolve(query: query, in: app)
             element.tap()

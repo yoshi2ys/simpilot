@@ -29,28 +29,45 @@ final class ActionHandler {
                 guard let query = query else {
                     return HTTPResponseBuilder.error("Missing 'query' for tap action", code: "invalid_request")
                 }
-                guard let found = DebugDescriptionParser.findElement(query: query, in: app) else {
+                if let found = DebugDescriptionParser.findElement(query: query, in: app) {
+                    let coordTapFailed = catchObjCException {
+                        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                            .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                        coord.tap()
+                    }
+                    if coordTapFailed == nil {
+                        responseData["action_result"] = [
+                            "type": found.type, "label": found.label, "identifier": found.identifier,
+                            "frame": ["x": found.frame.x, "y": found.frame.y, "width": found.frame.w, "height": found.frame.h]
+                        ] as [String: Any]
+                    } else {
+                        // Coordinate tap failed — fall through to element.tap()
+                        let element = try ElementResolver.resolve(query: query, in: app)
+                        element.tap()
+                        responseData["action_result"] = ElementResolver.describe(element)
+                    }
+                } else {
                     return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
                 }
-                let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                    .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-                coord.tap()
-                responseData["action_result"] = [
-                    "type": found.type, "label": found.label, "identifier": found.identifier,
-                    "frame": ["x": found.frame.x, "y": found.frame.y, "width": found.frame.w, "height": found.frame.h]
-                ] as [String: Any]
 
             case "type":
                 guard let text = json["text"] as? String else {
                     return HTTPResponseBuilder.error("Missing 'text' for type action", code: "invalid_request")
                 }
                 if let query = query {
-                    guard let found = DebugDescriptionParser.findElement(query: query, in: app) else {
+                    if let found = DebugDescriptionParser.findElement(query: query, in: app) {
+                        let coordTapFailed = catchObjCException {
+                            let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                            coord.tap()
+                        }
+                        if coordTapFailed != nil {
+                            let element = try ElementResolver.resolve(query: query, in: app)
+                            element.tap()
+                        }
+                    } else {
                         return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
                     }
-                    let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                        .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-                    coord.tap()
                 }
                 app.typeText(text)
                 responseData["action_result"] = ["action": "type", "text": text]
