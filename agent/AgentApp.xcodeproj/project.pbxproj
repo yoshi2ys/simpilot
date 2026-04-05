@@ -1,0 +1,501 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000000000000000001 /* AgentAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000002 /* AgentAppApp.swift */; };
+		AA000000000000000003 /* AgentUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000004 /* AgentUITests.swift */; };
+		AA000000000000000005 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000006 /* HTTPServer.swift */; };
+		AA000000000000000007 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000008 /* HTTPParser.swift */; };
+		AA000000000000000009 /* HTTPResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000A /* HTTPResponse.swift */; };
+		AA00000000000000000B /* Router.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000C /* Router.swift */; };
+		AA00000000000000000D /* HealthHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000E /* HealthHandler.swift */; };
+		AA00000000000000000F /* LaunchHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000010 /* LaunchHandler.swift */; };
+		AA000000000000000011 /* TapHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000012 /* TapHandler.swift */; };
+		AA000000000000000013 /* TypeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000014 /* TypeHandler.swift */; };
+		AA000000000000000015 /* ScreenshotHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000016 /* ScreenshotHandler.swift */; };
+		AA000000000000000017 /* ElementsHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000018 /* ElementsHandler.swift */; };
+		AA000000000000000019 /* SourceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000001A /* SourceHandler.swift */; };
+		AA00000000000000001B /* InfoHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000001C /* InfoHandler.swift */; };
+		AA00000000000000001D /* SwipeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000001E /* SwipeHandler.swift */; };
+		AA00000000000000001F /* WaitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000020 /* WaitHandler.swift */; };
+		AA000000000000000021 /* TapCoordHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000022 /* TapCoordHandler.swift */; };
+		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
+
+		AA000000000000000027 /* AppManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000028 /* AppManager.swift */; };
+		AA000000000000000035 /* HelpHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000034 /* HelpHandler.swift */; };
+		AA000000000000000037 /* TerminateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000036 /* TerminateHandler.swift */; };
+		AA000000000000000039 /* ActivateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000038 /* ActivateHandler.swift */; };
+		AA00000000000000003B /* BatchHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003A /* BatchHandler.swift */; };
+		AA00000000000000003D /* ActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003C /* ActionHandler.swift */; };
+		AA000000000000000045 /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003F /* ObjCExceptionCatcher.m */; };
+		AA000000000000000047 /* DebugDescriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000046 /* DebugDescriptionParser.swift */; };
+		AA000000000000000029 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002A /* XCTest.framework */; };
+		AA00000000000000002B /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002C /* Network.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA00000000000000002D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000000000000000030 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA000000000000000031;
+			remoteInfo = AgentApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AA000000000000000002 /* AgentAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAppApp.swift; sourceTree = "<group>"; };
+		AA000000000000000004 /* AgentUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUITests.swift; sourceTree = "<group>"; };
+		AA000000000000000006 /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
+		AA000000000000000008 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
+		AA00000000000000000A /* HTTPResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPResponse.swift; sourceTree = "<group>"; };
+		AA00000000000000000C /* Router.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Router.swift; sourceTree = "<group>"; };
+		AA00000000000000000E /* HealthHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000010 /* LaunchHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000012 /* TapHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000014 /* TypeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000016 /* ScreenshotHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000018 /* ElementsHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementsHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000001A /* SourceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000001C /* InfoHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000001E /* SwipeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000020 /* WaitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaitHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000022 /* TapCoordHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCoordHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000024 /* ElementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementResolver.swift; sourceTree = "<group>"; };
+
+		AA000000000000000028 /* AppManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
+		AA000000000000000034 /* HelpHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000036 /* TerminateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminateHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000038 /* ActivateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivateHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000003A /* BatchHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000003C /* ActionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000003E /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
+		AA00000000000000003F /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
+		AA000000000000000044 /* AgentUITests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AgentUITests-Bridging-Header.h"; sourceTree = "<group>"; };
+		AA000000000000000046 /* DebugDescriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDescriptionParser.swift; sourceTree = "<group>"; };
+		AA00000000000000002A /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		AA00000000000000002C /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+		AA00000000000000002E /* AgentApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000000000000002F /* AgentUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA000000000000000040 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000029 /* XCTest.framework in Frameworks */,
+				AA00000000000000002B /* Network.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA000000000000000050 /* = */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000051 /* AgentApp */,
+				AA000000000000000052 /* AgentUITests */,
+				AA000000000000000053 /* Frameworks */,
+				AA000000000000000054 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA000000000000000051 /* AgentApp */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000002 /* AgentAppApp.swift */,
+			);
+			path = AgentApp;
+			sourceTree = "<group>";
+		};
+		AA000000000000000052 /* AgentUITests */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000004 /* AgentUITests.swift */,
+				AA000000000000000044 /* AgentUITests-Bridging-Header.h */,
+				AA000000000000000055 /* Server */,
+				AA000000000000000056 /* Handlers */,
+				AA000000000000000057 /* Core */,
+			);
+			path = AgentUITests;
+			sourceTree = "<group>";
+		};
+		AA000000000000000053 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000002A /* XCTest.framework */,
+				AA00000000000000002C /* Network.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		AA000000000000000054 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000002E /* AgentApp.app */,
+				AA00000000000000002F /* AgentUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AA000000000000000055 /* Server */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000006 /* HTTPServer.swift */,
+				AA000000000000000008 /* HTTPParser.swift */,
+				AA00000000000000000A /* HTTPResponse.swift */,
+				AA00000000000000000C /* Router.swift */,
+			);
+			path = Server;
+			sourceTree = "<group>";
+		};
+		AA000000000000000056 /* Handlers */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000E /* HealthHandler.swift */,
+				AA000000000000000010 /* LaunchHandler.swift */,
+				AA000000000000000012 /* TapHandler.swift */,
+				AA000000000000000014 /* TypeHandler.swift */,
+				AA000000000000000016 /* ScreenshotHandler.swift */,
+				AA000000000000000018 /* ElementsHandler.swift */,
+				AA00000000000000001A /* SourceHandler.swift */,
+				AA00000000000000001C /* InfoHandler.swift */,
+				AA00000000000000001E /* SwipeHandler.swift */,
+				AA000000000000000020 /* WaitHandler.swift */,
+				AA000000000000000022 /* TapCoordHandler.swift */,
+				AA000000000000000034 /* HelpHandler.swift */,
+				AA000000000000000036 /* TerminateHandler.swift */,
+				AA000000000000000038 /* ActivateHandler.swift */,
+				AA00000000000000003A /* BatchHandler.swift */,
+				AA00000000000000003C /* ActionHandler.swift */,
+			);
+			path = Handlers;
+			sourceTree = "<group>";
+		};
+		AA000000000000000057 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000024 /* ElementResolver.swift */,
+
+				AA000000000000000028 /* AppManager.swift */,
+				AA00000000000000003E /* ObjCExceptionCatcher.h */,
+				AA00000000000000003F /* ObjCExceptionCatcher.m */,
+				AA000000000000000046 /* DebugDescriptionParser.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA000000000000000031 /* AgentApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000060;
+			buildPhases = (
+				AA000000000000000042 /* Sources */,
+				AA000000000000000040 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgentApp;
+			productName = AgentApp;
+			productReference = AA00000000000000002E /* AgentApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AA000000000000000032 /* AgentUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000061;
+			buildPhases = (
+				AA000000000000000043 /* Sources */,
+				AA000000000000000041 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA000000000000000033 /* PBXTargetDependency */,
+			);
+			name = AgentUITests;
+			productName = AgentUITests;
+			productReference = AA00000000000000002F /* AgentUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA000000000000000030 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = AA000000000000000062;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA000000000000000050;
+			productRefGroup = AA000000000000000054 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA000000000000000031 /* AgentApp */,
+				AA000000000000000032 /* AgentUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA000000000000000042 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000001 /* AgentAppApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000000000000000043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000003 /* AgentUITests.swift in Sources */,
+				AA000000000000000005 /* HTTPServer.swift in Sources */,
+				AA000000000000000007 /* HTTPParser.swift in Sources */,
+				AA000000000000000009 /* HTTPResponse.swift in Sources */,
+				AA00000000000000000B /* Router.swift in Sources */,
+				AA00000000000000000D /* HealthHandler.swift in Sources */,
+				AA00000000000000000F /* LaunchHandler.swift in Sources */,
+				AA000000000000000011 /* TapHandler.swift in Sources */,
+				AA000000000000000013 /* TypeHandler.swift in Sources */,
+				AA000000000000000015 /* ScreenshotHandler.swift in Sources */,
+				AA000000000000000017 /* ElementsHandler.swift in Sources */,
+				AA000000000000000019 /* SourceHandler.swift in Sources */,
+				AA00000000000000001B /* InfoHandler.swift in Sources */,
+				AA00000000000000001D /* SwipeHandler.swift in Sources */,
+				AA00000000000000001F /* WaitHandler.swift in Sources */,
+				AA000000000000000021 /* TapCoordHandler.swift in Sources */,
+				AA000000000000000023 /* ElementResolver.swift in Sources */,
+
+				AA000000000000000027 /* AppManager.swift in Sources */,
+				AA000000000000000035 /* HelpHandler.swift in Sources */,
+				AA000000000000000037 /* TerminateHandler.swift in Sources */,
+				AA000000000000000039 /* ActivateHandler.swift in Sources */,
+				AA00000000000000003B /* BatchHandler.swift in Sources */,
+				AA00000000000000003D /* ActionHandler.swift in Sources */,
+				AA000000000000000045 /* ObjCExceptionCatcher.m in Sources */,
+				AA000000000000000047 /* DebugDescriptionParser.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA000000000000000033 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA000000000000000031 /* AgentApp */;
+			targetProxy = AA00000000000000002D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA000000000000000070 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA000000000000000071 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA000000000000000072 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA000000000000000073 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentApp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA000000000000000074 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "AgentUITests/AgentUITests-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = AgentApp;
+			};
+			name = Debug;
+		};
+		AA000000000000000075 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_REQUIRED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.simpilot.AgentUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "AgentUITests/AgentUITests-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = AgentApp;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA000000000000000062 /* Build configuration list for PBXProject "AgentApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000070 /* Debug */,
+				AA000000000000000071 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000060 /* Build configuration list for PBXNativeTarget "AgentApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000072 /* Debug */,
+				AA000000000000000073 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000061 /* Build configuration list for PBXNativeTarget "AgentUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000074 /* Debug */,
+				AA000000000000000075 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = AA000000000000000030 /* Project object */;
+}

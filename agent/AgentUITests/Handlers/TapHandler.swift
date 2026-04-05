@@ -1,0 +1,51 @@
+import Foundation
+import XCTest
+
+final class TapHandler: @unchecked Sendable {
+    private let appManager: AppManager
+
+    init(appManager: AppManager) {
+        self.appManager = appManager
+    }
+
+    func handle(_ request: HTTPRequest) -> Data {
+        guard let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+              let query = json["query"] as? String else {
+            return HTTPResponseBuilder.error(
+                "Missing or invalid 'query' in request body",
+                code: "invalid_request"
+            )
+        }
+
+        let app = appManager.currentApp()
+
+        // Fast path: resolve via debugDescription parsing (~0.2s) + coordinate tap
+        if let found = DebugDescriptionParser.findElement(query: query, in: app) {
+            let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+            coord.tap()
+
+            return HTTPResponseBuilder.json([
+                "element": [
+                    "type": found.type,
+                    "label": found.label,
+                    "identifier": found.identifier,
+                    "frame": [
+                        "x": found.frame.x, "y": found.frame.y,
+                        "width": found.frame.w, "height": found.frame.h
+                    ],
+                    "enabled": found.enabled
+                ] as [String: Any]
+            ])
+        }
+
+        // Fallback: XCUITest element resolution
+        do {
+            let element = try ElementResolver.resolve(query: query, in: app)
+            element.tap()
+            return HTTPResponseBuilder.json(["element": ElementResolver.describe(element)])
+        } catch {
+            return HTTPResponseBuilder.error("Element not found for query: \(query)", code: "element_not_found")
+        }
+    }
+}
