@@ -1,0 +1,142 @@
+# simpilot
+
+CLI tool for controlling apps on Simulator via XCUITest. Supports iOS, iPadOS, and visionOS. JSON output optimized for AI agents.
+
+```
+CLI (simpilot)  --HTTP-->  XCUITest Agent  --XCUIApplication-->  Simulator
+```
+
+## Quick Start
+
+```bash
+# Build & install
+make install        # requires sudo for /usr/local/bin
+
+# Start the agent
+simpilot start                                # iPhone 17 Pro (default)
+simpilot start --device 'Apple Vision Pro'    # visionOS
+
+# Use it
+simpilot launch com.apple.Preferences
+simpilot elements --level 1
+simpilot tap 'General'
+simpilot tap 'About'
+simpilot screenshot --file /tmp/screen.png
+
+# Stop
+simpilot stop
+```
+
+## Requirements
+
+- macOS with Xcode 26+
+- Simulator runtime (iOS or visionOS)
+
+## Commands
+
+### Agent Lifecycle
+
+```bash
+simpilot start [--device '<name>']    # Build & start agent on simulator
+simpilot stop                         # Stop the running agent
+simpilot health                       # Check if agent is running
+```
+
+### App Lifecycle
+
+```bash
+simpilot launch <bundleId>            # Launch an app
+simpilot activate <bundleId>          # Bring to foreground (no relaunch)
+simpilot terminate <bundleId>         # Terminate an app
+```
+
+### Interaction
+
+```bash
+simpilot tap '<query>'                              # Tap an element
+simpilot type '<text>' [--into '<query>']            # Type text
+simpilot swipe <up|down|left|right> [--on '<query>'] # Swipe
+simpilot tapcoord <x> <y>                           # Tap at coordinates
+simpilot wait '<query>' [--timeout 10] [--gone]     # Wait for element
+```
+
+### Observation
+
+```bash
+simpilot screenshot [--file /tmp/s.png]   # Screenshot (file or base64)
+simpilot elements [--level 0|1|2|3]       # UI element tree
+simpilot source                           # Raw Xcode UI hierarchy
+simpilot info                             # Device and agent info
+simpilot help                             # Full command catalog (JSON)
+```
+
+### Compound
+
+```bash
+# Tap + screenshot + elements in one call
+simpilot action tap '<query>' --screenshot /tmp/s.png --level 1 --settle 1
+
+# Multiple commands in one HTTP round-trip
+simpilot batch '{"commands":[
+  {"method":"POST","path":"/tap","body":{"query":"General"}},
+  {"method":"GET","path":"/screenshot","params":{"file":"/tmp/s.png"}}
+]}'
+```
+
+## Element Query Syntax
+
+| Format | Example | Speed |
+|---|---|---|
+| Bare label | `General` | **Fast** (<1s) |
+| Typed | `button:Login`, `textField:Email` | Medium (~2s) |
+| Identifier | `#accessibilityId` | Slow (10-24s) |
+
+Always prefer bare label queries. `simpilot elements --level 1` returns the optimal `query` field for each element.
+
+## Elements Levels
+
+| Level | Output | Tokens | Use Case |
+|---|---|---|---|
+| 0 | Type counts | ~50 | Screen overview |
+| 1 | Actionable list | ~500 | Find what to tap |
+| 2 | Compact tree | ~2000 | Understand layout |
+| 3 | Full tree | ~5000+ | Debug |
+
+## Output Format
+
+```json
+{"success": true, "data": {...}, "error": null, "duration_ms": 42}
+```
+
+## Architecture
+
+- **Agent** (`agent/`): Xcode UI test target that hosts an HTTP server via `Network.framework`. Runs indefinitely as `xcodebuild test`.
+- **CLI** (`cli/`): Swift Package executable. Sends HTTP requests to the agent, outputs JSON.
+- No external dependencies. Pure Swift + system frameworks.
+
+### Performance
+
+The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead of walking the element tree via `children(matching:)` (N IPC calls, 5-16s). Taps use coordinates from the parsed tree, bypassing XCUITest's slow element resolution.
+
+## Platform Support
+
+| Command | iOS | visionOS | tvOS | watchOS |
+|---|---|---|---|---|
+| start / stop | OK | OK | OK | OK |
+| health / info | OK | OK | OK | OK |
+| launch / terminate / activate | OK | OK | NG | NG |
+| tap | OK (~1s) | OK (~20s) | -- | -- |
+| type | OK | OK | -- | -- |
+| swipe | OK | NG | OK (remote) | -- |
+| tapcoord | OK | NG | NG (no API) | -- |
+| screenshot | OK | OK | OK | OK |
+| elements / source | OK | OK | -- | -- |
+| wait | OK | OK | -- | -- |
+| action / batch | OK | OK | -- | -- |
+
+- **visionOS**: Coordinate taps fall back to XCUITest's native element resolution (slower). `swipe` and `tapcoord` not supported.
+- **tvOS / watchOS**: External app launch is not supported (XCUITest limitation). `launch` returns an error. Agent can start and take screenshots, but app control is not possible.
+
+## License
+
+MIT
