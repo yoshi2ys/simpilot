@@ -38,9 +38,33 @@ simpilot stop
 
 ```bash
 simpilot start [--device '<name>']    # Build & start agent on simulator
-simpilot stop                         # Stop the running agent
+simpilot stop                         # Stop the agent on default port
+simpilot stop --port 8223             # Stop a specific agent
+simpilot stop --all                   # Stop all agents + delete cloned/created devices
 simpilot health                       # Check if agent is running
+simpilot list                         # Show all running agents with status
 ```
+
+### Parallel Testing
+
+```bash
+# Clone device state (source must be Shutdown)
+simpilot start --device 'iPhone Air' --clone       # 1 clone
+simpilot start --device 'iPhone Air' --clone 3     # 3 clones
+
+# Create fresh clean device (works regardless of source state)
+simpilot start --create                            # 1 new device
+simpilot start --device 'iPhone Air' --create 2    # 2 new devices
+
+# Target specific agents by port
+simpilot tap 'General' --port 8223
+simpilot tap 'General' --port 8224
+
+# See all running agents
+simpilot list
+```
+
+Each agent gets an auto-assigned port (8222, 8223, ...). Cloned/created devices are automatically deleted when stopped.
 
 ### App Lifecycle
 

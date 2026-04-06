@@ -137,9 +137,11 @@ func run() {
         case "action":
             try ActionCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
         case "start":
-            try StartCommand.run(client: client, args: options.commandArgs, pretty: options.pretty, port: options.port)
+            try StartCommand.run(args: options.commandArgs, pretty: options.pretty, port: options.port)
         case "stop":
-            try StopCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
+            try StopCommand.run(args: options.commandArgs, pretty: options.pretty, port: options.port)
+        case "list":
+            try ListCommand.run(args: options.commandArgs, pretty: options.pretty)
         default:
             printError(code: "invalid_args", message: "Unknown command: \(options.command)")
             exit(3)

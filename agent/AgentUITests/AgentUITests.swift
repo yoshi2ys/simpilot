@@ -3,9 +3,19 @@ import XCTest
 final class AgentUITests: XCTestCase {
     func testAgent() throws {
         var port: UInt16 = 8222
+
+        // Try environment variable first (set by xcodebuild's scheme or process env)
         if let envPort = ProcessInfo.processInfo.environment["SIMPILOT_PORT"],
            let p = UInt16(envPort) {
             port = p
+        }
+        // Fallback: read port from file written by CLI (keyed by simulator UDID)
+        else if let udid = ProcessInfo.processInfo.environment["SIMULATOR_UDID"] {
+            let portFile = "/tmp/simpilot-port-\(udid)"
+            if let contents = try? String(contentsOfFile: portFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
+               let p = UInt16(contents) {
+                port = p
+            }
         }
 
         let server = HTTPServer(port: port)

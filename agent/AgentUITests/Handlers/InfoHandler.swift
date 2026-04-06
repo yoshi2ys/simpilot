@@ -7,6 +7,7 @@ final class InfoHandler {
         if let v = processInfo.environment["SIMULATOR_DEVICE_NAME"] { env["SIMULATOR_DEVICE_NAME"] = v }
         if let v = processInfo.environment["SIMULATOR_RUNTIME_VERSION"] { env["SIMULATOR_RUNTIME_VERSION"] = v }
         if let v = processInfo.environment["SIMULATOR_UDID"] { env["SIMULATOR_UDID"] = v }
+        if let v = processInfo.environment["SIMPILOT_PORT"] { env["SIMPILOT_PORT"] = v }
 
         let info: [String: Any] = [
             "agent": "simpilot-xcuitest",

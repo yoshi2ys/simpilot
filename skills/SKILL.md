@@ -23,11 +23,14 @@ Control Simulator apps programmatically from the command line. Built on XCUITest
 cd /Users/yoshi/Developer/simpilot
 make install   # builds CLI and installs to /usr/local/bin
 
-# Start the agent
+# Start the agent (single device)
 simpilot start                                 # default: iPhone 17 Pro
 simpilot start --device 'iPhone Air'           # specify iOS device
 simpilot start --device 'iPad Pro 13-inch (M5)' # iPad
 simpilot start --device 'Apple Vision Pro'     # visionOS
+
+# Start parallel agents (see "Parallel Testing" section)
+simpilot start --device 'iPhone Air' --clone 2   # 2 clones for parallel testing
 ```
 
 The CLI binary is installed at: `/usr/local/bin/simpilot`
@@ -107,9 +110,41 @@ simpilot batch '{"commands":[
 
 ```bash
 simpilot start [--device '<name>']  # Build & start agent on simulator
-simpilot stop                       # Stop the running agent
+simpilot stop                       # Stop the agent on default port
+simpilot stop --port 8223           # Stop a specific agent
+simpilot stop --all                 # Stop all agents + delete cloned/created devices
 simpilot health                     # Check if agent is running
+simpilot list                       # Show all running agents with status
 ```
+
+### Parallel Testing
+
+Run multiple agents simultaneously on cloned or new simulator devices.
+
+```bash
+# Clone: copy device state (source must be Shutdown)
+simpilot start --device 'iPhone Air' --clone       # 1 clone
+simpilot start --device 'iPhone Air' --clone 3     # 3 clones
+
+# Create: fresh clean device (works regardless of source state)
+simpilot start --create                            # 1 new device
+simpilot start --device 'iPhone Air' --create 2    # 2 new devices
+```
+
+Each clone/create gets an auto-assigned port (8222, 8223, ...). Use `--port` to target a specific agent:
+
+```bash
+simpilot tap 'General' --port 8223    # operate on clone 1
+simpilot tap 'General' --port 8224    # operate on clone 2
+```
+
+Device naming:
+- Clone: `Clone of iPhone Air (8223)` — preserves source device state
+- Create: `New iPhone Air (8223)` — clean device, no prior state
+
+Cloned/created devices are automatically deleted when stopped.
+
+For AI agent parallel execution, launch subagents that each target a different `--port`.
 
 ### Utility
 
