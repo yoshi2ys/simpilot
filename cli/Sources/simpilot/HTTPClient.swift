@@ -9,6 +9,11 @@ struct HTTPClient: Sendable {
         self.timeout = timeout
     }
 
+    init(host: String, port: Int, timeout: TimeInterval = 30) {
+        self.baseURL = "http://\(host.urlHost):\(port)"
+        self.timeout = timeout
+    }
+
     func get(_ path: String) throws -> Data {
         let urlString = baseURL + path
         guard let url = URL(string: urlString) else {
@@ -82,4 +87,12 @@ enum CLIError: Error {
     case invalidURL(String)
     case invalidArgs(String)
     case commandFailed(String)
+}
+
+extension String {
+    /// Wraps IPv6 addresses in brackets for use in URLs per RFC 3986.
+    var urlHost: String {
+        guard contains(":"), !hasPrefix("[") else { return self }
+        return "[\(self)]"
+    }
 }

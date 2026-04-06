@@ -8,7 +8,7 @@ final class HelpHandler {
         let helpData: [String: Any] = [
             "name": "simpilot",
             "version": "1.0.0",
-            "description": "CLI tool for controlling iOS Simulator via XCUITest",
+            "description": "CLI tool for controlling iOS Simulator and devices via XCUITest",
             "commands": commands,
             "query_syntax": querySyntax
         ]

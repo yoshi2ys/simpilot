@@ -1,9 +1,9 @@
 # simpilot
 
-CLI tool for controlling apps on Simulator via XCUITest. Supports iOS, iPadOS, and visionOS. JSON output optimized for AI agents.
+CLI tool for controlling apps on Simulator and physical devices via XCUITest. Supports iOS, iPadOS, and visionOS. JSON output optimized for AI agents.
 
 ```
-CLI (simpilot)  --HTTP-->  XCUITest Agent  --XCUIApplication-->  Simulator
+CLI (simpilot)  --HTTP-->  XCUITest Agent  --XCUIApplication-->  Simulator / Device
 ```
 
 ## Quick Start
@@ -30,14 +30,27 @@ simpilot stop
 ## Requirements
 
 - macOS with Xcode 26+
-- Simulator runtime (iOS or visionOS)
+- Simulator runtime (iOS or visionOS) or a connected physical device
+
+### Physical Device Setup
+
+1. Connect your device via USB or enable Wi-Fi connectivity in Xcode
+2. Open `agent/AgentApp.xcodeproj` in Xcode
+3. Select the `AgentUITests` scheme → set your Team in Signing & Capabilities
+4. Trust the developer certificate on the device (Settings → General → Device Management)
+
+```bash
+simpilot start --device 'My iPhone'     # auto-detects physical device
+```
+
+The agent is discovered via `devicectl` hostname — no additional network configuration needed.
 
 ## Commands
 
 ### Agent Lifecycle
 
 ```bash
-simpilot start [--device '<name>']    # Build & start agent on simulator
+simpilot start [--device '<name>']    # Build & start agent on simulator or device
 simpilot stop                         # Stop the agent on default port
 simpilot stop --port 8223             # Stop a specific agent
 simpilot stop --all                   # Stop all agents + delete cloned/created devices

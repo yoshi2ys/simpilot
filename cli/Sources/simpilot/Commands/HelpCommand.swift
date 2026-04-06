@@ -16,7 +16,7 @@ enum HelpCommand {
         return [
             "name": "simpilot",
             "version": "1.0.0",
-            "description": "CLI tool for controlling iOS Simulator via XCUITest",
+            "description": "CLI tool for controlling iOS Simulator and devices via XCUITest",
             "commands": [
                 ["name": "health", "method": "GET", "description": "Check if agent is running", "args": [] as [Any], "example": "simpilot health"],
                 ["name": "launch", "method": "POST", "description": "Launch an app by bundle ID", "args": [["name": "bundleId", "required": true, "description": "App bundle identifier"]], "example": "simpilot launch com.apple.mobilesafari"],

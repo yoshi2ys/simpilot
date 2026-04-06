@@ -96,8 +96,18 @@ func printResponse(data: Data, pretty: Bool) {
 // MARK: - Main
 
 let options = parseArguments()
+
+// Resolve host from agent registry (supports physical devices with non-localhost hosts)
+let resolvedHost: String = {
+    if let record = AgentRegistry.load().first(where: { $0.port == options.port }) {
+        return record.host
+    }
+    return "localhost"
+}()
+
 let client = HTTPClient(
-    baseURL: "http://localhost:\(options.port)",
+    host: resolvedHost,
+    port: options.port,
     timeout: options.timeout
 )
 

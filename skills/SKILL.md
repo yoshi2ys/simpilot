@@ -1,20 +1,21 @@
 ---
-name: simpilot — Simulator UI Automation
+name: simpilot — Simulator & Device UI Automation
 description: >
   Use this skill ONLY when the user explicitly mentions "simpilot", "iOS Simulator UI",
   "simulator tap", "simulator swipe", "simulator screenshot",
   or uses the phrase "use simpilot" / "simpilotで" / "simpilotを使って".
   Also trigger when the user says "シミュレータを操作", "シミュレータのアプリを操作",
-  "Simulatorのアプリ", "Simulator上で", "Vision Proのシミュレータ", or "visionOSシミュレータ".
+  "Simulatorのアプリ", "Simulator上で", "Vision Proのシミュレータ", "visionOSシミュレータ",
+  "実機を操作", "実機で", "実機のアプリ", "iPhoneを操作", or "iPadを操作".
   Do NOT trigger for generic phrases like "設定アプリを見て", "tap a button",
-  "take a screenshot" — these could refer to macOS, real devices, or non-simulator contexts.
-  This skill provides programmatic UI control over Simulator apps via XCUITest.
+  "take a screenshot" — these could refer to macOS or non-device contexts.
+  This skill provides programmatic UI control over Simulator and physical device apps via XCUITest.
   Supports iOS, iPadOS, and visionOS. tvOS/watchOS have limited support (no external app launch).
 ---
 
-# simpilot — Simulator UI Automation
+# simpilot — Simulator & Device UI Automation
 
-Control Simulator apps programmatically from the command line. Built on XCUITest, simpilot lets you tap, type, swipe, take screenshots, and read UI element trees — all via JSON output optimized for AI agents. Supports iOS, iPadOS, and visionOS.
+Control Simulator and physical device apps programmatically from the command line. Built on XCUITest, simpilot lets you tap, type, swipe, take screenshots, and read UI element trees — all via JSON output optimized for AI agents. Supports iOS, iPadOS, and visionOS.
 
 ## Setup
 
@@ -23,17 +24,22 @@ Control Simulator apps programmatically from the command line. Built on XCUITest
 cd /Users/yoshi/Developer/simpilot
 make install   # builds CLI and installs to /usr/local/bin
 
-# Start the agent (single device)
+# Start the agent — Simulator
 simpilot start                                 # default: iPhone 17 Pro
 simpilot start --device 'iPhone Air'           # specify iOS device
 simpilot start --device 'iPad Pro 13-inch (M5)' # iPad
 simpilot start --device 'Apple Vision Pro'     # visionOS
+
+# Start the agent — Physical device
+simpilot start --device 'My iPhone'            # auto-detects physical device via devicectl
 
 # Start parallel agents (see "Parallel Testing" section)
 simpilot start --device 'iPhone Air' --clone 2   # 2 clones for parallel testing
 ```
 
 The CLI binary is installed at: `/usr/local/bin/simpilot`
+
+For physical devices, the device must be connected via USB or Wi-Fi, and the XCUITest agent must be signed with a valid team in Xcode. The agent is discovered via `devicectl` hostname — no additional network configuration needed.
 
 ## Critical Performance Rules
 
@@ -109,7 +115,7 @@ simpilot batch '{"commands":[
 ### Agent Lifecycle
 
 ```bash
-simpilot start [--device '<name>']  # Build & start agent on simulator
+simpilot start [--device '<name>']  # Build & start agent on simulator or device
 simpilot stop                       # Stop the agent on default port
 simpilot stop --port 8223           # Stop a specific agent
 simpilot stop --all                 # Stop all agents + delete cloned/created devices

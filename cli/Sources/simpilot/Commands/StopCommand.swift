@@ -64,7 +64,9 @@ enum StopCommand {
 
     private static func teardownAgent(_ record: AgentRecord) {
         kill(record.pid, SIGTERM)
-        AgentRegistry.removePortFile(udid: record.udid)
+        if !record.isPhysical {
+            AgentRegistry.removePortFile(udid: record.udid)
+        }
         if record.isClone {
             SimctlHelper.deleteClone(udid: record.udid)
         }

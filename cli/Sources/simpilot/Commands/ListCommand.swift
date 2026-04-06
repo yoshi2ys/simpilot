@@ -6,17 +6,22 @@ enum ListCommand {
 
         var agents: [[String: Any]] = []
         for record in records {
-            let c = HTTPClient(baseURL: "http://localhost:\(record.port)", timeout: 2)
+            let c = HTTPClient(baseURL: record.baseURL, timeout: 2)
             let status: String = (try? c.get("/health")) != nil ? "ready" : "unreachable"
 
-            agents.append([
+            var entry: [String: Any] = [
                 "port": record.port,
                 "pid": Int(record.pid),
                 "device": record.device,
                 "udid": record.udid,
                 "isClone": record.isClone,
                 "status": status
-            ])
+            ]
+            if record.isPhysical {
+                entry["host"] = record.host
+                entry["isPhysical"] = true
+            }
+            agents.append(entry)
         }
 
         let result: [String: Any] = [

@@ -31,32 +31,90 @@ enum StartCommand {
             i += 1
         }
 
+        // Resolve device: try simulator first, then physical device
+        let resolved = resolveDevice(name: deviceName)
+
         switch multiMode {
         case .clone(let count):
+            if case .physical = resolved {
+                throw CLIError.invalidArgs("--clone and --create are not supported for physical devices")
+            }
             try runMulti(deviceName: deviceName, count: count, useClone: true, pretty: pretty)
         case .create(let count):
+            if case .physical = resolved {
+                throw CLIError.invalidArgs("--clone and --create are not supported for physical devices")
+            }
             try runMulti(deviceName: deviceName, count: count, useClone: false, pretty: pretty)
         case nil:
-            try runSingle(deviceName: deviceName, port: port, pretty: pretty)
+            try runSingle(deviceName: deviceName, port: port, resolved: resolved, pretty: pretty)
         }
+    }
+
+    private enum ResolvedDevice {
+        case simulator(udid: String, platform: String)
+        case physical(device: DeviceHelper.PhysicalDevice)
+        case unknown
+    }
+
+    private static func resolveDevice(name: String) -> ResolvedDevice {
+        // Try simulator first (preserves existing behavior)
+        if let udid = try? SimctlHelper.findDeviceUDID(name: name) {
+            return .simulator(udid: udid, platform: platformForDevice(name))
+        }
+        // Try physical device
+        if let device = try? DeviceHelper.findDevice(name: name) {
+            return .physical(device: device)
+        }
+        return .unknown
     }
 
     // MARK: - Single Agent
 
-    private static func runSingle(deviceName: String, port: Int, pretty: Bool) throws {
-        let udid = (try? SimctlHelper.findDeviceUDID(name: deviceName)) ?? ""
-        let destination = "platform=\(platformForDevice(deviceName)),name=\(deviceName)"
+    private static func runSingle(deviceName: String, port: Int, resolved: ResolvedDevice, pretty: Bool) throws {
+        let destination: String
+        let udid: String
+        let isPhysical: Bool
+
+        switch resolved {
+        case .simulator(let simUDID, let platform):
+            destination = "platform=\(platform),name=\(deviceName)"
+            udid = simUDID
+            isPhysical = false
+        case .physical(let device):
+            let platform = DeviceHelper.xcodebuildPlatform(for: device)
+            destination = "platform=\(platform),id=\(device.udid)"
+            udid = device.udid
+            isPhysical = true
+        case .unknown:
+            // Fall back to name-based destination (may work if Xcode resolves it)
+            destination = "platform=\(platformForDevice(deviceName)),name=\(deviceName)"
+            udid = ""
+            isPhysical = false
+        }
+
         let process = try launchXcodebuild(destination: destination, port: port, udid: udid)
         let pid = process.processIdentifier
 
-        guard waitForHealth(port: port) else {
-            process.terminate()
-            throw CLIError.commandFailed("Agent failed to start within 60 seconds")
+        // For physical devices, connect using the device hostname from devicectl
+        let host: String
+        if isPhysical, case .physical(let device) = resolved {
+            guard waitForHealth(host: device.hostname.urlHost, port: port) else {
+                process.terminate()
+                throw CLIError.commandFailed("Agent on physical device failed to start within 120 seconds")
+            }
+            host = device.hostname
+        } else {
+            guard waitForHealth(port: port) else {
+                process.terminate()
+                throw CLIError.commandFailed("Agent failed to start within 60 seconds")
+            }
+            host = "localhost"
         }
 
         AgentRegistry.add(AgentRecord(
             port: port, pid: pid, udid: udid,
-            device: deviceName, isClone: false, startedAt: Date()
+            device: deviceName, isClone: false, startedAt: Date(),
+            host: host, isPhysical: isPhysical
         ))
 
         let result: [String: Any] = [
@@ -65,6 +123,7 @@ enum StartCommand {
                 "pid": Int(pid),
                 "device": deviceName,
                 "port": port,
+                "host": host,
                 "message": "Agent started successfully"
             ] as [String: Any],
             "error": NSNull()
@@ -191,7 +250,11 @@ enum StartCommand {
     }
 
     private static func waitForHealth(port: Int, timeout: TimeInterval = 60) -> Bool {
-        let client = HTTPClient(baseURL: "http://localhost:\(port)", timeout: 5)
+        waitForHealth(host: "localhost", port: port, timeout: timeout)
+    }
+
+    private static func waitForHealth(host: String, port: Int, timeout: TimeInterval = 120) -> Bool {
+        let client = HTTPClient(host: host, port: port, timeout: 5)
         let startTime = Date()
         while Date().timeIntervalSince(startTime) < timeout {
             Thread.sleep(forTimeInterval: 1)

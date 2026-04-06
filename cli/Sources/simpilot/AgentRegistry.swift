@@ -7,6 +7,36 @@ struct AgentRecord: Codable {
     let device: String
     let isClone: Bool
     let startedAt: Date
+    let host: String
+    let isPhysical: Bool
+
+    init(port: Int, pid: Int32, udid: String, device: String, isClone: Bool, startedAt: Date,
+         host: String = "localhost", isPhysical: Bool = false) {
+        self.port = port
+        self.pid = pid
+        self.udid = udid
+        self.device = device
+        self.isClone = isClone
+        self.startedAt = startedAt
+        self.host = host
+        self.isPhysical = isPhysical
+    }
+
+    /// Base URL for HTTP requests to this agent.
+    var baseURL: String { "http://\(host.urlHost):\(port)" }
+
+    // Backwards-compatible decoding: host and isPhysical may be missing in old records
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        port = try c.decode(Int.self, forKey: .port)
+        pid = try c.decode(Int32.self, forKey: .pid)
+        udid = try c.decode(String.self, forKey: .udid)
+        device = try c.decode(String.self, forKey: .device)
+        isClone = try c.decode(Bool.self, forKey: .isClone)
+        startedAt = try c.decode(Date.self, forKey: .startedAt)
+        host = try c.decodeIfPresent(String.self, forKey: .host) ?? "localhost"
+        isPhysical = try c.decodeIfPresent(Bool.self, forKey: .isPhysical) ?? false
+    }
 }
 
 enum AgentRegistry {
