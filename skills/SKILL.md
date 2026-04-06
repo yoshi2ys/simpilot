@@ -182,6 +182,76 @@ Errors:
 - **visionOS**: Coordinate taps fall back to native element resolution (slower). `swipe` and `tapcoord` not supported.
 - **tvOS / watchOS**: External app launch not supported (XCUITest limitation). Agent starts and screenshot works, but app control is not possible.
 
+## WebView Apps
+
+WebView-based apps (hybrid apps) require extra care compared to native UIKit/SwiftUI apps.
+
+### Element Discovery
+
+- **`elements --level 1` does not list WebView-internal elements.** Cards, articles, and links rendered inside a WebView won't appear. Use `source` to get the full hierarchy including WebView internals.
+- **`elements --level 2` may also return minimal data** for WebView content. Prefer `source` for debugging.
+- **Use `source` to find coordinates**, then `tapcoord` to interact with WebView-internal elements.
+
+```bash
+# Discover WebView elements
+simpilot source   # full hierarchy with coordinates
+
+# Tap a WebView-internal element by coordinate
+simpilot tapcoord 65 533
+```
+
+### Duplicate Labels (Off-Screen Elements)
+
+WebView apps often have **duplicate labels at off-screen positions** (e.g., y:5936). Bare label queries may match an off-screen element instead of the visible one. When a tap succeeds but nothing happens on screen, check for duplicates:
+
+```bash
+# Check for duplicates
+simpilot elements --level 1   # compare frame.y values for same label
+
+# If duplicate exists, fall back to tapcoord
+simpilot tapcoord <x> <y>
+```
+
+### Swipe Targeting
+
+- **`swipe` without `--on` targets the screen center**, which may trigger unintended gestures (e.g., tab switching in a paged UI). Always use `--on` with a specific element **inside** the scroll area.
+- **Choose the right swipe anchor**: If a WebView has both horizontal tabs and horizontal scroll sections, target an element within the scroll area (e.g., a card label), not a nearby heading or link.
+- **Vertical scroll** works well with `swipe up/down --on '<element>'` using a visible page element as anchor.
+
+```bash
+# BAD: may trigger tab switch instead of card scroll
+simpilot swipe left
+simpilot swipe left --on 'もっと見る'
+
+# GOOD: target an element inside the scrollable area
+simpilot swipe left --on '<card label text>'
+
+# Vertical scroll
+simpilot swipe up --on '<visible element>'
+```
+
+### Ads and Modals
+
+- **WebView ad buttons may throw XCUITest exceptions** when tapped via label query. Use `tapcoord` instead.
+- **Interstitial ads** often have a "Close Advertisement" button that starts as **Disabled** and becomes enabled after a few seconds. Use `sleep` + `tapcoord` to dismiss.
+
+```bash
+# Find close button (may be Disabled initially)
+simpilot source | grep -i close
+
+# Wait for it to become tappable, then tap by coordinate
+sleep 5 && simpilot tapcoord 376 88
+```
+
+### Native vs WebView Elements
+
+| Element location | Query method | Speed |
+|---|---|---|
+| Native tab bar | Bare label (`simpilot tap 'ホーム'`) | Fast |
+| Native navigation bar | Identifier (`simpilot tap '#BackButton'`) | Fast |
+| WebView-internal content | `tapcoord` (coordinates from `source`) | Fast |
+| WebView-internal content | Bare label query | **Slow/Unreliable** |
+
 ## Troubleshooting
 
 - **Agent not running**: Run `simpilot health`. If unreachable, run `simpilot start`.
