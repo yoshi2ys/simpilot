@@ -83,10 +83,13 @@ simpilot terminate <bundleId>     # Terminate an app
 
 ```bash
 simpilot tap '<query>'                           # Tap an element
-simpilot type '<text>' [--into '<query>']         # Type text
+simpilot type '<text>' [--into '<query>']         # Type text (keyboard)
+simpilot type '<text>' --method paste             # Paste text (no keyboard needed)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
 simpilot tapcoord <x> <y>                        # Tap coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
+simpilot clipboard get                           # Read clipboard contents
+simpilot clipboard set '<text>'                  # Write text to clipboard
 ```
 
 ### Observation
@@ -215,6 +218,7 @@ Errors:
 | launch / terminate / activate | OK | OK | NG |
 | tap | OK (~1s) | OK (~20s) | NG |
 | type | OK | OK | NG |
+| clipboard | OK | OK | NG |
 | swipe | OK | NG | tvOS only (remote) |
 | screenshot | OK | OK | OK |
 | elements / source | OK | OK | NG |

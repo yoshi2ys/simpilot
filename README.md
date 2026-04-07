@@ -92,9 +92,12 @@ simpilot terminate <bundleId>         # Terminate an app
 ```bash
 simpilot tap '<query>'                              # Tap an element
 simpilot type '<text>' [--into '<query>']            # Type text
+simpilot type '<text>' --method paste                # Paste text (no keyboard needed)
 simpilot swipe <up|down|left|right> [--on '<query>'] # Swipe
 simpilot tapcoord <x> <y>                           # Tap at coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]     # Wait for element
+simpilot clipboard get                              # Read clipboard contents
+simpilot clipboard set '<text>'                     # Write text to clipboard
 ```
 
 ### Observation
@@ -164,6 +167,7 @@ The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead 
 | launch / terminate / activate | OK | OK | NG | NG |
 | tap | OK (~1s) | OK (~20s) | -- | -- |
 | type | OK | OK | -- | -- |
+| clipboard | OK | OK | NG | NG |
 | swipe | OK | NG | OK (remote) | -- |
 | tapcoord | OK | NG | NG (no API) | -- |
 | screenshot | OK | OK | OK | OK |
