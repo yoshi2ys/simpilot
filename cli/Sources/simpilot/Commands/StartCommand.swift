@@ -237,8 +237,11 @@ enum StartCommand {
         var env = ProcessInfo.processInfo.environment
         env["SIMPILOT_PORT"] = String(port)
         process.environment = env
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        let logPath = NSTemporaryDirectory() + "simpilot-xcodebuild-\(port).log"
+        let logFile = FileManager.default.createFile(atPath: logPath, contents: nil)
+        let logHandle = logFile ? FileHandle(forWritingAtPath: logPath) : nil
+        process.standardOutput = logHandle ?? FileHandle.nullDevice
+        process.standardError = logHandle ?? FileHandle.nullDevice
 
         do {
             try process.run()

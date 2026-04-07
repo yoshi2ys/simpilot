@@ -21,6 +21,7 @@ final class AppManager: @unchecked Sendable {
             app = existing
         } else {
             app = XCUIApplication(bundleIdentifier: bundleId)
+            disableQuiescenceWait(app)
             apps[bundleId] = app
         }
         if let exceptionMsg = catchObjCException({ app.launch() }) {
@@ -47,10 +48,14 @@ final class AppManager: @unchecked Sendable {
         if let bundleId = currentBundleId, let app = apps[bundleId] {
             return app
         }
-        // Default: the app under test
-        let app = XCUIApplication()
-        return app
+        return defaultApp
     }
+
+    private lazy var defaultApp: XCUIApplication = {
+        let app = XCUIApplication()
+        disableQuiescenceWait(app)
+        return app
+    }()
 
     /// Bring an app to the foreground without relaunching.
     func activate(bundleId: String) throws -> XCUIApplication {
@@ -76,6 +81,7 @@ final class AppManager: @unchecked Sendable {
             return existing
         }
         let app = XCUIApplication(bundleIdentifier: bundleId)
+        disableQuiescenceWait(app)
         apps[bundleId] = app
         return app
     }

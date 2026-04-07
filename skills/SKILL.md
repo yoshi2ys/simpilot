@@ -39,7 +39,7 @@ simpilot start --device 'iPhone Air' --clone 2   # 2 clones for parallel testing
 
 The CLI binary is installed at: `/usr/local/bin/simpilot`
 
-For physical devices, the device must be connected via USB or Wi-Fi, and the XCUITest agent must be signed with a valid team in Xcode. The agent is discovered via `devicectl` hostname — no additional network configuration needed.
+For physical devices, the device must be connected via USB or Wi-Fi, and the XCUITest agent must be signed with a valid team in Xcode.
 
 ## Critical Performance Rules
 
@@ -83,8 +83,8 @@ simpilot terminate <bundleId>     # Terminate an app
 
 ```bash
 simpilot tap '<query>'                           # Tap an element
-simpilot type '<text>' [--into '<query>']         # Type text (keyboard)
-simpilot type '<text>' --method paste             # Paste text (no keyboard needed)
+simpilot type '<text>' [--into '<query>']         # Type text (keyboard input)
+simpilot type '<text>' --method paste             # Paste via clipboard (use only when keyboard is unavailable)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
 simpilot tapcoord <x> <y>                        # Tap coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
@@ -297,6 +297,11 @@ sleep 5 && simpilot tapcoord 376 88
 | WebView-internal content | `tapcoord` (coordinates from `source`) | Fast |
 | WebView-internal content | Bare label query | **Slow/Unreliable** |
 
+## Physical Device Limitations
+
+- **System dialogs are untappable**: OS-level permission dialogs (location, notifications, tracking, etc.) are owned by SpringBoard, not the app. `simpilot tap` and `simpilot tapcoord` cannot reach them. The user must dismiss these manually.
+- **`type '\n'` does not press Enter**: It types the literal characters `\n`. To submit a search, tap the search suggestion from `elements --level 1` or tap the keyboard's submit button by coordinate.
+
 ## Troubleshooting
 
 - **Agent not running**: Run `simpilot health`. If unreachable, run `simpilot start`.
@@ -305,3 +310,4 @@ sleep 5 && simpilot tapcoord 376 88
 - **App not responding**: Try `simpilot terminate <bundleId>` then `simpilot launch <bundleId>`.
 - **Want to open an app?**: Use `simpilot launch <bundleId>`, not home screen icon tapping.
 - **visionOS tap slow (~20s)**: Expected. Coordinate tap falls back to XCUITest native resolution on visionOS.
+- **Physical device unreachable after USB reconnect**: Run `simpilot stop --all` then `simpilot start --device '<name>'` to re-register with the correct hostname.

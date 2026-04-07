@@ -68,13 +68,13 @@ enum DeviceHelper {
                 platform = "iOS"
             }
 
-            // Use tunnelIPAddress (USB) or first potentialHostname (network)
+            // Prefer stable mDNS hostname over ephemeral tunnelIPAddress (changes on each USB reconnect)
             let conn = device["connectionProperties"] as? [String: Any]
             let hostname: String
-            if let tunnel = conn?["tunnelIPAddress"] as? String, !tunnel.isEmpty {
-                hostname = tunnel
-            } else if let hostnames = conn?["potentialHostnames"] as? [String], let first = hostnames.first {
+            if let hostnames = conn?["potentialHostnames"] as? [String], let first = hostnames.first {
                 hostname = first
+            } else if let tunnel = conn?["tunnelIPAddress"] as? String, !tunnel.isEmpty {
+                hostname = tunnel
             } else {
                 hostname = "\(identifier).coredevice.local"
             }

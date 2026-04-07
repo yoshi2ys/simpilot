@@ -6,4 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns nil on success, or the exception's reason string on failure.
 FOUNDATION_EXPORT NSString * _Nullable catchObjCException(void (NS_NOESCAPE ^_Nonnull block)(void));
 
+/// Disable quiescence (idle) waiting on an XCUIApplication using ObjC runtime.
+FOUNDATION_EXPORT void disableQuiescenceWait(id application);
+
 NS_ASSUME_NONNULL_END
