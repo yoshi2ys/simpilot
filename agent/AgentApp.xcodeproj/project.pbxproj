@@ -36,6 +36,8 @@
 		AA000000000000000047 /* DebugDescriptionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000046 /* DebugDescriptionParser.swift */; };
 		AA000000000000000049 /* PasteHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000048 /* PasteHelper.swift */; };
 		AA00000000000000004A /* ClipboardHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004B /* ClipboardHandler.swift */; };
+		AA00000000000000004C /* AppearanceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004D /* AppearanceHandler.swift */; };
+		AA00000000000000004E /* LocationHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004F /* LocationHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +84,8 @@
 		AA000000000000000046 /* DebugDescriptionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDescriptionParser.swift; sourceTree = "<group>"; };
 		AA000000000000000048 /* PasteHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteHelper.swift; sourceTree = "<group>"; };
 		AA00000000000000004B /* ClipboardHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000004D /* AppearanceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceHandler.swift; sourceTree = "<group>"; };
+		AA00000000000000004F /* LocationHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,6 +185,8 @@
 				AA00000000000000003A /* BatchHandler.swift */,
 				AA00000000000000003C /* ActionHandler.swift */,
 				AA00000000000000004B /* ClipboardHandler.swift */,
+				AA00000000000000004D /* AppearanceHandler.swift */,
+				AA00000000000000004F /* LocationHandler.swift */,
 			);
 			path = Handlers;
 			sourceTree = "<group>";
@@ -303,6 +309,8 @@
 				AA000000000000000047 /* DebugDescriptionParser.swift in Sources */,
 				AA000000000000000049 /* PasteHelper.swift in Sources */,
 				AA00000000000000004A /* ClipboardHandler.swift in Sources */,
+				AA00000000000000004C /* AppearanceHandler.swift in Sources */,
+				AA00000000000000004E /* LocationHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

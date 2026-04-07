@@ -125,6 +125,13 @@ final class Router {
         route("GET", "/clipboard", clipboardHandler.handleGet)
         route("POST", "/clipboard", clipboardHandler.handleSet)
 
+        let appearanceHandler = AppearanceHandler()
+        route("GET", "/appearance", appearanceHandler.handleGet)
+        route("POST", "/appearance", appearanceHandler.handleSet)
+
+        let locationHandler = LocationHandler()
+        route("POST", "/location", locationHandler.handle)
+
         let batchHandler = BatchHandler(router: self)
         let actionHandler = ActionHandler(appManager: appManager)
         route("POST", "/batch", batchHandler.handle)
