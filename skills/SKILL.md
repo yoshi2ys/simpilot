@@ -1,21 +1,36 @@
 ---
 name: simpilot — Simulator & Device UI Automation
 description: >
-  Use this skill ONLY when the user explicitly mentions "simpilot", "iOS Simulator UI",
-  "simulator tap", "simulator swipe", "simulator screenshot",
-  or uses the phrase "use simpilot" / "simpilotで" / "simpilotを使って".
+  Use this skill when the user mentions "simpilot", "simpilotで", "simpilotを使って",
+  or wants to control iOS Simulator / physical device UI programmatically.
   Also trigger when the user says "シミュレータを操作", "シミュレータのアプリを操作",
   "Simulatorのアプリ", "Simulator上で", "Vision Proのシミュレータ", "visionOSシミュレータ",
-  "実機を操作", "実機で", "実機のアプリ", "iPhoneを操作", or "iPadを操作".
+  "実機を操作", "実機で", "実機のアプリ", "iPhoneを操作", "iPadを操作",
+  "シミュレータでアプリを動かして", "シミュレータで検索して", or similar phrases
+  about controlling apps on Simulator or physical iOS/visionOS devices.
   Do NOT trigger for generic phrases like "設定アプリを見て", "tap a button",
   "take a screenshot" — these could refer to macOS or non-device contexts.
-  This skill provides programmatic UI control over Simulator and physical device apps via XCUITest.
-  Supports iOS, iPadOS, and visionOS. tvOS/watchOS have limited support (no external app launch).
+  Always invoke this skill before attempting any simpilot commands — it contains
+  critical command syntax and anti-patterns that prevent common mistakes.
+  Supports iOS, iPadOS, and visionOS.
 ---
 
 # simpilot — Simulator & Device UI Automation
 
 Control Simulator and physical device apps programmatically from the command line. Built on XCUITest, simpilot lets you tap, type, swipe, take screenshots, and read UI element trees — all via JSON output optimized for AI agents. Supports iOS, iPadOS, and visionOS.
+
+## Before You Start
+
+**Always use the installed binary `simpilot`, never `swift run simpilot`.**
+The CLI is installed at `/usr/local/bin/simpilot`. Using `swift run` adds unnecessary build-cache checks on every invocation and is significantly slower.
+
+```bash
+# WRONG — slow, unnecessary build check
+swift run simpilot tap 'General'
+
+# RIGHT — direct execution
+simpilot tap 'General'
+```
 
 ## Setup
 
@@ -37,16 +52,16 @@ simpilot start --device 'My iPhone'            # auto-detects physical device vi
 simpilot start --device 'iPhone Air' --clone 2   # 2 clones for parallel testing
 ```
 
-The CLI binary is installed at: `/usr/local/bin/simpilot`
-
 For physical devices, the device must be connected via USB or Wi-Fi, and the XCUITest agent must be signed with a valid team in Xcode.
 
-## Critical Performance Rules
+## Critical Rules
 
 1. **ALWAYS use bare label queries** — `simpilot tap 'General'` not `simpilot tap '#com.apple.settings.general'`. Bare labels resolve in <1s; identifier queries can take 24+ seconds on complex apps.
 2. **Start with `--level 0`** to understand the screen (~50 tokens), then `--level 1` for actionable elements (~500 tokens). Never start with full tree.
 3. **Use `batch` for multi-step flows** — one HTTP round-trip instead of many.
 4. **Use `action` for tap→screenshot→elements** — the most common workflow in one command.
+5. **`tap` and `tapcoord` are different commands** — `tap` takes a label/query string; `tapcoord` takes x y coordinates. Never pass `--x`/`--y` flags to `tap`.
+6. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
 
 ## Recommended Workflow
 
@@ -69,6 +84,48 @@ simpilot tap 'General'
 simpilot action tap 'About' --screenshot /tmp/about.png --level 0 --settle 1
 ```
 
+## Observation Strategy
+
+Choosing the right observation tool reduces token cost and speeds up automation.
+
+| Situation | Tool | Cost |
+|---|---|---|
+| Native app — find what to tap | `elements --level 1` | ~500 tokens |
+| Native app — screen overview | `elements --level 0` | ~50 tokens |
+| WebView — find text/links/coordinates | `source` + grep | ~varies |
+| Visual layout, carousel, unfamiliar screen | `screenshot --file` + Read | ~image tokens |
+| Evidence capture for testing | `screenshot --file` (save only, don't read) | ~0 tokens |
+
+**Key principles:**
+- **Native apps** → `elements` is almost always sufficient. Skip screenshots.
+- **WebView apps** → `source` is the primary tool. It gives you both content and coordinates, like a DOM inspector. See `references/webview.md` for the full workflow.
+- **Screenshots** → useful for horizontal scroll / carousel UIs (source can't tell what's currently visible), visual layout understanding (grids, maps, overlapping elements), and showing results to the user.
+- **Token-conscious capture**: `screenshot --file /tmp/s.png` saves to disk cheaply. Reading the image into context is what costs tokens. Capture liberally for evidence, but only read when visual analysis is actually needed for the next decision.
+
+## Fast Operation Patterns
+
+### Batch multiple actions
+
+When the UI flow is predictable (e.g., navigating Settings → General → About), chain actions in a single `batch` call instead of observing after each step:
+
+```bash
+# Slow: observe after every tap
+simpilot action tap 'General' --screenshot /tmp/s.png --level 1  # → analyze...
+simpilot action tap 'About' --screenshot /tmp/s.png --level 1   # → analyze...
+
+# Fast: batch actions, observe only at the end
+simpilot batch '{"commands":[
+  {"method":"POST","path":"/tap","body":{"query":"General"}},
+  {"method":"POST","path":"/tap","body":{"query":"About"}},
+  {"method":"GET","path":"/screenshot","params":{"file":"/tmp/s.png"}},
+  {"method":"GET","path":"/elements","params":{"level":"0"}}
+]}'
+```
+
+### Skip observation on known flows
+
+If you already know what elements are on the next screen (e.g., from a previous visit or standard OS screens), skip the observation step entirely and tap directly.
+
 ## Commands Reference
 
 ### App Lifecycle
@@ -82,11 +139,15 @@ simpilot terminate <bundleId>     # Terminate an app
 ### Element Interaction
 
 ```bash
-simpilot tap '<query>'                           # Tap an element
+# Tap by label/query (for native elements and elements visible in `elements --level 1`)
+simpilot tap '<query>'
+
+# Tap by screen coordinates (for WebView elements — get coordinates from `source`)
+simpilot tapcoord <x> <y>
+
 simpilot type '<text>' [--into '<query>']         # Type text (keyboard input)
 simpilot type '<text>' --method paste             # Paste via clipboard (use only when keyboard is unavailable)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
-simpilot tapcoord <x> <y>                        # Tap coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
 simpilot clipboard get                           # Read clipboard contents
 simpilot clipboard set '<text>'                  # Write text to clipboard
@@ -97,7 +158,7 @@ simpilot clipboard set '<text>'                  # Write text to clipboard
 ```bash
 simpilot screenshot [--file /tmp/s.png]   # Screenshot (file or base64)
 simpilot elements [--level 0|1|2|3]       # UI elements (see levels below)
-simpilot source                           # Raw Xcode UI hierarchy
+simpilot source                           # Raw Xcode UI hierarchy (essential for WebView)
 simpilot info                             # Device and agent info
 ```
 
@@ -229,73 +290,14 @@ Errors:
 
 ## WebView Apps
 
-WebView-based apps (hybrid apps) require extra care compared to native UIKit/SwiftUI apps.
+WebView-based apps (Safari, Chrome, hybrid apps) need `source` instead of `elements` for interacting with page content. Read **`references/webview.md`** for the full guide, including:
 
-### Element Discovery
-
-- **`elements --level 1` does not list WebView-internal elements.** Cards, articles, and links rendered inside a WebView won't appear. Use `source` to get the full hierarchy including WebView internals.
-- **`elements --level 2` may also return minimal data** for WebView content. Prefer `source` for debugging.
-- **Use `source` to find coordinates**, then `tapcoord` to interact with WebView-internal elements.
-
-```bash
-# Discover WebView elements
-simpilot source   # full hierarchy with coordinates
-
-# Tap a WebView-internal element by coordinate
-simpilot tapcoord 65 533
-```
-
-### Duplicate Labels (Off-Screen Elements)
-
-WebView apps often have **duplicate labels at off-screen positions** (e.g., y:5936). Bare label queries may match an off-screen element instead of the visible one. When a tap succeeds but nothing happens on screen, check for duplicates:
-
-```bash
-# Check for duplicates
-simpilot elements --level 1   # compare frame.y values for same label
-
-# If duplicate exists, fall back to tapcoord
-simpilot tapcoord <x> <y>
-```
-
-### Swipe Targeting
-
-- **`swipe` without `--on` targets the screen center**, which may trigger unintended gestures (e.g., tab switching in a paged UI). Always use `--on` with a specific element **inside** the scroll area.
-- **Choose the right swipe anchor**: If a WebView has both horizontal tabs and horizontal scroll sections, target an element within the scroll area (e.g., a card label), not a nearby heading or link.
-- **Vertical scroll** works well with `swipe up/down --on '<element>'` using a visible page element as anchor.
-
-```bash
-# BAD: may trigger tab switch instead of card scroll
-simpilot swipe left
-simpilot swipe left --on 'もっと見る'
-
-# GOOD: target an element inside the scrollable area
-simpilot swipe left --on '<card label text>'
-
-# Vertical scroll
-simpilot swipe up --on '<visible element>'
-```
-
-### Ads and Modals
-
-- **WebView ad buttons may throw XCUITest exceptions** when tapped via label query. Use `tapcoord` instead.
-- **Interstitial ads** often have a "Close Advertisement" button that starts as **Disabled** and becomes enabled after a few seconds. Use `sleep` + `tapcoord` to dismiss.
-
-```bash
-# Find close button (may be Disabled initially)
-simpilot source | grep -i close
-
-# Wait for it to become tappable, then tap by coordinate
-sleep 5 && simpilot tapcoord 376 88
-```
-
-### Native vs WebView Elements
-
-| Element location | Query method | Speed |
-|---|---|---|
-| Native tab bar | Bare label (`simpilot tap 'ホーム'`) | Fast |
-| Native navigation bar | Identifier (`simpilot tap '#BackButton'`) | Fast |
-| WebView-internal content | `tapcoord` (coordinates from `source`) | Fast |
-| WebView-internal content | Bare label query | **Slow/Unreliable** |
+- Decision tree: when to use `tap` vs `tapcoord`
+- Reading `source` as a DOM inspector (layout reconstruction from frames)
+- Finding and tapping WebView element coordinates
+- Overlay dialogs (sign-in prompts, cookie banners) — why visual coordinates are wrong
+- Floating UI interference zones (toolbar, tab bar, sticky headers)
+- Duplicate labels, swipe targeting, ads and modals
 
 ## Physical Device Limitations
 
@@ -311,3 +313,4 @@ sleep 5 && simpilot tapcoord 376 88
 - **Want to open an app?**: Use `simpilot launch <bundleId>`, not home screen icon tapping.
 - **visionOS tap slow (~20s)**: Expected. Coordinate tap falls back to XCUITest native resolution on visionOS.
 - **Physical device unreachable after USB reconnect**: Run `simpilot stop --all` then `simpilot start --device '<name>'` to re-register with the correct hostname.
+- **WebView tap hits wrong element**: See `references/webview.md` — use `source` for coordinates, never estimate from screenshots.
