@@ -278,6 +278,12 @@ enum StartCommand {
     }
 
     private static func findProjectDirectory() throws -> String {
+        if let envDir = ProcessInfo.processInfo.environment["SIMPILOT_AGENT_DIR"] {
+            let expanded = NSString(string: envDir).expandingTildeInPath
+            if FileManager.default.fileExists(atPath: expanded + "/AgentApp.xcodeproj") {
+                return expanded
+            }
+        }
         var dir = FileManager.default.currentDirectoryPath
         for _ in 0..<10 {
             let projectPath = dir + "/agent/AgentApp.xcodeproj"
