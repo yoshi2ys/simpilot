@@ -121,6 +121,10 @@ final class Router {
         route("POST", "/swipe", swipeHandler.handle)
         route("POST", "/wait", waitHandler.handle)
 
+        let clipboardHandler = ClipboardHandler()
+        route("GET", "/clipboard", clipboardHandler.handleGet)
+        route("POST", "/clipboard", clipboardHandler.handleSet)
+
         let batchHandler = BatchHandler(router: self)
         let actionHandler = ActionHandler(appManager: appManager)
         route("POST", "/batch", batchHandler.handle)

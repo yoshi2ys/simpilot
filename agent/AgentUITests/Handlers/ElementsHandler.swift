@@ -26,42 +26,30 @@ final class ElementsHandler: @unchecked Sendable {
         }
 
         let app: XCUIApplication
-        let resolvedBundleId: String?
-        if let bundleId = bundleId, !bundleId.isEmpty {
-            app = appManager.app(for: bundleId)
-            resolvedBundleId = bundleId
-        } else {
-            app = appManager.currentApp()
-            resolvedBundleId = appManager.currentBundleId
+        do {
+            app = try appManager.resolveApp(bundleId: bundleId)
+        } catch {
+            return HTTPResponseBuilder.error(error.localizedDescription, code: "activate_failed")
         }
+        var responseData: [String: Any]
 
-        let responseData: Any
-
-        // Use DebugDescriptionParser for all modes — ~50x faster than
-        // walking the XCUITest element tree via children(matching:).
         switch mode {
         case "summary":
-            var data = DebugDescriptionParser.parseSummary(from: app)
-            if let bid = resolvedBundleId { data["app"] = bid }
-            responseData = data
+            responseData = DebugDescriptionParser.parseSummary(from: app)
 
         case "actionable":
             let actionableDepth = Int(request.queryParams["depth"] ?? "20") ?? 20
             let elements = DebugDescriptionParser.parseActionableList(from: app, maxDepth: actionableDepth)
-            var data: [String: Any] = ["elements": elements]
-            if let bid = resolvedBundleId { data["app"] = bid }
-            responseData = data
+            responseData = ["elements": elements]
 
         case "compact":
-            var data: [String: Any] = ["tree": DebugDescriptionParser.parseCompactTree(from: app, maxDepth: depth)]
-            if let bid = resolvedBundleId { data["app"] = bid }
-            responseData = data
+            responseData = ["tree": DebugDescriptionParser.parseCompactTree(from: app, maxDepth: depth)]
 
         default:
-            var data: [String: Any] = ["tree": DebugDescriptionParser.parseTree(from: app, maxDepth: depth)]
-            if let bid = resolvedBundleId { data["app"] = bid }
-            responseData = data
+            responseData = ["tree": DebugDescriptionParser.parseTree(from: app, maxDepth: depth)]
         }
+
+        if let bid = appManager.currentBundleId { responseData["app"] = bid }
 
         return HTTPResponseBuilder.json(responseData)
     }

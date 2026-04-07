@@ -42,6 +42,10 @@ enum ActionCommand {
                 i += 1
                 guard i < args.count, let y = Double(args[i]) else { throw CLIError.invalidArgs("Missing value for --y") }
                 body["y"] = y
+            case "--method":
+                i += 1
+                guard i < args.count else { throw CLIError.invalidArgs("Missing value for --method") }
+                body["method"] = args[i]
             default:
                 break
             }

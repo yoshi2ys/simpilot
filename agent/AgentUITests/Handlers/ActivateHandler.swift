@@ -17,7 +17,12 @@ final class ActivateHandler: @unchecked Sendable {
             )
         }
 
-        let app = appManager.activate(bundleId: bundleId)
+        let app: XCUIApplication
+        do {
+            app = try appManager.resolveApp(bundleId: bundleId)
+        } catch {
+            return HTTPResponseBuilder.error(error.localizedDescription, code: "activate_failed")
+        }
         let state: String
         switch app.state {
         case .notRunning: state = "notRunning"

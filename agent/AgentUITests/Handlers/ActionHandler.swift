@@ -59,14 +59,17 @@ final class ActionHandler {
                 guard let text = json["text"] as? String else {
                     return HTTPResponseBuilder.error("Missing 'text' for type action", code: "invalid_request")
                 }
+                let method = json["method"] as? String ?? "auto"
+                #if !os(tvOS)
+                var targetCoord: XCUICoordinate?
+                #endif
                 if let query = query {
                     #if !os(tvOS)
                     if let found = DebugDescriptionParser.findElement(query: query, in: app) {
-                        let coordTapFailed = catchObjCException {
-                            let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-                            coord.tap()
-                        }
+                        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                            .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                        targetCoord = coord
+                        let coordTapFailed = catchObjCException { coord.tap() }
                         if coordTapFailed != nil {
                             let tapElement = try ElementResolver.resolve(query: query, in: app)
                             tapElement.tap()
@@ -79,8 +82,13 @@ final class ActionHandler {
                     XCUIRemote.shared.press(.select)
                     #endif
                 }
-                app.typeText(text)
-                responseData["action_result"] = ["action": "type", "text": text]
+                #if os(tvOS)
+                let (usedMethod, inputError) = PasteHelper.performTextInput(text, method: method, at: nil, in: app)
+                #else
+                let (usedMethod, inputError) = PasteHelper.performTextInput(text, method: method, at: targetCoord, in: app)
+                #endif
+                if let inputError { return inputError }
+                responseData["action_result"] = ["action": "type", "text": text, "method": usedMethod] as [String: Any]
 
             case "swipe":
                 guard let direction = json["direction"] as? String else {
@@ -166,4 +174,5 @@ final class ActionHandler {
 
         return HTTPResponseBuilder.json(responseData)
     }
+
 }

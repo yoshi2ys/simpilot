@@ -7,6 +7,8 @@ final class AppManager: @unchecked Sendable {
 
     enum LaunchError: Error {
         case unsupportedPlatform(String)
+        case launchFailed(String)
+        case activateFailed(String)
     }
 
     /// Launch an app by bundle ID. Returns the XCUIApplication instance.
@@ -21,7 +23,10 @@ final class AppManager: @unchecked Sendable {
             app = XCUIApplication(bundleIdentifier: bundleId)
             apps[bundleId] = app
         }
-        app.launch()
+        if let exceptionMsg = catchObjCException({ app.launch() }) {
+            apps.removeValue(forKey: bundleId)
+            throw LaunchError.launchFailed("Failed to launch \(bundleId): \(exceptionMsg)")
+        }
         currentBundleId = bundleId
         return app
         #endif
@@ -48,11 +53,21 @@ final class AppManager: @unchecked Sendable {
     }
 
     /// Bring an app to the foreground without relaunching.
-    func activate(bundleId: String) -> XCUIApplication {
+    func activate(bundleId: String) throws -> XCUIApplication {
         let app = self.app(for: bundleId)
-        app.activate()
+        if let exceptionMsg = catchObjCException({ app.activate() }) {
+            throw LaunchError.activateFailed("Failed to activate \(bundleId): \(exceptionMsg)")
+        }
         currentBundleId = bundleId
         return app
+    }
+
+    /// Resolve an app by optional bundle ID: activate if provided, otherwise return current app.
+    func resolveApp(bundleId: String?) throws -> XCUIApplication {
+        if let bundleId = bundleId, !bundleId.isEmpty {
+            return try activate(bundleId: bundleId)
+        }
+        return currentApp()
     }
 
     /// Get or create an app for a specific bundle ID without launching.

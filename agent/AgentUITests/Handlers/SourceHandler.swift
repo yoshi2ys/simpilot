@@ -9,7 +9,12 @@ final class SourceHandler: @unchecked Sendable {
     }
 
     func handle(_ request: HTTPRequest) -> Data {
-        let app = appManager.currentApp()
+        let app: XCUIApplication
+        do {
+            app = try appManager.resolveApp(bundleId: request.queryParams["bundleId"])
+        } catch {
+            return HTTPResponseBuilder.error(error.localizedDescription, code: "activate_failed")
+        }
         let source = app.debugDescription
         return HTTPResponseBuilder.json(["source": source])
     }
