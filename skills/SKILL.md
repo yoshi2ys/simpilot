@@ -58,10 +58,11 @@ For physical devices, the device must be connected via USB or Wi-Fi, and the XCU
 
 1. **ALWAYS use bare label queries** — `simpilot tap 'General'` not `simpilot tap '#com.apple.settings.general'`. Bare labels resolve in <1s; identifier queries can take 24+ seconds on complex apps.
 2. **Start with `--level 0`** to understand the screen (~50 tokens), then `--level 1` for actionable elements (~500 tokens). Never start with full tree.
-3. **Use `batch` for multi-step flows** — one HTTP round-trip instead of many.
-4. **Use `action` for tap→screenshot→elements** — the most common workflow in one command.
-5. **`tap` and `tapcoord` are different commands** — `tap` takes a label/query string; `tapcoord` takes x y coordinates. Never pass `--x`/`--y` flags to `tap`.
-6. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
+3. **Never guess queries — always verify with `elements --level 1` first.** Common labels like "Search", "Settings", "Done" often match multiple elements (e.g., a "Search" settings row vs a search text field). The bare query matches the first one found, which may not be the intended target. Always check the `type` field to confirm you're targeting the right element. Use typed queries (`searchField:Search` vs `button:Search`) to disambiguate.
+4. **Use `batch` for multi-step flows** — one HTTP round-trip instead of many.
+5. **Use `action` for tap→screenshot→elements** — the most common workflow in one command.
+6. **`tap` and `tapcoord` are different commands** — `tap` takes a label/query string; `tapcoord` takes x y coordinates. Never pass `--x`/`--y` flags to `tap`.
+7. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
 
 ## Recommended Workflow
 
