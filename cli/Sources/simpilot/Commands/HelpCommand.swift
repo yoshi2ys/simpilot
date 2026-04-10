@@ -1,15 +1,80 @@
 import Foundation
 
 enum HelpCommand {
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        do {
-            let data = try client.get("/help")
-            printResponse(data: data, pretty: pretty)
-        } catch CLIError.agentUnreachable {
-            // Fallback: print static help when agent is not running
-            let fallback = staticHelpJSON()
-            printJSON(fallback, pretty: pretty)
+    static func run(client: HTTPClient, args: [String], pretty: Bool, format: HelpFormat = .json) throws {
+        switch format {
+        case .text:
+            print(textHelp())
+        case .json:
+            do {
+                let data = try client.get("/help")
+                printResponse(data: data, pretty: pretty)
+            } catch CLIError.agentUnreachable {
+                printJSON(staticHelpJSON(), pretty: pretty)
+            }
         }
+    }
+
+    private static func textHelp() -> String {
+        return """
+        simpilot — Control iOS Simulator and devices via XCUITest
+
+        USAGE
+            simpilot [global-options] <command> [args...] [command-options]
+
+        GLOBAL OPTIONS
+            --port <port>       Agent port (default: 8222)
+            --timeout <secs>    HTTP request timeout (default: 30)
+            --pretty            Pretty-print JSON output
+            -h, --help          Show this help
+
+        AGENT LIFECYCLE
+            start [--device <name>]      Build and start the XCUITest agent
+            stop [--port <p>] [--all]    Stop one or all running agents
+            health                       Check if the agent is responding
+            list                         List running agents
+            info                         Show agent and device info
+
+        APP LIFECYCLE
+            launch <bundleId>            Launch an app
+            terminate <bundleId>         Terminate an app
+            activate <bundleId>          Bring app to foreground
+
+        UI INTERACTION
+            tap <query>                  Tap an element by label/query
+            tapcoord <x> <y>             Tap at screen coordinates
+            type <text> [--into <q>]     Type text (use --method paste for clipboard)
+            swipe <direction>            Swipe up, down, left, or right
+            wait <query> [--timeout <s>] Wait for element to appear (or --gone)
+
+        OBSERVATION
+            elements [--level 0|1|2|3]   List UI elements at given detail level
+            screenshot [--file <path>]   Capture a screenshot
+            source                       Dump raw UI hierarchy
+
+        UTILITY
+            clipboard get|set <text>     Read or write the device clipboard
+            appearance [light|dark]      Get or set appearance mode
+            location <lat> <lon>         Simulate GPS location
+            batch <json>                 Run multiple commands in one request
+            action <type> ...            Compound action with screenshot/elements
+            help                         Show machine-readable JSON help
+
+        QUERY SYNTAX
+            'General'                    Bare label match (fastest, ~1s)
+            'button:Login'               Typed match by element class
+            '#identifier'                Match by accessibility identifier (slow)
+
+        EXAMPLES
+            simpilot start --device 'iPhone Air'
+            simpilot launch com.apple.Preferences
+            simpilot elements --level 1
+            simpilot tap 'General'
+            simpilot action tap 'About' --screenshot /tmp/s.png --level 0
+            simpilot stop --all
+
+        Run `simpilot help` for machine-readable JSON output.
+        """
     }
 
     private static func staticHelpJSON() -> [String: Any] {

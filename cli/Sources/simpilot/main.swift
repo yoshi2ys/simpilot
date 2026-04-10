@@ -8,6 +8,12 @@ struct GlobalOptions {
     var timeout: TimeInterval = 30
     var command: String = ""
     var commandArgs: [String] = []
+    var helpFormat: HelpFormat = .json
+}
+
+enum HelpFormat {
+    case json
+    case text
 }
 
 func parseArguments() -> GlobalOptions {
@@ -54,6 +60,7 @@ func parseArguments() -> GlobalOptions {
             options.timeout = t
         case "-h", "--help":
             options.command = "help"
+            options.helpFormat = .text
             return options
         default:
             remaining.append(arg)
@@ -64,6 +71,7 @@ func parseArguments() -> GlobalOptions {
 
     if remaining.isEmpty {
         options.command = "help"
+        options.helpFormat = .text
         return options
     }
 
@@ -129,7 +137,7 @@ func run() {
     do {
         switch options.command {
         case "help":
-            try HelpCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
+            try HelpCommand.run(client: client, args: options.commandArgs, pretty: options.pretty, format: options.helpFormat)
         case "health":
             try HealthCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
         case "launch":
