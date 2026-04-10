@@ -52,6 +52,9 @@ func parseArguments() -> GlobalOptions {
                 exit(3)
             }
             options.timeout = t
+        case "-h", "--help":
+            options.command = "help"
+            return options
         default:
             remaining.append(arg)
             foundCommand = true
