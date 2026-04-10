@@ -27,7 +27,6 @@
 		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
 		AA000000000000000027 /* AppManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000028 /* AppManager.swift */; };
 		AA00000000000000002B /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002C /* Network.framework */; };
-		AA000000000000000035 /* HelpHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000034 /* HelpHandler.swift */; };
 		AA000000000000000037 /* TerminateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000036 /* TerminateHandler.swift */; };
 		AA000000000000000039 /* ActivateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000038 /* ActivateHandler.swift */; };
 		AA00000000000000003B /* BatchHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000003A /* BatchHandler.swift */; };
@@ -73,7 +72,6 @@
 		AA00000000000000002C /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		AA00000000000000002E /* AgentApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA00000000000000002F /* AgentUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA000000000000000034 /* HelpHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000036 /* TerminateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminateHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000038 /* ActivateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivateHandler.swift; sourceTree = "<group>"; };
 		AA00000000000000003A /* BatchHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchHandler.swift; sourceTree = "<group>"; };
@@ -179,7 +177,6 @@
 				AA00000000000000001E /* SwipeHandler.swift */,
 				AA000000000000000020 /* WaitHandler.swift */,
 				AA000000000000000022 /* TapCoordHandler.swift */,
-				AA000000000000000034 /* HelpHandler.swift */,
 				AA000000000000000036 /* TerminateHandler.swift */,
 				AA000000000000000038 /* ActivateHandler.swift */,
 				AA00000000000000003A /* BatchHandler.swift */,
@@ -300,7 +297,6 @@
 				AA000000000000000021 /* TapCoordHandler.swift in Sources */,
 				AA000000000000000023 /* ElementResolver.swift in Sources */,
 				AA000000000000000027 /* AppManager.swift in Sources */,
-				AA000000000000000035 /* HelpHandler.swift in Sources */,
 				AA000000000000000037 /* TerminateHandler.swift in Sources */,
 				AA000000000000000039 /* ActivateHandler.swift in Sources */,
 				AA00000000000000003B /* BatchHandler.swift in Sources */,

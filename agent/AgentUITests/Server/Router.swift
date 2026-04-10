@@ -92,7 +92,6 @@ final class Router {
 
     private func registerRoutes() {
         let healthHandler = HealthHandler()
-        let helpHandler = HelpHandler()
         let launchHandler = LaunchHandler(appManager: appManager)
         let terminateHandler = TerminateHandler(appManager: appManager)
         let activateHandler = ActivateHandler(appManager: appManager)
@@ -107,7 +106,6 @@ final class Router {
         let waitHandler = WaitHandler(appManager: appManager)
 
         route("GET", "/health", healthHandler.handle)
-        route("GET", "/help", helpHandler.handle)
         route("POST", "/launch", launchHandler.handle)
         route("POST", "/terminate", terminateHandler.handle)
         route("POST", "/activate", activateHandler.handle)
