@@ -22,9 +22,19 @@ func parseArguments() -> GlobalOptions {
     let rawArgs = Array(CommandLine.arguments.dropFirst()) // drop binary path
     var remaining: [String] = []
     var i = 0
+    var foundCommand = false
 
     while i < rawArgs.count {
         let arg = rawArgs[i]
+
+        // Once we hit the command name, stop consuming global flags.
+        // This lets subcommands own their own --timeout, --device, etc.
+        if foundCommand {
+            remaining.append(arg)
+            i += 1
+            continue
+        }
+
         switch arg {
         case "--port":
             i += 1
@@ -44,6 +54,7 @@ func parseArguments() -> GlobalOptions {
             options.timeout = t
         default:
             remaining.append(arg)
+            foundCommand = true
         }
         i += 1
     }
