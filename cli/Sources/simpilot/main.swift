@@ -60,8 +60,8 @@ func parseArguments() -> GlobalOptions {
     }
 
     if remaining.isEmpty {
-        printError(code: "invalid_args", message: "Usage: simpilot <command> [args...] [options]")
-        exit(3)
+        options.command = "help"
+        return options
     }
 
     options.command = remaining[0]
