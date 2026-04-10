@@ -60,6 +60,7 @@ simpilot stop --all                               # stop all + delete cloned/cre
 - **devicectl for physical devices**: On physical devices, the XCUITest agent runs on the device (not Mac). CLI discovers devices via `xcrun devicectl list devices` and connects using the `.coredevice.local` hostname. Works over USB and Wi-Fi.
 - **Device auto-detection**: `simpilot start --device '<name>'` tries SimctlHelper (simulators) first, then DeviceHelper (physical devices via `xcrun devicectl`). Simulator is prioritized to preserve existing behavior.
 - **IPv6 URL bracketing**: Physical devices often return IPv6 addresses (e.g. `fd4d:85e2:eeb::1`). `HTTPClient.init(host:port:)` wraps IPv6 addresses in brackets per RFC 3986 (`http://[addr]:port`). Without this, `URL(string:)` fails because the port suffix is ambiguous with the IPv6 colon notation.
+- **Screenshot downscaling** (ScreenshotScaler in ScreenshotHandler.swift): `XCUIScreen.main.screenshot()` always returns native-resolution pixels (1206×2622 on iPhone @3x). Default `--scale 1` downsamples via ImageIO `CGImageSourceCreateThumbnailAtIndex` so the long edge matches 1x points (~1/3 size, ~72% byte reduction), cutting LLM token budgets. `--scale native` skips the scaler entirely for design use. `--scale N` where the target long edge is ≥ source pixel long edge short-circuits and returns the original data.
 
 ## Project Structure
 

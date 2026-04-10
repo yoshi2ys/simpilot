@@ -27,13 +27,20 @@ enum HelpCommand {
             "",
         ]
 
+        let synopsisWidth = 56
+        let descriptionIndent = String(repeating: " ", count: 4 + synopsisWidth + 1)
         for category in HelpCommands.Category.allCases {
             let commands = HelpCommands.all.filter { $0.category == category }
             guard !commands.isEmpty else { continue }
             lines.append(category.rawValue)
             for cmd in commands {
-                let synopsis = cmd.synopsis.padding(toLength: 56, withPad: " ", startingAt: 0)
-                lines.append("    \(synopsis) \(cmd.description)")
+                if cmd.synopsis.count <= synopsisWidth {
+                    let synopsis = cmd.synopsis.padding(toLength: synopsisWidth, withPad: " ", startingAt: 0)
+                    lines.append("    \(synopsis) \(cmd.description)")
+                } else {
+                    lines.append("    \(cmd.synopsis)")
+                    lines.append("\(descriptionIndent)\(cmd.description)")
+                }
             }
             lines.append("")
         }

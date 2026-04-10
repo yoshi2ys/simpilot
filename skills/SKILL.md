@@ -102,6 +102,7 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 - **WebView apps** → `source` is the primary tool. It gives you both content and coordinates, like a DOM inspector. See `references/webview.md` for the full workflow.
 - **Screenshots** → useful for horizontal scroll / carousel UIs (source can't tell what's currently visible), visual layout understanding (grids, maps, overlapping elements), and showing results to the user.
 - **Token-conscious capture**: `screenshot --file /tmp/s.png` saves to disk cheaply. Reading the image into context is what costs tokens. Capture liberally for evidence, but only read when visual analysis is actually needed for the next decision.
+- **Screenshot resolution**: Default `--scale 1` returns a 1x point-sized PNG (~1/3 long edge of native, ~70% smaller than full resolution) — ideal for AI analysis. Use `--scale 2` for @2x, or `--scale native` for design work needing the device's full pixel resolution.
 
 ## Fast Operation Patterns
 
@@ -157,7 +158,7 @@ simpilot clipboard set '<text>'                  # Write text to clipboard
 ### Observation
 
 ```bash
-simpilot screenshot [--file /tmp/s.png]   # Screenshot (file or base64)
+simpilot screenshot [--file /tmp/s.png] [--scale <N|native>]  # Screenshot (default scale=1 for AI; scale=native for full resolution)
 simpilot elements [--level 0|1|2|3]       # UI elements (see levels below)
 simpilot source                           # Raw Xcode UI hierarchy (essential for WebView)
 simpilot info                             # Device and agent info
@@ -168,6 +169,8 @@ simpilot info                             # Device and agent info
 ```bash
 # Execute action + wait + screenshot + elements in one call
 simpilot action tap '<query>' --screenshot /tmp/s.png --level 1 --settle 1
+# Add --scale native if you need full-resolution output instead of the 1x default
+simpilot action tap '<query>' --screenshot /tmp/s.png --scale native
 
 # Execute multiple commands in one HTTP round-trip
 simpilot batch '{"commands":[

@@ -16,6 +16,7 @@ final class ActionHandler {
 
         let query = json["query"] as? String
         let screenshotPath = json["screenshot"] as? String
+        let screenshotScaleRaw = json["screenshot_scale"]
         let elementsLevel = json["elements_level"] as? Int
         let settleTimeout = json["settle_timeout"] as? Double ?? 1.0
 
@@ -149,10 +150,20 @@ final class ActionHandler {
         // 3. Screenshot (optional)
         if let path = screenshotPath, !path.isEmpty {
             let screenshot = XCUIScreen.main.screenshot()
-            let pngData = screenshot.pngRepresentation
+            let fullPng = screenshot.pngRepresentation
+            let pngData: Data
+            let scaleOut: Any
+            if let str = screenshotScaleRaw as? String, str == "native" {
+                pngData = fullPng
+                scaleOut = "native"
+            } else {
+                let scale = (screenshotScaleRaw as? Double) ?? 1.0
+                pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
+                scaleOut = scale
+            }
             do {
                 try pngData.write(to: URL(fileURLWithPath: path))
-                responseData["screenshot"] = ["file": path, "size": pngData.count]
+                responseData["screenshot"] = ["file": path, "size": pngData.count, "scale": scaleOut]
             } catch {
                 responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
             }

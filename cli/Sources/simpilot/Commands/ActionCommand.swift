@@ -3,7 +3,7 @@ import Foundation
 enum ActionCommand {
     static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
         guard args.count >= 2 else {
-            throw CLIError.invalidArgs("Usage: simpilot action <tap|type|swipe|tapcoord> <query> [--screenshot <path>] [--level <n>] [--settle <secs>]")
+            throw CLIError.invalidArgs("Usage: simpilot action <tap|type|swipe|tapcoord> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <secs>]")
         }
 
         let action = args[0]
@@ -18,6 +18,13 @@ enum ActionCommand {
                 i += 1
                 guard i < args.count else { throw CLIError.invalidArgs("Missing value for --screenshot") }
                 body["screenshot"] = args[i]
+            case "--scale":
+                i += 1
+                guard i < args.count else {
+                    throw CLIError.invalidArgs("--scale requires a positive number or 'native'")
+                }
+                let raw = try ScaleArg.validate(args[i])
+                body["screenshot_scale"] = (raw == "native") ? ("native" as Any) : (Double(raw)! as Any)
             case "--level":
                 i += 1
                 guard i < args.count, let level = Int(args[i]) else { throw CLIError.invalidArgs("Missing value for --level") }
