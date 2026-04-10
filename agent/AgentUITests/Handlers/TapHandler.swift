@@ -43,10 +43,19 @@ final class TapHandler: @unchecked Sendable {
                 ])
             }
             // Coordinate tap failed (e.g. visionOS spatial windows) — fall through to element.tap()
+        } else {
+            // Element not found in debugDescription.
+            // For bare and #identifier queries, this is authoritative — ElementResolver
+            // would return a phantom proxy (0x0 frame) instead of an error.
+            // Only typed queries (button:, text:, etc.) need the ElementResolver fallback.
+            let trimmed = query.trimmingCharacters(in: .whitespaces)
+            if !trimmed.contains(":") {
+                return HTTPResponseBuilder.error("Element not found for query: \(query)", code: "element_not_found")
+            }
         }
         #endif
 
-        // Fallback: XCUITest element resolution + native tap
+        // Fallback: XCUITest element resolution + native tap (typed queries only on this path)
         do {
             let element = try ElementResolver.resolve(query: query, in: app)
             #if os(tvOS)

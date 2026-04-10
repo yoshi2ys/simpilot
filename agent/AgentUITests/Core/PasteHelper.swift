@@ -53,31 +53,51 @@ enum PasteHelper {
         defer { UIPasteboard.general.string = originalPasteboard ?? "" }
         UIPasteboard.general.string = text
 
-        if let coord = coord {
-            coord.press(forDuration: 1.0)
-        } else {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-                .press(forDuration: 1.0)
-        }
+        let target = coord ?? app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
 
-        if !pastePermissionGranted {
-            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            if springboard.alerts.buttons["Allow Paste"].waitForExistence(timeout: 1.0) {
-                springboard.alerts.buttons["Allow Paste"].tap()
+        // Try multiple strategies to trigger the paste menu.
+        // iOS 16+ deprecated UIMenuController; the edit menu trigger depends on context.
+        let triggers: [(String, () -> Void)] = [
+            ("long press", { target.press(forDuration: 1.0) }),
+            ("double tap", { target.doubleTap() }),
+        ]
+
+        for (_, trigger) in triggers {
+            trigger()
+            handlePastePermission()
+
+            // Check both menuItems (classic) and buttons (iOS 16+ floating pill)
+            if let pasteElement = findPasteElement(in: app) {
+                pasteElement.tap()
+                return nil
             }
-            pastePermissionGranted = true
-        }
-
-        let menuItem = app.menuItems.matching(pastePredicate).firstMatch
-        if menuItem.waitForExistence(timeout: 1.5) {
-            menuItem.tap()
-            return nil
         }
 
         return HTTPResponseBuilder.error(
-            "Paste menu item not found. Edit menu may not have appeared.",
+            "Paste menu not found. Use --method type for keyboard input.",
             code: "paste_failed"
         )
+    }
+
+    private static func handlePastePermission() {
+        guard !pastePermissionGranted else { return }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        if springboard.alerts.buttons["Allow Paste"].waitForExistence(timeout: 1.0) {
+            springboard.alerts.buttons["Allow Paste"].tap()
+        }
+        pastePermissionGranted = true
+    }
+
+    private static func findPasteElement(in app: XCUIApplication) -> XCUIElement? {
+        let menuItem = app.menuItems.matching(pastePredicate).firstMatch
+        if menuItem.waitForExistence(timeout: 1.0) {
+            return menuItem
+        }
+        let button = app.buttons.matching(pastePredicate).firstMatch
+        if button.waitForExistence(timeout: 0.5) {
+            return button
+        }
+        return nil
     }
     #endif
 }
