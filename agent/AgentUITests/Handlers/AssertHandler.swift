@@ -22,10 +22,29 @@ final class AssertHandler: @unchecked Sendable {
             )
         }
 
-        guard let predicate = buildPredicate(name: predicateName, expected: json["expected"] as? String) else {
+        let predicate: Predicate
+        switch buildPredicate(name: predicateName, expected: json["expected"] as? String) {
+        case .success(let p):
+            predicate = p
+        case .failure(.unknown):
             return HTTPResponseBuilder.error(
                 "Unknown predicate: \(predicateName)",
                 code: "invalid_request"
+            )
+        case .failure(.missingExpected):
+            return HTTPResponseBuilder.error(
+                "Predicate '\(predicateName)' requires an 'expected' argument",
+                code: "invalid_request"
+            )
+        case .failure(.matcher(.emptyContains)):
+            return HTTPResponseBuilder.error(
+                "contains: matcher requires a non-empty substring",
+                code: "invalid_request"
+            )
+        case .failure(.matcher(.invalidRegex(let pattern, let reason))):
+            return HTTPResponseBuilder.error(
+                "Invalid regex '\(pattern)': \(reason)",
+                code: "invalid_regex"
             )
         }
 
@@ -75,21 +94,27 @@ final class AssertHandler: @unchecked Sendable {
         }
     }
 
-    // Handles the full predicate set (including value/label which require an expected arg).
-    // `Predicate.parseSimple` only covers the no-argument predicates used by tap --wait-until.
-    private func buildPredicate(name: String, expected: String?) -> Predicate? {
+    enum BuildError: Error {
+        case unknown
+        case missingExpected
+        case matcher(StringMatcher.ParseError)
+    }
+
+    // Full predicate set for assert. `Predicate.parseSimple` handles the
+    // no-argument subset used by `tap --wait-until`.
+    private func buildPredicate(name: String, expected: String?) -> Result<Predicate, BuildError> {
         switch name.lowercased() {
-        case "exists": return .exists
-        case "not-exists", "notexists", "gone": return .notExists
-        case "enabled": return .enabled
-        case "hittable": return .hittable
+        case "exists": return .success(.exists)
+        case "not-exists", "notexists", "gone": return .success(.notExists)
+        case "enabled": return .success(.enabled)
+        case "hittable": return .success(.hittable)
         case "value":
-            guard let expected else { return nil }
-            return .value(expected: expected)
+            guard let expected else { return .failure(.missingExpected) }
+            return StringMatcher.parse(expected).map { .value($0) }.mapError { .matcher($0) }
         case "label":
-            guard let expected else { return nil }
-            return .label(expected: expected)
-        default: return nil
+            guard let expected else { return .failure(.missingExpected) }
+            return StringMatcher.parse(expected).map { .label($0) }.mapError { .matcher($0) }
+        default: return .failure(.unknown)
         }
     }
 }

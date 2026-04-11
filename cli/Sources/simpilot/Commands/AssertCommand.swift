@@ -38,7 +38,19 @@ enum AssertCommand {
             "snapshot_on_fail": snapshotOnFail
         ]
         if positional.count >= 2 {
-            body["expected"] = positional[1]
+            let expected = positional[1]
+            // Preflight regex compile so typos surface with exit 3 locally
+            // instead of making a round-trip to the agent just to learn the
+            // pattern is invalid.
+            if expected.hasPrefix("regex:") {
+                let pattern = String(expected.dropFirst("regex:".count))
+                do {
+                    _ = try NSRegularExpression(pattern: pattern, options: [])
+                } catch {
+                    throw CLIError.invalidArgs("Invalid regex '\(pattern)': \(error.localizedDescription)")
+                }
+            }
+            body["expected"] = expected
         }
         // Default 3s timeout matches the plan; explicit 0 means "check once, no retry".
         body["timeout_ms"] = Int((timeoutSeconds ?? 3.0) * 1000)

@@ -134,9 +134,15 @@ func decodeAndPrint(data: Data, pretty: Bool) throws {
         return
     }
     let error = dict["error"] as? [String: Any]
+    let code = error?["code"] as? String
     let message = (error?["message"] as? String)
-        ?? (error?["code"] as? String)
+        ?? code
         ?? "agent returned success:false"
+    // invalid_regex surfaces as exit 3 (invalid args) to match the CLI-side
+    // preflight path. Other agent-reported failures keep the exit-2 mapping.
+    if code == "invalid_regex" {
+        throw CLIError.invalidArgs(message)
+    }
     throw CLIError.commandFailed(message)
 }
 
