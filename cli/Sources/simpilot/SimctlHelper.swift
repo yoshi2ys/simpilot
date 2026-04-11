@@ -15,31 +15,77 @@ enum SimctlHelper {
     }
 
     static func findDevice(name: String) throws -> (runtime: String, device: DeviceInfo) {
+        let match: (runtime: String, device: DeviceInfo)? = try findFirstDevice { _, device in
+            guard let deviceName = device["name"] as? String, deviceName == name,
+                  let udid = device["udid"] as? String,
+                  let isAvailable = device["isAvailable"] as? Bool, isAvailable,
+                  let deviceTypeIdentifier = device["deviceTypeIdentifier"] as? String else {
+                return nil
+            }
+            return DeviceInfo(udid: udid, deviceTypeIdentifier: deviceTypeIdentifier)
+        }
+        guard let match else {
+            throw CLIError.commandFailed("Device not found: \(name)")
+        }
+        return match
+    }
+
+    /// First available `Booted` simulator across all runtimes, or `nil` if none.
+    /// Iteration order follows JSON dictionary order (Xcode typically groups
+    /// by runtime then insertion order inside `simctl list`). Used by
+    /// `simpilot start` to pick a default device when neither `--device` nor
+    /// `SIMPILOT_DEFAULT_DEVICE` is set.
+    static func firstBootedDevice() throws -> (udid: String, name: String)? {
+        try findFirstDevice { _, device in
+            guard let state = device["state"] as? String, state == "Booted",
+                  let name = device["name"] as? String,
+                  let udid = device["udid"] as? String else {
+                return nil
+            }
+            return (udid: udid, name: name)
+        }?.device
+    }
+
+    /// Reverse-lookup a simulator UDID to its human-readable name. Returns
+    /// `nil` when the UDID is not a known simulator (which may mean it's a
+    /// physical device or simply stale). Used by `simpilot start --udid` to
+    /// derive the device name recorded in the agent registry.
+    static func deviceName(udid: String) throws -> String? {
+        try findFirstDevice { _, device in
+            guard let deviceUDID = device["udid"] as? String, deviceUDID == udid,
+                  let name = device["name"] as? String else {
+                return nil
+            }
+            return name
+        }?.device
+    }
+
+    /// Iterate every simulator entry across every runtime and return the first
+    /// one for which `predicate` produces a non-nil value, paired with the
+    /// runtime key that contained it. Keeps the `simctl list devices --json`
+    /// traversal in one place so new lookups don't grow a third nested `for`.
+    private static func findFirstDevice<T>(
+        where predicate: (_ runtime: String, _ device: [String: Any]) -> T?
+    ) throws -> (runtime: String, device: T)? {
+        let devicesByRuntime = try listDevicesByRuntime()
+        for (runtime, devices) in devicesByRuntime {
+            for device in devices {
+                if let value = predicate(runtime, device) {
+                    return (runtime, value)
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func listDevicesByRuntime() throws -> [String: [[String: Any]]] {
         let output = try run(["simctl", "list", "devices", "--json"])
         guard let data = output.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let devicesByRuntime = json["devices"] as? [String: [[String: Any]]] else {
             throw CLIError.commandFailed("Failed to parse simctl device list")
         }
-
-        for (runtime, devices) in devicesByRuntime {
-            for device in devices {
-                if let deviceName = device["name"] as? String,
-                   let udid = device["udid"] as? String,
-                   deviceName == name,
-                   let isAvailable = device["isAvailable"] as? Bool,
-                   isAvailable,
-                   let deviceTypeIdentifier = device["deviceTypeIdentifier"] as? String {
-                    let info = DeviceInfo(
-                        udid: udid,
-                        deviceTypeIdentifier: deviceTypeIdentifier
-                    )
-                    return (runtime, info)
-                }
-            }
-        }
-
-        throw CLIError.commandFailed("Device not found: \(name)")
+        return devicesByRuntime
     }
 
     // MARK: - Clone / Create / Boot / Shutdown / Delete

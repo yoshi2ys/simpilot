@@ -12,9 +12,11 @@ CLI (simpilot)  --HTTP-->  XCUITest Agent  --XCUIApplication-->  Simulator / Dev
 # Build & install
 make install        # requires sudo for /usr/local/bin
 
-# Start the agent
-simpilot start                                # iPhone 17 Pro (default)
+# Start the agent — picks: --udid > --device > SIMPILOT_DEFAULT_DEVICE env > first booted sim > iPhone 17 Pro
+simpilot start                                # chain default
 simpilot start --device 'Apple Vision Pro'    # visionOS
+simpilot start --udid <UDID>                  # reconnect to a specific simulator (from `simpilot list`)
+SIMPILOT_DEFAULT_DEVICE='iPhone Air' simpilot start  # env default
 
 # Use it
 simpilot launch com.apple.Preferences
@@ -50,13 +52,30 @@ The agent is discovered via `devicectl` hostname — no additional network confi
 ### Agent Lifecycle
 
 ```bash
-simpilot start [--device '<name>']    # Build & start agent on simulator or device
-simpilot stop --port 8223             # Stop a specific agent by port
-simpilot stop --udid <UDID>           # Stop a specific agent by device UDID
-simpilot stop --all                   # Stop all agents + delete cloned/created devices
-simpilot health                       # Check if agent is running
-simpilot list                         # Show all running agents with status
+simpilot start [--device '<name>' | --udid <UDID>]  # Build & start agent on simulator or device
+simpilot stop --port 8223                           # Stop a specific agent by port
+simpilot stop --udid <UDID>                         # Stop a specific agent by device UDID
+simpilot stop --all                                 # Stop all agents + delete cloned/created devices
+simpilot health                                     # Check if agent is running
+simpilot list                                       # Show all running agents with status
 ```
+
+#### Default device resolution
+
+`simpilot start` resolves the target device in this order, and reports which
+slot fired via `data.resolved_via` in the JSON envelope:
+
+1. `--udid <UDID>` (`resolved_via: "explicit_udid"`) — simulator-only;
+   physical-device UDIDs are rejected (use `--device '<name>'` for those)
+2. `--device '<name>'` (`resolved_via: "explicit_device"`)
+3. `SIMPILOT_DEFAULT_DEVICE` env var (`resolved_via: "env"`)
+4. First `Booted` simulator in `simctl list` (`resolved_via: "booted"`)
+5. Hardcoded `iPhone 17 Pro` fallback (`resolved_via: "fallback"`)
+
+Combining `--udid` with `--clone`/`--create` is allowed — simpilot
+reverse-looks up the source name internally. When the chain produces a
+concrete UDID (`--udid` or `booted` slots), xcodebuild is launched with
+`-destination id=<UDID>` so duplicate-named simulators can't be confused.
 
 ### Parallel Testing
 

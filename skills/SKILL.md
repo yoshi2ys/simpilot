@@ -40,10 +40,13 @@ cd /Users/yoshi/Developer/simpilot
 make install   # builds CLI and installs to /usr/local/bin
 
 # Start the agent — Simulator
-simpilot start                                 # default: iPhone 17 Pro
-simpilot start --device 'iPhone Air'           # specify iOS device
+# Priority: --udid > --device > SIMPILOT_DEFAULT_DEVICE env > first booted sim > iPhone 17 Pro
+simpilot start                                 # chain default
+simpilot start --device 'iPhone Air'           # specify iOS device by name
 simpilot start --device 'iPad Pro 13-inch (M5)' # iPad
 simpilot start --device 'Apple Vision Pro'     # visionOS
+simpilot start --udid <UDID>                   # reconnect to a specific simulator (from `simpilot list`)
+SIMPILOT_DEFAULT_DEVICE='iPhone Air' simpilot start  # env default
 
 # Start the agent — Physical device
 simpilot start --device 'My iPhone'            # auto-detects physical device via devicectl
@@ -183,13 +186,21 @@ simpilot batch '{"commands":[
 ### Agent Lifecycle
 
 ```bash
-simpilot start [--device '<name>']  # Build & start agent on simulator or device
-simpilot stop --port 8223           # Stop a specific agent by port
-simpilot stop --udid <UDID>         # Stop a specific agent by device UDID
-simpilot stop --all                 # Stop all agents + delete cloned/created devices
-simpilot health                     # Check if agent is running
-simpilot list                       # Show all running agents with status
+simpilot start [--device '<name>' | --udid <UDID>]  # Build & start agent on simulator or device
+simpilot stop --port 8223                           # Stop a specific agent by port
+simpilot stop --udid <UDID>                         # Stop a specific agent by device UDID
+simpilot stop --all                                 # Stop all agents + delete cloned/created devices
+simpilot health                                     # Check if agent is running
+simpilot list                                       # Show all running agents with status
 ```
+
+**Default device resolution**: `simpilot start` picks in order, reported via
+`data.resolved_via`: (1) `--udid <UDID>` — `explicit_udid`, simulator-only;
+(2) `--device '<name>'` — `explicit_device`; (3) `SIMPILOT_DEFAULT_DEVICE`
+env var — `env`; (4) first booted simulator — `booted`; (5) hardcoded
+`iPhone 17 Pro` — `fallback`. Whenever the chain produces a concrete UDID,
+xcodebuild is launched with `-destination id=<UDID>` so duplicate-named
+simulators can't be confused.
 
 ### Parallel Testing
 

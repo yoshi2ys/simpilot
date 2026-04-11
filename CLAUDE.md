@@ -48,8 +48,12 @@ cd agent && xcodebuild test \
 
 ```bash
 # Simulator (iOS)
-simpilot start                                    # default: iPhone 17 Pro
-simpilot start --device 'iPhone Air'              # specify device
+# Priority: --udid > --device > SIMPILOT_DEFAULT_DEVICE env > first booted sim > iPhone 17 Pro
+# Envelope reports via data.resolved_via: explicit_udid | explicit_device | env | booted | fallback
+simpilot start                                    # chain default
+simpilot start --device 'iPhone Air'              # specify device by name
+simpilot start --udid <UDID>                      # specify simulator by UDID (from `simpilot list`)
+SIMPILOT_DEFAULT_DEVICE='iPhone Air' simpilot start  # env default
 
 # Simulator (visionOS)
 simpilot start --device 'Apple Vision Pro'        # auto-detects visionOS platform
@@ -77,6 +81,8 @@ simpilot stop --all                               # stop all + delete cloned/cre
 - **`simctl create` over `simctl clone`**: `--create` uses `simctl create` (works on Booted devices). `--clone` uses `simctl clone` (requires Shutdown source, but preserves device state).
 - **devicectl for physical devices**: On physical devices, the XCUITest agent runs on the device (not Mac). CLI discovers devices via `xcrun devicectl list devices` and connects using the `.coredevice.local` hostname. Works over USB and Wi-Fi.
 - **Device auto-detection**: `simpilot start --device '<name>'` tries SimctlHelper (simulators) first, then DeviceHelper (physical devices via `xcrun devicectl`). Simulator is prioritized to preserve existing behavior.
+- **Default device priority chain** (StartCommand.resolveStart): `--udid` > `--device` > `SIMPILOT_DEFAULT_DEVICE` env > first booted sim > `iPhone 17 Pro`. The envelope's `data.resolved_via` always reports which slot fired (`explicit_udid` / `explicit_device` / `env` / `booted` / `fallback`) — silent fallback is forbidden. `--udid` is simulator-only (physical UDIDs are rejected; use `--device '<name>'`).
+- **xcodebuild destination by UDID when known** (StartCommand.launchTarget): whenever a concrete simulator UDID is known (from `--udid`, `booted`, or name lookup), xcodebuild is launched with `-destination id=<UDID>` so duplicate-named simulators stay disambiguated. Only the `.unknown` fallback uses `name=<name>`.
 - **IPv6 URL bracketing**: Physical devices often return IPv6 addresses (e.g. `fd4d:85e2:eeb::1`). `HTTPClient.init(host:port:)` wraps IPv6 addresses in brackets per RFC 3986 (`http://[addr]:port`). Without this, `URL(string:)` fails because the port suffix is ambiguous with the IPv6 colon notation.
 - **Screenshot downscaling** (ScreenshotScaler in ScreenshotHandler.swift): `XCUIScreen.main.screenshot()` always returns native-resolution pixels (1206×2622 on iPhone @3x). Default `--scale 1` downsamples via ImageIO `CGImageSourceCreateThumbnailAtIndex` so the long edge matches 1x points (~1/3 size, ~72% byte reduction), cutting LLM token budgets. `--scale native` skips the scaler entirely for design use. `--scale N` where the target long edge is ≥ source pixel long edge short-circuits and returns the original data.
 

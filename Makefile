@@ -1,6 +1,6 @@
 .PHONY: build-cli build-agent build-agent-visionos install clean
 
-DEVICE ?= iPhone 17 Pro
+DEVICE ?= $(or $(SIMPILOT_DEFAULT_DEVICE),iPhone 17 Pro)
 VISION_DEVICE ?= Apple Vision Pro
 PORT ?= 8222
 INSTALL_DIR ?= /usr/local/bin
