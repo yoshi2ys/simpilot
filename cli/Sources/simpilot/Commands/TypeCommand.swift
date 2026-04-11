@@ -1,6 +1,6 @@
 import Foundation
 
-enum TypeCommand {
+enum TypeCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "type",
         positionals: [.init(name: "text", required: true)],
@@ -9,9 +9,13 @@ enum TypeCommand {
             .init("--method", .string),
         ]
     )
+    static let category: HelpCommands.Category = .interaction
+    static let synopsis = "type <text> [--into <query>] [--method type|paste|auto]"
+    static let description = "Type text into focused or specified element"
+    static let example = "simpilot type 'hello' --into 'textField:Email'"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let text = parsed.positionals[0]
 
         var body: [String: Any] = ["text": text]
@@ -21,7 +25,7 @@ enum TypeCommand {
         if let method = parsed.string("--method") {
             body["method"] = method
         }
-        let data = try client.post("/type", body: body)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/type", body: body)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

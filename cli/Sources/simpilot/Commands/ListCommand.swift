@@ -1,10 +1,14 @@
 import Foundation
 
-enum ListCommand {
+enum ListCommand: SimpilotCommand {
     static let argSpec = ArgSpec(command: "list")
+    static let category: HelpCommands.Category = .agent
+    static let synopsis = "list"
+    static let description = "List running agents"
+    static let example = "simpilot list"
 
-    static func run(args: [String], pretty: Bool) throws {
-        _ = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        _ = try ArgParser.parse(context.args, spec: argSpec)
         let records = AgentRegistry.load()
 
         var agents: [[String: Any]] = []
@@ -35,6 +39,6 @@ enum ListCommand {
             ] as [String: Any],
             "error": NSNull()
         ]
-        printJSON(result, pretty: pretty)
+        printJSON(result, pretty: context.pretty)
     }
 }

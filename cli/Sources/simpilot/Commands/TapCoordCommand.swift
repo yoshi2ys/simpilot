@@ -1,6 +1,6 @@
 import Foundation
 
-enum TapCoordCommand {
+enum TapCoordCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "tapcoord",
         positionals: [
@@ -8,14 +8,18 @@ enum TapCoordCommand {
             .init(name: "y", required: true),
         ]
     )
+    static let category: HelpCommands.Category = .interaction
+    static let synopsis = "tapcoord <x> <y>"
+    static let description = "Tap at screen coordinates"
+    static let example = "simpilot tapcoord 200 400"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         guard let x = Double(parsed.positionals[0]),
               let y = Double(parsed.positionals[1]) else {
             throw CLIError.invalidArgs("tapcoord: <x> and <y> must be numbers")
         }
-        let data = try client.post("/tapcoord", body: ["x": x, "y": y])
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/tapcoord", body: ["x": x, "y": y])
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

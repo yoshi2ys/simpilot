@@ -1,6 +1,6 @@
 import Foundation
 
-enum ClipboardCommand {
+enum ClipboardCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "clipboard",
         positionals: [
@@ -8,9 +8,13 @@ enum ClipboardCommand {
             .init(name: "text", required: false),
         ]
     )
+    static let category: HelpCommands.Category = .utility
+    static let synopsis = "clipboard get | clipboard set <text>"
+    static let description = "Read or write the device clipboard"
+    static let example = "simpilot clipboard set 'hello'"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let subcommand = parsed.positionals[0]
 
         switch subcommand {
@@ -18,16 +22,16 @@ enum ClipboardCommand {
             if parsed.positionals.count > 1 {
                 throw CLIError.invalidArgs("clipboard get takes no arguments")
             }
-            let data = try client.get("/clipboard")
-            try decodeAndPrint(data: data, pretty: pretty)
+            let data = try context.client.get("/clipboard")
+            try decodeAndPrint(data: data, pretty: context.pretty)
 
         case "set":
             guard parsed.positionals.count >= 2 else {
                 throw CLIError.invalidArgs("Usage: simpilot clipboard set <text>")
             }
             let text = parsed.positionals[1]
-            let data = try client.post("/clipboard", body: ["text": text])
-            try decodeAndPrint(data: data, pretty: pretty)
+            let data = try context.client.post("/clipboard", body: ["text": text])
+            try decodeAndPrint(data: data, pretty: context.pretty)
 
         default:
             throw CLIError.invalidArgs("Unknown subcommand '\(subcommand)'. Use 'get' or 'set'.")

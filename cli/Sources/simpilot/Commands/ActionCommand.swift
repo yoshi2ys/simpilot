@@ -1,6 +1,6 @@
 import Foundation
 
-enum ActionCommand {
+enum ActionCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "action",
         positionals: [
@@ -19,9 +19,13 @@ enum ActionCommand {
             .init("--method", .string),
         ]
     )
+    static let category: HelpCommands.Category = .utility
+    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>]"
+    static let description = "Compound action with screenshot/elements"
+    static let example = "simpilot action tap 'About' --screenshot /tmp/s.png --scale 1 --level 0"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let action = parsed.positionals[0]
         let query = parsed.positionals[1]
 
@@ -56,7 +60,7 @@ enum ActionCommand {
             body["method"] = method
         }
 
-        let data = try client.post("/action", body: body)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/action", body: body)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

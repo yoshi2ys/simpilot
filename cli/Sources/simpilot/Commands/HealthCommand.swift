@@ -1,11 +1,15 @@
 import Foundation
 
-enum HealthCommand {
+enum HealthCommand: SimpilotCommand {
     static let argSpec = ArgSpec(command: "health")
+    static let category: HelpCommands.Category = .agent
+    static let synopsis = "health"
+    static let description = "Check if the agent is responding"
+    static let example = "simpilot health"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        _ = try ArgParser.parse(args, spec: argSpec)
-        let data = try client.get("/health")
-        try decodeAndPrint(data: data, pretty: pretty)
+    static func run(context: RunContext) throws {
+        _ = try ArgParser.parse(context.args, spec: argSpec)
+        let data = try context.client.get("/health")
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

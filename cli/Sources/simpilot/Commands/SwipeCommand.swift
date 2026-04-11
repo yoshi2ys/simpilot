@@ -1,6 +1,6 @@
 import Foundation
 
-enum SwipeCommand {
+enum SwipeCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "swipe",
         positionals: [.init(name: "direction", required: true)],
@@ -9,9 +9,13 @@ enum SwipeCommand {
             .init("--velocity", .string),
         ]
     )
+    static let category: HelpCommands.Category = .interaction
+    static let synopsis = "swipe <up|down|left|right> [--on <query>] [--velocity slow|default|fast]"
+    static let description = "Swipe in a direction"
+    static let example = "simpilot swipe up"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let direction = parsed.positionals[0]
 
         var body: [String: Any] = ["direction": direction]
@@ -21,7 +25,7 @@ enum SwipeCommand {
         if let velocity = parsed.string("--velocity") {
             body["velocity"] = velocity
         }
-        let data = try client.post("/swipe", body: body)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/swipe", body: body)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

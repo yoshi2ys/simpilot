@@ -1,6 +1,6 @@
 import Foundation
 
-enum TapCommand {
+enum TapCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "tap",
         positionals: [.init(name: "query", required: true)],
@@ -10,9 +10,13 @@ enum TapCommand {
             .init("--poll-interval", .int),
         ]
     )
+    static let category: HelpCommands.Category = .interaction
+    static let synopsis = "tap <query> [--wait-until <csv>] [--timeout <s>] [--poll-interval <ms>]"
+    static let description = "Tap an element by label/query"
+    static let example = "simpilot tap 'General'"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let query = parsed.positionals[0]
 
         var body: [String: Any] = ["query": query]
@@ -32,7 +36,7 @@ enum TapCommand {
             body["poll_interval_ms"] = poll
         }
 
-        let data = try client.post("/tap", body: body)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/tap", body: body)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

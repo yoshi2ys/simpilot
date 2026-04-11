@@ -1,6 +1,6 @@
 import Foundation
 
-enum ElementsCommand {
+enum ElementsCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "elements",
         flags: [
@@ -11,9 +11,13 @@ enum ElementsCommand {
             .init("--compact", .bool),
         ]
     )
+    static let category: HelpCommands.Category = .observation
+    static let synopsis = "elements [--app <bundleId>] [--depth <n>] [--level 0|1|2|3] [--actionable] [--compact]"
+    static let description = "List UI elements at given detail level"
+    static let example = "simpilot elements --level 1"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
 
         var queryItems: [String] = []
         if let bundleId = parsed.string("--app") {
@@ -36,7 +40,7 @@ enum ElementsCommand {
             path += "?" + queryItems.joined(separator: "&")
         }
 
-        let data = try client.get(path)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.get(path)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

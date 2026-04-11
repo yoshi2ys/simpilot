@@ -1,6 +1,6 @@
 import Foundation
 
-enum AssertCommand {
+enum AssertCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "assert",
         positionals: [
@@ -13,9 +13,13 @@ enum AssertCommand {
             .init("--snapshot-on-fail", .bool),
         ]
     )
+    static let category: HelpCommands.Category = .interaction
+    static let synopsis = "assert <exists|not-exists|enabled|hittable|stable|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]"
+    static let description = "Assert a predicate about a UI element; exits 2 on failure"
+    static let example = "simpilot assert enabled 'Save' --timeout 3"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let predicate = parsed.positionals[0]
         let query = parsed.positionals[1]
         let expected: String? = parsed.positionals.count >= 3 ? parsed.positionals[2] : nil
@@ -42,7 +46,7 @@ enum AssertCommand {
         // Explicit 0 means "check once, no retry".
         body["timeout_ms"] = Int((parsed.double("--timeout") ?? 3.0) * 1000)
 
-        let data = try client.post("/assert", body: body)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.post("/assert", body: body)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-enum ScreenshotCommand {
+enum ScreenshotCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "screenshot",
         flags: [
@@ -8,9 +8,13 @@ enum ScreenshotCommand {
             .init("--scale", .string),
         ]
     )
+    static let category: HelpCommands.Category = .observation
+    static let synopsis = "screenshot [--file <path>] [--scale <N|native>]"
+    static let description = "Capture a screenshot (default --scale 1 = 1x/point-size for AI; use 'native' for device full resolution)"
+    static let example = "simpilot screenshot --file /tmp/s.png --scale native"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let scale = try ScaleArg.validate(parsed.string("--scale") ?? "1")
 
         var queryItems: [String] = ["scale=\(scale)"]
@@ -22,8 +26,8 @@ enum ScreenshotCommand {
         }
         let path = "/screenshot?" + queryItems.joined(separator: "&")
 
-        let data = try client.get(path)
-        try decodeAndPrint(data: data, pretty: pretty)
+        let data = try context.client.get(path)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }
 

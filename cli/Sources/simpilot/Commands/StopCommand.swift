@@ -1,6 +1,6 @@
 import Foundation
 
-enum StopCommand {
+enum StopCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "stop",
         flags: [
@@ -9,6 +9,10 @@ enum StopCommand {
             .init("--all", .bool),
         ]
     )
+    static let category: HelpCommands.Category = .agent
+    static let synopsis = "stop (--port <p> | --udid <u> | --all)"
+    static let description = "Stop one or all running agents (requires a target)"
+    static let example = "simpilot stop --all"
 
     /// Parsed + validated target intent. `parseStopTarget` is a pure function so
     /// tests can exercise the (D/F) invariants without touching the real registry.
@@ -141,8 +145,13 @@ enum StopCommand {
 
     // MARK: - Entry point
 
-    static func run(args: [String], pretty: Bool, port: Int, portExplicit: Bool) throws {
-        let target = try parseStopTarget(args: args, globalPort: port, portExplicit: portExplicit)
+    static func run(context: RunContext) throws {
+        let target = try parseStopTarget(
+            args: context.args,
+            globalPort: context.port,
+            portExplicit: context.portExplicit
+        )
+        let pretty = context.pretty
 
         if case .all = target {
             stopAllAgents(pretty: pretty)

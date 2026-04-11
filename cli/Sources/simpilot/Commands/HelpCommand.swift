@@ -1,18 +1,22 @@
 import Foundation
 
-enum HelpCommand {
+enum HelpCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "help",
         positionals: [.init(name: "command", required: false)]
     )
+    static let category: HelpCommands.Category = .utility
+    static let synopsis = "help"
+    static let description = "Show machine-readable JSON help"
+    static let example = "simpilot help"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool, format: HelpFormat = .json) throws {
-        _ = try ArgParser.parse(args, spec: argSpec)
-        switch format {
+    static func run(context: RunContext) throws {
+        _ = try ArgParser.parse(context.args, spec: argSpec)
+        switch context.helpFormat {
         case .text:
             print(renderText())
         case .json:
-            printJSON(renderJSON(), pretty: pretty)
+            printJSON(renderJSON(), pretty: context.pretty)
         }
     }
 

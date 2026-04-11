@@ -98,6 +98,35 @@ struct Simpilot {
         ]
     )
 
+    /// The only list of commands. Help rendering, dispatch, and the drift
+    /// backstop test all iterate this array. Adding a new command means
+    /// adding exactly one entry here.
+    static let registry: [any SimpilotCommand.Type] = [
+        HealthCommand.self,
+        ListCommand.self,
+        InfoCommand.self,
+        StartCommand.self,
+        StopCommand.self,
+        LaunchCommand.self,
+        TerminateCommand.self,
+        ActivateCommand.self,
+        TapCommand.self,
+        TapCoordCommand.self,
+        TypeCommand.self,
+        SwipeCommand.self,
+        WaitCommand.self,
+        AssertCommand.self,
+        ElementsCommand.self,
+        ScreenshotCommand.self,
+        SourceCommand.self,
+        ClipboardCommand.self,
+        AppearanceCommand.self,
+        LocationCommand.self,
+        BatchCommand.self,
+        ActionCommand.self,
+        HelpCommand.self,
+    ]
+
     static func main() {
         let options: GlobalOptions
         do {
@@ -220,64 +249,36 @@ struct Simpilot {
         return (args, [])
     }
 
+    /// Fail-fast on structural invariants over `registry` before any dispatch.
+    /// Currently enforces: no two commands share a `name` (else
+    /// `registry.first(where:)` would silently shadow the later entry and
+    /// `simpilot --help` would render a duplicate row). Cheap enough (one
+    /// `Set` over ~23 strings) to run on every invocation; the alternative
+    /// of a static-init wrapper adds two registry variables for no real win.
+    static func assertRegistryInvariants() {
+        let names = registry.map { $0.name }
+        precondition(
+            Set(names).count == names.count,
+            "Simpilot.registry contains duplicate command names: \(names)"
+        )
+    }
+
     static func run(options: GlobalOptions, client: HTTPClient) {
+        assertRegistryInvariants()
+        guard let cmdType = registry.first(where: { $0.name == options.command }) else {
+            printError(code: "invalid_args", message: "Unknown command: \(options.command)")
+            exit(3)
+        }
+        let context = RunContext(
+            client: client,
+            args: options.commandArgs,
+            pretty: options.pretty,
+            port: options.port,
+            portExplicit: options.portExplicit,
+            helpFormat: options.helpFormat
+        )
         do {
-            switch options.command {
-            case "help":
-                try HelpCommand.run(client: client, args: options.commandArgs, pretty: options.pretty, format: options.helpFormat)
-            case "health":
-                try HealthCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "launch":
-                try LaunchCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "terminate":
-                try TerminateCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "activate":
-                try ActivateCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "tap":
-                try TapCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "tapcoord":
-                try TapCoordCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "type":
-                try TypeCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "swipe":
-                try SwipeCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "screenshot":
-                try ScreenshotCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "elements":
-                try ElementsCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "wait":
-                try WaitCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "assert":
-                try AssertCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "source":
-                try SourceCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "info":
-                try InfoCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "batch":
-                try BatchCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "action":
-                try ActionCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "clipboard":
-                try ClipboardCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "appearance":
-                try AppearanceCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "location":
-                try LocationCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
-            case "start":
-                try StartCommand.run(args: options.commandArgs, pretty: options.pretty, port: options.port)
-            case "stop":
-                try StopCommand.run(
-                    args: options.commandArgs,
-                    pretty: options.pretty,
-                    port: options.port,
-                    portExplicit: options.portExplicit
-                )
-            case "list":
-                try ListCommand.run(args: options.commandArgs, pretty: options.pretty)
-            default:
-                printError(code: "invalid_args", message: "Unknown command: \(options.command)")
-                exit(3)
-            }
+            try cmdType.run(context: context)
         } catch let error as CLIError {
             handleCLIError(error)
         } catch {

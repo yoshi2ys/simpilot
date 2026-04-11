@@ -1,6 +1,6 @@
 import Foundation
 
-enum LocationCommand {
+enum LocationCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "location",
         positionals: [
@@ -8,17 +8,21 @@ enum LocationCommand {
             .init(name: "longitude", required: true),
         ]
     )
+    static let category: HelpCommands.Category = .utility
+    static let synopsis = "location <lat> <lon>"
+    static let description = "Simulate GPS location (iOS 17+)"
+    static let example = "simpilot location 35.6812 139.7671"
 
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        let parsed = try ArgParser.parse(args, spec: argSpec)
+    static func run(context: RunContext) throws {
+        let parsed = try ArgParser.parse(context.args, spec: argSpec)
         guard let latitude = Double(parsed.positionals[0]),
               let longitude = Double(parsed.positionals[1]) else {
             throw CLIError.invalidArgs("location: <latitude> and <longitude> must be numbers")
         }
-        let data = try client.post("/location", body: [
+        let data = try context.client.post("/location", body: [
             "latitude": latitude,
             "longitude": longitude
         ])
-        try decodeAndPrint(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

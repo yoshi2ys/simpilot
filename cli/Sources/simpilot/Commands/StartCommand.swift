@@ -1,6 +1,6 @@
 import Foundation
 
-enum StartCommand {
+enum StartCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "start",
         flags: [
@@ -9,6 +9,10 @@ enum StartCommand {
             .init("--create", .optionalInt(default: 1)),
         ]
     )
+    static let category: HelpCommands.Category = .agent
+    static let synopsis = "start [--device <name>] [--clone|--create [N]]"
+    static let description = "Build and start the XCUITest agent"
+    static let example = "simpilot start --device 'iPhone Air'"
 
     enum MultiMode: Equatable {
         case clone(Int)
@@ -45,8 +49,10 @@ enum StartCommand {
         return (deviceName, mode)
     }
 
-    static func run(args: [String], pretty: Bool, port: Int) throws {
-        let (deviceName, multiMode) = try resolveMultiMode(args: args)
+    static func run(context: RunContext) throws {
+        let (deviceName, multiMode) = try resolveMultiMode(args: context.args)
+        let pretty = context.pretty
+        let port = context.port
 
         // Resolve device: try simulator first, then physical device
         let resolved = resolveDevice(name: deviceName)
