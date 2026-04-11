@@ -44,14 +44,26 @@ enum ElementPoller {
 
         let deadline = Date().addingTimeInterval(TimeInterval(max(timeoutMs, 0)) / 1000.0)
         let sleepInterval = TimeInterval(max(pollIntervalMs, 0)) / 1000.0
-        let cheapPredicates = predicates.filter { $0 != .hittable }
+        // .hittable is deferred until cheap pass clears (forces an extra IPC);
+        // .stable is stateful and advanced via StablePredicate.advance.
+        let cheapPredicates = predicates.filter { $0 != .hittable && $0 != .stable }
         let needsHittable = predicates.contains(.hittable)
+        let needsStable = predicates.contains(.stable)
+        var stableState = StablePredicate.State.initial
 
         while true {
             var observed = DebugDescriptionParser.findElement(query: query, in: app)
             var failed = cheapPredicates
                 .filter { !PredicateEvaluator.matches($0, element: observed) }
                 .map { $0.name }
+
+            // Advance stable state every tick even when other predicates fail:
+            // history must keep accumulating so `hittable,stable` can progress
+            // while hittable is still resolving.
+            let stableSatisfied = StablePredicate.advance(&stableState, observedFrame: observed?.frame)
+            if needsStable, !stableSatisfied {
+                failed.append(Predicate.stable.name)
+            }
 
             // Defer the .hittable IPC until cheap predicates clear: isHittable forces
             // an accessibility snapshot (~50–750ms depending on tree density), so

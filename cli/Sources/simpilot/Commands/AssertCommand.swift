@@ -60,5 +60,5 @@ enum AssertCommand {
     }
 
     private static let usage =
-        "Usage: simpilot assert <exists|not-exists|enabled|hittable|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]"
+        "Usage: simpilot assert <exists|not-exists|enabled|hittable|stable|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]"
 }

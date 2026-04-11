@@ -108,6 +108,7 @@ final class AssertHandler: @unchecked Sendable {
         case "not-exists", "notexists", "gone": return .success(.notExists)
         case "enabled": return .success(.enabled)
         case "hittable": return .success(.hittable)
+        case "stable": return .success(.stable)
         case "value":
             guard let expected else { return .failure(.missingExpected) }
             return StringMatcher.parse(expected).map { .value($0) }.mapError { .matcher($0) }

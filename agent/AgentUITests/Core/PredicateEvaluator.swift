@@ -116,6 +116,7 @@ enum Predicate: Equatable {
     case notExists
     case enabled
     case hittable
+    case stable
     case value(StringMatcher)
     case label(StringMatcher)
 
@@ -126,6 +127,7 @@ enum Predicate: Equatable {
         case .notExists: return "not-exists"
         case .enabled: return "enabled"
         case .hittable: return "hittable"
+        case .stable: return "stable"
         case .value(let m): return "value=\(m.debugDescription)"
         case .label(let m): return "label=\(m.debugDescription)"
         }
@@ -141,17 +143,78 @@ enum Predicate: Equatable {
         case "not-exists", "notexists", "gone": return .notExists
         case "enabled": return .enabled
         case "hittable": return .hittable
+        case "stable": return .stable
         default: return nil
         }
     }
 }
 
+/// State machine for the `.stable` predicate.
+///
+/// Invariant: the state advances on every tick that produced an observation,
+/// independent of whether other predicates in the same tick pass. This is what
+/// lets `wait_until hittable,stable` make progress — the frame history must
+/// keep accumulating while hittable is still resolving.
+enum StablePredicate {
+    /// Consecutive identical-frame observations required before `.stable` holds.
+    static let requiredCount: Int = 2
+
+    struct State: Equatable {
+        var prevFrame: Frame?
+        var count: Int
+        static let initial = State(prevFrame: nil, count: 0)
+    }
+
+    struct Frame: Equatable {
+        let x: Double
+        let y: Double
+        let w: Double
+        let h: Double
+
+        init(_ f: (x: Double, y: Double, w: Double, h: Double)) {
+            self.x = f.x; self.y = f.y; self.w = f.w; self.h = f.h
+        }
+    }
+
+    /// Advance `state` in place with one observation. Returns whether `.stable`
+    /// holds after this tick.
+    ///
+    /// - Element absent (`observedFrame == nil`) → reset to initial; re-appearance
+    ///   on the next tick starts counting from 1 again.
+    /// - First observation → count=1, prev=current.
+    /// - Same frame as previous → count+1, satisfied iff count >= requiredCount.
+    /// - Different frame → count=1 with new prev.
+    ///
+    /// Frame equality uses exact Double comparison: UIKit settles layouts at
+    /// integer points, so sub-pixel noise means the UI hasn't settled yet.
+    static func advance(
+        _ state: inout State,
+        observedFrame: (x: Double, y: Double, w: Double, h: Double)?
+    ) -> Bool {
+        guard let observedFrame else {
+            state = .initial
+            return false
+        }
+        let current = Frame(observedFrame)
+        guard let prev = state.prevFrame else {
+            state = State(prevFrame: current, count: 1)
+            return false
+        }
+        if prev == current {
+            state = State(prevFrame: current, count: state.count + 1)
+            return state.count >= requiredCount
+        }
+        state = State(prevFrame: current, count: 1)
+        return false
+    }
+}
+
 enum PredicateEvaluator {
-    /// Evaluate a predicate against an observed element.
-    /// - Parameters:
-    ///   - predicate: the condition to check
-    ///   - element: the currently-observed element, or nil if no element matched the query
-    /// - Returns: true if the predicate holds for the observation
+    /// Evaluate a stateless predicate against an observed element.
+    ///
+    /// `.stable` is explicitly excluded: it requires frame history, which lives
+    /// on the poller. Callers must route `.stable` through `StablePredicate.advance`
+    /// instead. Passing it here is a programming error and trips a precondition.
     static func matches(_ predicate: Predicate, element: DebugDescriptionParser.FoundElement?) -> Bool {
         switch predicate {
         case .exists:
@@ -162,6 +225,8 @@ enum PredicateEvaluator {
             return element?.enabled == true
         case .hittable:
             return element?.hittable == true
+        case .stable:
+            preconditionFailure("PredicateEvaluator.matches cannot evaluate .stable; use StablePredicate.advance in ElementPoller.")
         case .value(let matcher):
             return matcher.matches(element?.value)
         case .label(let matcher):
