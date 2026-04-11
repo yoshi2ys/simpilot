@@ -17,10 +17,10 @@ enum ActionCommand: SimpilotCommand {
             .init("--x", .double),
             .init("--y", .double),
             .init("--method", .string),
-        ]
+        ] + WaitFlags.flags
     )
     static let category: HelpCommands.Category = .utility
-    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>]"
+    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>] \(WaitFlags.synopsis)"
     static let description = "Compound action with screenshot/elements"
     static let example = "simpilot action tap 'About' --screenshot /tmp/s.png --scale 1 --level 0"
 
@@ -59,6 +59,7 @@ enum ActionCommand: SimpilotCommand {
         if let method = parsed.string("--method") {
             body["method"] = method
         }
+        WaitFlags.apply(parsed, to: &body)
 
         let data = try context.client.post("/action", body: body)
         try decodeAndPrint(data: data, pretty: context.pretty)

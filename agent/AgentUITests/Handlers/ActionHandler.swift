@@ -30,31 +30,18 @@ final class ActionHandler {
                 guard let query = query else {
                     return HTTPResponseBuilder.error("Missing 'query' for tap action", code: "invalid_request")
                 }
-                #if !os(tvOS)
-                if let found = DebugDescriptionParser.findElement(query: query, in: app) {
-                    let coordTapFailed = catchObjCException {
-                        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                            .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-                        coord.tap()
-                    }
-                    if coordTapFailed == nil {
-                        responseData["action_result"] = [
-                            "type": found.type, "label": found.label, "identifier": found.identifier,
-                            "frame": ["x": found.frame.x, "y": found.frame.y, "width": found.frame.w, "height": found.frame.h]
-                        ] as [String: Any]
-                    } else {
-                        let element = try ElementResolver.resolve(query: query, in: app)
-                        element.tap()
-                        responseData["action_result"] = ElementResolver.describe(element)
-                    }
-                } else {
-                    return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
+                let resolution = TapHandler.resolveAndTap(
+                    query: query,
+                    wait: TapHandler.parseWaitArgs(from: json),
+                    gesture: .tap,
+                    in: app
+                )
+                switch resolution {
+                case .success(let element):
+                    responseData["action_result"] = element
+                default:
+                    return TapHandler.responseData(from: resolution)
                 }
-                #else
-                let element = try ElementResolver.resolve(query: query, in: app)
-                XCUIRemote.shared.press(.select)
-                responseData["action_result"] = ElementResolver.describe(element)
-                #endif
 
             case "type":
                 guard let text = json["text"] as? String else {
@@ -95,33 +82,20 @@ final class ActionHandler {
                 guard let direction = json["direction"] as? String else {
                     return HTTPResponseBuilder.error("Missing 'direction' for swipe action", code: "invalid_request")
                 }
-                let target: XCUIElement
-                if let query = query {
-                    // Swipe needs an XCUIElement (can't swipe by coordinate)
-                    target = try ElementResolver.resolve(query: query, in: app)
-                } else {
-                    target = app
-                }
-                #if os(tvOS)
-                switch direction {
-                case "up": XCUIRemote.shared.press(.up)
-                case "down": XCUIRemote.shared.press(.down)
-                case "left": XCUIRemote.shared.press(.left)
-                case "right": XCUIRemote.shared.press(.right)
+                let velocity = json["velocity"] as? String ?? "default"
+                let swipeResolution = SwipeHandler.resolveAndSwipe(
+                    query: query,
+                    direction: direction,
+                    velocity: velocity,
+                    wait: TapHandler.parseWaitArgs(from: json),
+                    in: app
+                )
+                switch swipeResolution {
+                case .success(let data):
+                    responseData["action_result"] = data
                 default:
-                    return HTTPResponseBuilder.error("Invalid direction: \(direction)", code: "invalid_request")
+                    return SwipeHandler.responseData(from: swipeResolution)
                 }
-                #else
-                switch direction {
-                case "up": target.swipeUp()
-                case "down": target.swipeDown()
-                case "left": target.swipeLeft()
-                case "right": target.swipeRight()
-                default:
-                    return HTTPResponseBuilder.error("Invalid direction: \(direction)", code: "invalid_request")
-                }
-                #endif
-                responseData["action_result"] = ["action": "swipe", "direction": direction]
 
             case "tapcoord":
                 #if os(tvOS)
@@ -185,5 +159,4 @@ final class ActionHandler {
 
         return HTTPResponseBuilder.json(responseData)
     }
-
 }

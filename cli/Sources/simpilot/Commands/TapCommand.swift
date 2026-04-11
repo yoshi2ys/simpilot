@@ -4,14 +4,10 @@ enum TapCommand: SimpilotCommand {
     static let argSpec = ArgSpec(
         command: "tap",
         positionals: [.init(name: "query", required: true)],
-        flags: [
-            .init("--wait-until", .string),
-            .init("--timeout", .double),
-            .init("--poll-interval", .int),
-        ]
+        flags: WaitFlags.flags
     )
     static let category: HelpCommands.Category = .interaction
-    static let synopsis = "tap <query> [--wait-until <csv>] [--timeout <s>] [--poll-interval <ms>]"
+    static let synopsis = "tap <query> \(WaitFlags.synopsis)"
     static let description = "Tap an element by label/query"
     static let example = "simpilot tap 'General'"
 
@@ -20,21 +16,7 @@ enum TapCommand: SimpilotCommand {
         let query = parsed.positionals[0]
 
         var body: [String: Any] = ["query": query]
-        if let timeout = parsed.double("--timeout") {
-            body["timeout_ms"] = Int(timeout * 1000)
-        }
-        if let waitRaw = parsed.string("--wait-until") {
-            let waitUntil = waitRaw
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-            if !waitUntil.isEmpty {
-                body["wait_until"] = waitUntil
-            }
-        }
-        if let poll = parsed.int("--poll-interval") {
-            body["poll_interval_ms"] = poll
-        }
+        WaitFlags.apply(parsed, to: &body)
 
         let data = try context.client.post("/tap", body: body)
         try decodeAndPrint(data: data, pretty: context.pretty)
