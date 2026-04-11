@@ -82,6 +82,7 @@ final class AssertHandler: @unchecked Sendable {
         case "exists": return .exists
         case "not-exists", "notexists", "gone": return .notExists
         case "enabled": return .enabled
+        case "hittable": return .hittable
         case "value":
             guard let expected else { return nil }
             return .value(expected: expected)

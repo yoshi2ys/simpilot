@@ -87,7 +87,7 @@ enum HelpCommands {
               description: "Wait for element to appear or disappear",
               example: "simpilot wait 'General' --timeout 10"),
         .init(name: "assert", category: .interaction,
-              synopsis: "assert <exists|not-exists|enabled|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]",
+              synopsis: "assert <exists|not-exists|enabled|hittable|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]",
               description: "Assert a predicate about a UI element; exits 2 on failure",
               example: "simpilot assert enabled 'Save' --timeout 3"),
 

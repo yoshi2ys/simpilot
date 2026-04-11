@@ -65,6 +65,9 @@ enum DebugDescriptionParser {
         let centerY: Double
         let frame: (x: Double, y: Double, w: Double, h: Double)
         let enabled: Bool
+        /// Set only after the poller requests an authoritative hittability check.
+        /// Nil on the fast path (no XCUIElement.isHittable IPC performed).
+        var hittable: Bool?
 
         /// JSON-ready dict for HTTP responses. Shared by TapHandler and AssertHandler.
         var asDict: [String: Any] {
@@ -78,6 +81,9 @@ enum DebugDescriptionParser {
                 ],
                 "enabled": enabled
             ]
+            if let hittable {
+                dict["hittable"] = hittable
+            }
             if !value.isEmpty {
                 dict["value"] = value
             }
@@ -90,8 +96,12 @@ enum DebugDescriptionParser {
     static func findElement(query: String, in app: XCUIApplication) -> FoundElement? {
         let desc = app.debugDescription
         let elements = parseLines(desc)
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        return findElement(query: query, in: elements)
+    }
 
+    /// Testable overload that operates on a pre-parsed element list.
+    static func findElement(query: String, in elements: [ParsedElement]) -> FoundElement? {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
         for element in elements {
             guard element.frame.w > 0 && element.frame.h > 0 else { continue }
             if matchesQuery(element: element, query: trimmed) {
@@ -106,8 +116,106 @@ enum DebugDescriptionParser {
             type: e.type, label: e.label, identifier: e.identifier, value: e.value,
             centerX: e.frame.x + e.frame.w / 2,
             centerY: e.frame.y + e.frame.h / 2,
-            frame: e.frame, enabled: e.enabled
+            frame: e.frame, enabled: e.enabled,
+            hittable: nil
         )
+    }
+
+    /// Authoritative hittability check via XCUIElement.isHittable.
+    ///
+    /// Pure debugDescription parse order is not a reliable z-order proxy — decorative
+    /// system overlays (e.g. Settings' dimming layer) appear later in the tree yet
+    /// don't block taps. XCUITest's isHittable evaluates frame, occlusion, alpha,
+    /// transforms, and user-interaction settings in one step.
+    ///
+    /// Returns the resolved hittability and the wall-clock duration of the check so
+    /// callers can decide whether to log a slow-path diagnostic. Resolution uses a
+    /// typed scope (`app.buttons`, `app.cells`, …) when the parsed type maps to a
+    /// first-class query — this is materially faster than `descendants(.any)` on
+    /// dense trees. NSPredicate format args are used so label/identifier strings
+    /// containing quotes or percent signs cannot inject predicate syntax.
+    static func checkHittability(
+        for element: FoundElement,
+        in app: XCUIApplication
+    ) -> (hittable: Bool, duration: TimeInterval) {
+        let start = Date()
+        let hittable = resolveIsHittable(
+            label: element.label,
+            identifier: element.identifier,
+            parsedType: element.type,
+            in: app
+        )
+        return (hittable, Date().timeIntervalSince(start))
+    }
+
+    private static func resolveIsHittable(
+        label: String,
+        identifier: String,
+        parsedType: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        let scope = typedQuery(for: parsedType, in: app) ?? app.descendants(matching: .any)
+        let element: XCUIElement
+        if !identifier.isEmpty {
+            element = scope.matching(
+                NSPredicate(format: "identifier == %@", identifier)
+            ).firstMatch
+        } else if !label.isEmpty {
+            element = scope.matching(
+                NSPredicate(format: "label == %@", label)
+            ).firstMatch
+        } else {
+            return false
+        }
+
+        var hittable = false
+        let exception = catchObjCException {
+            hittable = element.exists && element.isHittable
+        }
+        if exception != nil {
+            return false
+        }
+        return hittable
+    }
+
+    private static func typedQuery(for parsedType: String, in app: XCUIApplication) -> XCUIElementQuery? {
+        switch parsedType {
+        case "button": return app.buttons
+        case "cell": return app.cells
+        case "staticText": return app.staticTexts
+        case "textField": return app.textFields
+        case "secureTextField": return app.secureTextFields
+        case "searchField": return app.searchFields
+        case "switch": return app.switches
+        case "image": return app.images
+        case "icon": return app.icons
+        case "link": return app.links
+        case "navigationBar": return app.navigationBars
+        case "tabBar": return app.tabBars
+        case "toolbar": return app.toolbars
+        case "table": return app.tables
+        case "tableRow": return app.tableRows
+        case "scrollView": return app.scrollViews
+        case "collectionView": return app.collectionViews
+        case "slider": return app.sliders
+        case "stepper": return app.steppers
+        case "picker": return app.pickers
+        case "segmentedControl": return app.segmentedControls
+        case "menu": return app.menus
+        case "menuItem": return app.menuItems
+        case "alert": return app.alerts
+        case "sheet": return app.sheets
+        case "dialog": return app.dialogs
+        case "popover": return app.popovers
+        case "webView": return app.webViews
+        case "datePicker": return app.datePickers
+        case "textView": return app.textViews
+        case "activityIndicator": return app.activityIndicators
+        case "progressIndicator": return app.progressIndicators
+        case "pageIndicator": return app.pageIndicators
+        case "map": return app.maps
+        default: return nil
+        }
     }
 
     private static func matchesQuery(element: ParsedElement, query: String) -> Bool {

@@ -44,15 +44,39 @@ enum ElementPoller {
 
         let deadline = Date().addingTimeInterval(TimeInterval(max(timeoutMs, 0)) / 1000.0)
         let sleepInterval = TimeInterval(max(pollIntervalMs, 0)) / 1000.0
+        let cheapPredicates = predicates.filter { $0 != .hittable }
+        let needsHittable = predicates.contains(.hittable)
 
         while true {
-            let observed = DebugDescriptionParser.findElement(query: query, in: app)
-            let failed = predicates.filter { !PredicateEvaluator.matches($0, element: observed) }
+            var observed = DebugDescriptionParser.findElement(query: query, in: app)
+            var failed = cheapPredicates
+                .filter { !PredicateEvaluator.matches($0, element: observed) }
+                .map { $0.name }
+
+            // Defer the .hittable IPC until cheap predicates clear: isHittable forces
+            // an accessibility snapshot (~50–750ms depending on tree density), so
+            // skipping it when exists/enabled/label already failed saves significant
+            // wall time across the retry loop.
+            if failed.isEmpty, needsHittable {
+                if let element = observed {
+                    let check = DebugDescriptionParser.checkHittability(for: element, in: app)
+                    if check.duration >= 0.5 {
+                        print("[simpilot] hittable_check_slow: query=\(query) ms=\(Int(check.duration * 1000))")
+                    }
+                    observed?.hittable = check.hittable
+                    if !check.hittable {
+                        failed = [Predicate.hittable.name]
+                    }
+                } else {
+                    failed = [Predicate.hittable.name]
+                }
+            }
+
             if failed.isEmpty {
                 return .satisfied(element: observed)
             }
             if timeoutMs <= 0 || Date() >= deadline {
-                return .timedOut(lastElement: observed, failedPredicates: failed.map { $0.name })
+                return .timedOut(lastElement: observed, failedPredicates: failed)
             }
             Thread.sleep(forTimeInterval: sleepInterval)
         }

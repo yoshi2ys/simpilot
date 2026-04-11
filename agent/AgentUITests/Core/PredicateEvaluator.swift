@@ -6,6 +6,7 @@ enum Predicate: Equatable {
     case exists
     case notExists
     case enabled
+    case hittable
     case value(expected: String)
     case label(expected: String)
 
@@ -15,6 +16,7 @@ enum Predicate: Equatable {
         case .exists: return "exists"
         case .notExists: return "not-exists"
         case .enabled: return "enabled"
+        case .hittable: return "hittable"
         case .value(let v): return "value=\(v)"
         case .label(let v): return "label=\(v)"
         }
@@ -29,6 +31,7 @@ enum Predicate: Equatable {
         case "exists": return .exists
         case "not-exists", "notexists", "gone": return .notExists
         case "enabled": return .enabled
+        case "hittable": return .hittable
         default: return nil
         }
     }
@@ -48,6 +51,8 @@ enum PredicateEvaluator {
             return element == nil
         case .enabled:
             return element?.enabled == true
+        case .hittable:
+            return element?.hittable == true
         case .value(let expected):
             return matchString(expected: expected, observed: element?.value)
         case .label(let expected):
