@@ -19,10 +19,12 @@ final class TapHandler: @unchecked Sendable {
 
         let app = appManager.currentApp()
 
-        // Opt-in wait-and-act: when timeout_ms > 0, poll until all predicates hold, then tap.
-        // Default predicate list is [.exists] so `tap X --timeout 3` means "wait up to 3s for X".
+        // Route through the poller when timeout_ms > 0 or wait_until is set.
+        // Explicit predicates must be honored even with timeout_ms == 0, else
+        // the caller's check silently falls through to the legacy fast path.
         let timeoutMs = (json["timeout_ms"] as? Int) ?? 0
-        if timeoutMs > 0 {
+        let hasExplicitWaitUntil = (json["wait_until"] as? [String])?.isEmpty == false
+        if timeoutMs > 0 || hasExplicitWaitUntil {
             let predicates = parsePredicates(json["wait_until"]) ?? [.exists]
             let pollIntervalMs = (json["poll_interval_ms"] as? Int) ?? ElementPoller.defaultPollIntervalMs
             let result = ElementPoller.waitUntil(
