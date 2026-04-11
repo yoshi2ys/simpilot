@@ -6,6 +6,6 @@ enum ActivateCommand {
             throw CLIError.invalidArgs("Usage: simpilot activate <bundleId>")
         }
         let data = try client.post("/activate", body: ["bundleId": bundleId])
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

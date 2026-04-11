@@ -45,6 +45,6 @@ enum TypeCommand {
             body["method"] = method
         }
         let data = try client.post("/type", body: body)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

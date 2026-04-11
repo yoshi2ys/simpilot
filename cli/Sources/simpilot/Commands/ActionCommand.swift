@@ -60,6 +60,6 @@ enum ActionCommand {
         }
 
         let data = try client.post("/action", body: body)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

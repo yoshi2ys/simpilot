@@ -8,6 +8,6 @@ enum TapCoordCommand {
             throw CLIError.invalidArgs("Usage: simpilot tapcoord <x> <y>")
         }
         let data = try client.post("/tapcoord", body: ["x": x, "y": y])
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

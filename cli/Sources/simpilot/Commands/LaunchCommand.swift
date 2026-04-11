@@ -6,6 +6,6 @@ enum LaunchCommand {
             throw CLIError.invalidArgs("Usage: simpilot launch <bundleId>")
         }
         let data = try client.post("/launch", body: ["bundleId": bundleId])
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

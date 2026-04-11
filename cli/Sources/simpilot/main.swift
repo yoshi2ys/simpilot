@@ -115,6 +115,31 @@ func printResponse(data: Data, pretty: Bool) {
     }
 }
 
+/// Prints the agent response, then throws `CLIError.commandFailed` when the envelope
+/// reports `success: false`. Callers that want agent-reported failures to surface as
+/// exit code 2 must use this instead of `printResponse`.
+func decodeAndPrint(data: Data, pretty: Bool) throws {
+    // Parse once, print, then inspect `success`. Falling back to the raw string path
+    // mirrors `printResponse` so non-JSON payloads still surface to the user.
+    guard let json = try? JSONSerialization.jsonObject(with: data) else {
+        if let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+        return
+    }
+    printJSON(json, pretty: pretty)
+
+    guard let dict = json as? [String: Any],
+          (dict["success"] as? Bool) == false else {
+        return
+    }
+    let error = dict["error"] as? [String: Any]
+    let message = (error?["message"] as? String)
+        ?? (error?["code"] as? String)
+        ?? "agent returned success:false"
+    throw CLIError.commandFailed(message)
+}
+
 // MARK: - Main
 
 let options = parseArguments()
@@ -160,6 +185,8 @@ func run() {
             try ElementsCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
         case "wait":
             try WaitCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
+        case "assert":
+            try AssertCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
         case "source":
             try SourceCommand.run(client: client, args: options.commandArgs, pretty: options.pretty)
         case "info":

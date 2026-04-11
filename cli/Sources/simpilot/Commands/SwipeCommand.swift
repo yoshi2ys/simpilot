@@ -45,6 +45,6 @@ enum SwipeCommand {
             body["velocity"] = velocity
         }
         let data = try client.post("/swipe", body: body)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

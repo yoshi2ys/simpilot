@@ -36,7 +36,7 @@ enum ScreenshotCommand {
         let path = "/screenshot?" + queryItems.joined(separator: "&")
 
         let data = try client.get(path)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }
 

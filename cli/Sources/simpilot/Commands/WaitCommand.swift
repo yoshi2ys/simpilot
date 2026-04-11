@@ -42,6 +42,6 @@ enum WaitCommand {
         }
 
         let data = try client.post("/wait", body: body)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

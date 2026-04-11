@@ -60,10 +60,29 @@ enum DebugDescriptionParser {
         let type: String
         let label: String
         let identifier: String
+        let value: String
         let centerX: Double
         let centerY: Double
         let frame: (x: Double, y: Double, w: Double, h: Double)
         let enabled: Bool
+
+        /// JSON-ready dict for HTTP responses. Shared by TapHandler and AssertHandler.
+        var asDict: [String: Any] {
+            var dict: [String: Any] = [
+                "type": type,
+                "label": label,
+                "identifier": identifier,
+                "frame": [
+                    "x": frame.x, "y": frame.y,
+                    "width": frame.w, "height": frame.h
+                ],
+                "enabled": enabled
+            ]
+            if !value.isEmpty {
+                dict["value"] = value
+            }
+            return dict
+        }
     }
 
     /// Find an element by query in the debugDescription and return its center coordinates.
@@ -84,7 +103,7 @@ enum DebugDescriptionParser {
 
     private static func toFound(_ e: ParsedElement) -> FoundElement {
         FoundElement(
-            type: e.type, label: e.label, identifier: e.identifier,
+            type: e.type, label: e.label, identifier: e.identifier, value: e.value,
             centerX: e.frame.x + e.frame.w / 2,
             centerY: e.frame.y + e.frame.h / 2,
             frame: e.frame, enabled: e.enabled

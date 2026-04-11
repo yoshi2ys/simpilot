@@ -9,7 +9,7 @@ enum ClipboardCommand {
         switch subcommand {
         case "get":
             let data = try client.get("/clipboard")
-            printResponse(data: data, pretty: pretty)
+            try decodeAndPrint(data: data, pretty: pretty)
 
         case "set":
             guard args.count >= 2 else {
@@ -17,7 +17,7 @@ enum ClipboardCommand {
             }
             let text = args[1]
             let data = try client.post("/clipboard", body: ["text": text])
-            printResponse(data: data, pretty: pretty)
+            try decodeAndPrint(data: data, pretty: pretty)
 
         default:
             throw CLIError.invalidArgs("Unknown subcommand '\(subcommand)'. Use 'get' or 'set'.")

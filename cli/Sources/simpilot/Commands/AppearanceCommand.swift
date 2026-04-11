@@ -5,12 +5,12 @@ enum AppearanceCommand {
         if args.isEmpty {
             // GET current appearance
             let data = try client.get("/appearance")
-            printResponse(data: data, pretty: pretty)
+            try decodeAndPrint(data: data, pretty: pretty)
         } else {
             // SET appearance
             let mode = args[0]
             let data = try client.post("/appearance", body: ["mode": mode])
-            printResponse(data: data, pretty: pretty)
+            try decodeAndPrint(data: data, pretty: pretty)
         }
     }
 }

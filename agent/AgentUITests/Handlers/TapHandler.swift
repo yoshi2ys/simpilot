@@ -19,7 +19,50 @@ final class TapHandler: @unchecked Sendable {
 
         let app = appManager.currentApp()
 
-        // Fast path: resolve via debugDescription parsing (~0.2s) + coordinate tap
+        // Opt-in wait-and-act: when timeout_ms > 0, poll until all predicates hold, then tap.
+        // Default predicate list is [.exists] so `tap X --timeout 3` means "wait up to 3s for X".
+        let timeoutMs = (json["timeout_ms"] as? Int) ?? 0
+        if timeoutMs > 0 {
+            let predicates = parsePredicates(json["wait_until"]) ?? [.exists]
+            let pollIntervalMs = (json["poll_interval_ms"] as? Int) ?? ElementPoller.defaultPollIntervalMs
+            let result = ElementPoller.waitUntil(
+                query: query,
+                predicates: predicates,
+                timeoutMs: timeoutMs,
+                pollIntervalMs: pollIntervalMs,
+                in: app
+            )
+            switch result {
+            case .satisfied(let element):
+                // An existence-satisfying result with a nil element means the caller asked
+                // for e.g. `not-exists` — there's nothing to tap. Return an error instead of
+                // silently no-op'ing, because `tap` must produce a tap.
+                guard let element else {
+                    return HTTPResponseBuilder.error(
+                        "tap with wait_until resolved to no element (query: \(query))",
+                        code: "no_element_to_tap"
+                    )
+                }
+                return performCoordinateTap(on: element, query: query, app: app)
+            case .timedOut(let lastElement, let failedPredicates):
+                var extra: [String: Any] = [
+                    "query": query,
+                    "failed_predicates": failedPredicates,
+                    "timeout_ms": timeoutMs
+                ]
+                if let lastElement {
+                    extra["last_state"] = lastElement.asDict
+                }
+                return HTTPResponseBuilder.error(
+                    "Timed out waiting for predicates on query: \(query)",
+                    code: "wait_timeout",
+                    status: 408,
+                    extra: extra
+                )
+            }
+        }
+
+        // Legacy path (timeout_ms == 0): fast debugDescription resolve + coordinate tap.
         #if !os(tvOS)
         if let found = DebugDescriptionParser.findElement(query: query, in: app) {
             let coordTapFailed = catchObjCException {
@@ -30,16 +73,7 @@ final class TapHandler: @unchecked Sendable {
 
             if coordTapFailed == nil {
                 return HTTPResponseBuilder.json([
-                    "element": [
-                        "type": found.type,
-                        "label": found.label,
-                        "identifier": found.identifier,
-                        "frame": [
-                            "x": found.frame.x, "y": found.frame.y,
-                            "width": found.frame.w, "height": found.frame.h
-                        ],
-                        "enabled": found.enabled
-                    ] as [String: Any]
+                    "element": found.asDict
                 ])
             }
             // Coordinate tap failed (e.g. visionOS spatial windows) — fall through to element.tap()
@@ -67,5 +101,37 @@ final class TapHandler: @unchecked Sendable {
         } catch {
             return HTTPResponseBuilder.error("Element not found for query: \(query)", code: "element_not_found")
         }
+    }
+
+    // MARK: - Helpers
+
+    private func performCoordinateTap(
+        on found: DebugDescriptionParser.FoundElement,
+        query: String,
+        app: XCUIApplication
+    ) -> Data {
+        #if os(tvOS)
+        XCUIRemote.shared.press(.select)
+        return HTTPResponseBuilder.json(["element": found.asDict])
+        #else
+        let failure = catchObjCException {
+            let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+            coord.tap()
+        }
+        if let failure {
+            return HTTPResponseBuilder.error(
+                "Coordinate tap failed for query \(query): \(failure)",
+                code: "tap_failed"
+            )
+        }
+        return HTTPResponseBuilder.json(["element": found.asDict])
+        #endif
+    }
+
+    private func parsePredicates(_ raw: Any?) -> [Predicate]? {
+        guard let array = raw as? [String] else { return nil }
+        let parsed = array.compactMap { Predicate.parseSimple($0) }
+        return parsed.isEmpty ? nil : parsed
     }
 }

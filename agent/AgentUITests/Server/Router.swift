@@ -104,6 +104,7 @@ final class Router {
         let infoHandler = InfoHandler()
         let swipeHandler = SwipeHandler(appManager: appManager)
         let waitHandler = WaitHandler(appManager: appManager)
+        let assertHandler = AssertHandler(appManager: appManager)
 
         route("GET", "/health", healthHandler.handle)
         route("POST", "/launch", launchHandler.handle)
@@ -118,6 +119,7 @@ final class Router {
         route("GET", "/info", infoHandler.handle)
         route("POST", "/swipe", swipeHandler.handle)
         route("POST", "/wait", waitHandler.handle)
+        route("POST", "/assert", assertHandler.handle)
 
         let clipboardHandler = ClipboardHandler()
         route("GET", "/clipboard", clipboardHandler.handleGet)

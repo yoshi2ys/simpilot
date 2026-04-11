@@ -18,41 +18,33 @@ final class WaitHandler: @unchecked Sendable {
             )
         }
 
-        let timeout = json["timeout"] as? Double ?? 10.0
+        // Legacy wire format: `timeout` is seconds (Double), `exists` is a bool.
+        // Preserved for backward compatibility with existing clients.
+        let timeoutSeconds = json["timeout"] as? Double ?? 10.0
         let shouldExist = json["exists"] as? Bool ?? true
+        let predicate: Predicate = shouldExist ? .exists : .notExists
 
         let app = appManager.currentApp()
-        let deadline = Date().addingTimeInterval(timeout)
+        let result = ElementPoller.waitUntil(
+            query: query,
+            predicates: [predicate],
+            timeoutMs: Int(timeoutSeconds * 1000),
+            in: app
+        )
 
-        // Poll using DebugDescriptionParser instead of XCUIElement.waitForExistence().
-        // waitForExistence() on bare/identifier queries crashes the agent because
-        // XCUITest throws uncatchable NSExceptions on phantom element proxies.
-        if shouldExist {
-            while Date() < deadline {
-                if DebugDescriptionParser.findElement(query: query, in: app) != nil {
-                    return HTTPResponseBuilder.json(
-                        ["found": true, "query": query, "timeout": timeout]
-                    )
-                }
-                Thread.sleep(forTimeInterval: 0.25)
-            }
-            return HTTPResponseBuilder.error(
-                "Element did not appear within \(timeout)s: \(query)",
-                code: "element_not_found"
-            )
-        } else {
-            while Date() < deadline {
-                if DebugDescriptionParser.findElement(query: query, in: app) == nil {
-                    return HTTPResponseBuilder.json(
-                        ["found": false, "query": query, "timeout": timeout]
-                    )
-                }
-                Thread.sleep(forTimeInterval: 0.25)
-            }
-            return HTTPResponseBuilder.error(
-                "Element still exists after \(timeout)s: \(query)",
-                code: "element_still_exists"
-            )
+        switch result {
+        case .satisfied:
+            return HTTPResponseBuilder.json([
+                "found": shouldExist,
+                "query": query,
+                "timeout": timeoutSeconds
+            ])
+        case .timedOut:
+            let code = shouldExist ? "element_not_found" : "element_still_exists"
+            let message = shouldExist
+                ? "Element did not appear within \(timeoutSeconds)s: \(query)"
+                : "Element still exists after \(timeoutSeconds)s: \(query)"
+            return HTTPResponseBuilder.error(message, code: code)
         }
     }
 }

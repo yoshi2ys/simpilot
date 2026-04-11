@@ -6,6 +6,6 @@ enum TerminateCommand {
             throw CLIError.invalidArgs("Usage: simpilot terminate <bundleId>")
         }
         let data = try client.post("/terminate", body: ["bundleId": bundleId])
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }

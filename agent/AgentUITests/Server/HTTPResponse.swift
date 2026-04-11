@@ -11,14 +11,26 @@ enum HTTPResponseBuilder {
         return buildHTTP(jsonObject: envelope, status: status)
     }
 
-    static func error(_ message: String, code: String, status: Int = 400, durationMs: Double = 0) -> Data {
+    static func error(
+        _ message: String,
+        code: String,
+        status: Int = 400,
+        durationMs: Double = 0,
+        extra: [String: Any] = [:]
+    ) -> Data {
+        var errorObject: [String: Any] = [
+            "code": code,
+            "message": message
+        ]
+        // Merge caller-supplied fields into the error object. Callers must not
+        // set "code" or "message" via extra — those are owned by the first two args.
+        for (key, value) in extra where key != "code" && key != "message" {
+            errorObject[key] = value
+        }
         let envelope: [String: Any] = [
             "success": false,
             "data": NSNull(),
-            "error": [
-                "code": code,
-                "message": message
-            ],
+            "error": errorObject,
             "duration_ms": Int(durationMs)
         ]
         return buildHTTP(jsonObject: envelope, status: status)

@@ -37,6 +37,9 @@
 		AA00000000000000004A /* ClipboardHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004B /* ClipboardHandler.swift */; };
 		AA00000000000000004C /* AppearanceHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004D /* AppearanceHandler.swift */; };
 		AA00000000000000004E /* LocationHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000004F /* LocationHandler.swift */; };
+		AA000000000000000080 /* ElementPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000081 /* ElementPoller.swift */; };
+		AA000000000000000082 /* PredicateEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000083 /* PredicateEvaluator.swift */; };
+		AA000000000000000084 /* AssertHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000085 /* AssertHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,6 +87,9 @@
 		AA00000000000000004B /* ClipboardHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHandler.swift; sourceTree = "<group>"; };
 		AA00000000000000004D /* AppearanceHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceHandler.swift; sourceTree = "<group>"; };
 		AA00000000000000004F /* LocationHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationHandler.swift; sourceTree = "<group>"; };
+		AA000000000000000081 /* ElementPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementPoller.swift; sourceTree = "<group>"; };
+		AA000000000000000083 /* PredicateEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredicateEvaluator.swift; sourceTree = "<group>"; };
+		AA000000000000000085 /* AssertHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssertHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,6 +190,7 @@
 				AA00000000000000004B /* ClipboardHandler.swift */,
 				AA00000000000000004D /* AppearanceHandler.swift */,
 				AA00000000000000004F /* LocationHandler.swift */,
+				AA000000000000000085 /* AssertHandler.swift */,
 			);
 			path = Handlers;
 			sourceTree = "<group>";
@@ -197,6 +204,8 @@
 				AA00000000000000003F /* ObjCExceptionCatcher.m */,
 				AA000000000000000046 /* DebugDescriptionParser.swift */,
 				AA000000000000000048 /* PasteHelper.swift */,
+				AA000000000000000081 /* ElementPoller.swift */,
+				AA000000000000000083 /* PredicateEvaluator.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -307,6 +316,9 @@
 				AA00000000000000004A /* ClipboardHandler.swift in Sources */,
 				AA00000000000000004C /* AppearanceHandler.swift in Sources */,
 				AA00000000000000004E /* LocationHandler.swift in Sources */,
+				AA000000000000000080 /* ElementPoller.swift in Sources */,
+				AA000000000000000082 /* PredicateEvaluator.swift in Sources */,
+				AA000000000000000084 /* AssertHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

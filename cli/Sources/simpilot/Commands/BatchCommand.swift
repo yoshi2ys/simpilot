@@ -20,6 +20,6 @@ enum BatchCommand {
         }
 
         let data = try client.post("/batch", body: json)
-        printResponse(data: data, pretty: pretty)
+        try decodeAndPrint(data: data, pretty: pretty)
     }
 }
