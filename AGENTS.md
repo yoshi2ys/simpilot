@@ -28,22 +28,6 @@ cd agent && xcodebuild build-for-testing \
   -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -quiet  # visionOS Agent
 ```
 
-## Run Unit Tests
-
-```bash
-# Core logic tests (no simulator UI driving). Do NOT run the whole
-# AgentUITests target — AgentUITests/testAgent is the long-running HTTP
-# server entry point used by `simpilot start` and never returns.
-cd agent && xcodebuild test \
-  -project AgentApp.xcodeproj \
-  -scheme AgentUITests \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:AgentUITests/StablePredicateTests \
-  -only-testing:AgentUITests/PredicateEvaluatorTests \
-  -only-testing:AgentUITests/DebugDescriptionParserTests \
-  -quiet
-```
-
 ## Run Agent
 
 ```bash

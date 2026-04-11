@@ -23,8 +23,8 @@ simpilot tap 'General'
 simpilot tap 'About'
 simpilot screenshot --file /tmp/screen.png
 
-# Stop
-simpilot stop
+# Stop (requires an explicit target — no default)
+simpilot stop --all
 ```
 
 ## Requirements
@@ -51,8 +51,8 @@ The agent is discovered via `devicectl` hostname — no additional network confi
 
 ```bash
 simpilot start [--device '<name>']    # Build & start agent on simulator or device
-simpilot stop                         # Stop the agent on default port
-simpilot stop --port 8223             # Stop a specific agent
+simpilot stop --port 8223             # Stop a specific agent by port
+simpilot stop --udid <UDID>           # Stop a specific agent by device UDID
 simpilot stop --all                   # Stop all agents + delete cloned/created devices
 simpilot health                       # Check if agent is running
 simpilot list                         # Show all running agents with status

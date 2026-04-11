@@ -4,6 +4,11 @@ import Foundation
 
 struct GlobalOptions {
     var port: Int = 8222
+    /// True when `--port` was passed on the CLI (not the default, not env).
+    /// Used by `stop` to decide whether to forward the global port as a target.
+    /// Env `SIMPILOT_PORT` is intentionally NOT treated as explicit — it's ambient
+    /// session default, not a per-invocation assertion.
+    var portExplicit: Bool = false
     var pretty: Bool = false
     var timeout: TimeInterval = 30
     var command: String = ""
@@ -159,6 +164,7 @@ struct Simpilot {
 
         if let p = parsed.int("--port") {
             options.port = p
+            options.portExplicit = true
         }
         if parsed.bool("--pretty") {
             options.pretty = true
@@ -260,7 +266,12 @@ struct Simpilot {
             case "start":
                 try StartCommand.run(args: options.commandArgs, pretty: options.pretty, port: options.port)
             case "stop":
-                try StopCommand.run(args: options.commandArgs, pretty: options.pretty, port: options.port)
+                try StopCommand.run(
+                    args: options.commandArgs,
+                    pretty: options.pretty,
+                    port: options.port,
+                    portExplicit: options.portExplicit
+                )
             case "list":
                 try ListCommand.run(args: options.commandArgs, pretty: options.pretty)
             default:

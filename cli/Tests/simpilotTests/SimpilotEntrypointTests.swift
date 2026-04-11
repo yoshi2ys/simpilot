@@ -83,6 +83,36 @@ final class SimpilotEntrypointTests: XCTestCase {
         XCTAssertEqual(opts.commandArgs, ["General", "--wait-until", "exists,hittable"])
     }
 
+    // MARK: - portExplicit propagation (Wave 2.2 Reviewer #1 fix)
+
+    func testPortFlagSetsPortExplicit() throws {
+        let opts = try Simpilot.parseArguments(rawArgs: ["--port", "8223", "stop"])
+        XCTAssertEqual(opts.port, 8223)
+        XCTAssertTrue(opts.portExplicit)
+        XCTAssertEqual(opts.command, "stop")
+        XCTAssertEqual(opts.commandArgs, [])
+    }
+
+    func testNoPortFlagLeavesPortExplicitFalse() throws {
+        let opts = try Simpilot.parseArguments(rawArgs: ["stop", "--all"])
+        XCTAssertEqual(opts.port, 8222)
+        XCTAssertFalse(opts.portExplicit, "Default port must not be treated as explicit")
+        XCTAssertEqual(opts.command, "stop")
+        XCTAssertEqual(opts.commandArgs, ["--all"])
+    }
+
+    func testGlobalPortAndLocalPortBothReachStopCommand() throws {
+        // Global --port gets peeled by splitGlobalFromCommand; local --port
+        // stays in commandArgs. StopCommand.run sees both and reconciles.
+        let opts = try Simpilot.parseArguments(
+            rawArgs: ["--port", "8223", "stop", "--port", "8224"]
+        )
+        XCTAssertEqual(opts.port, 8223)
+        XCTAssertTrue(opts.portExplicit)
+        XCTAssertEqual(opts.command, "stop")
+        XCTAssertEqual(opts.commandArgs, ["--port", "8224"])
+    }
+
     func testHelpAfterSubcommandIsSubcommandsProblem() throws {
         // `simpilot tap --help` should NOT trigger global help — the global
         // parser stops at "tap", and subcommand-local --help would be a

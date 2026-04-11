@@ -24,15 +24,6 @@ final class ArgParserTests: XCTestCase {
         ]
     )
 
-    private let stopSpec = ArgSpec(
-        command: "stop",
-        flags: [
-            .init("--port", .int),
-            .init("--udid", .string),
-            .init("--all", .bool),
-        ]
-    )
-
     private let typeSpec = ArgSpec(
         command: "type",
         positionals: [.init(name: "text", required: true)],
@@ -240,30 +231,6 @@ final class ArgParserTests: XCTestCase {
         ) { error in
             assertInvalidArgs(error, contains: "unexpected argument")
             assertInvalidArgs(error, contains: "'extra'")
-        }
-    }
-
-    // MARK: - stop spec
-    //
-    // These exercise ArgParser against a representative spec for `stop`. The real
-    // StopCommand isn't migrated until Wave 2.2 — these pin the contract the future
-    // StopCommand will rely on, not the live CLI behavior.
-
-    func testStopAcceptsPortFlag() throws {
-        let parsed = try ArgParser.parse(["--port", "8223"], spec: stopSpec)
-        XCTAssertEqual(parsed.int("--port"), 8223)
-        XCTAssertNil(parsed.string("--udid"))
-        XCTAssertFalse(parsed.bool("--all"))
-    }
-
-    func testStopAcceptsAllFlag() throws {
-        let parsed = try ArgParser.parse(["--all"], spec: stopSpec)
-        XCTAssertTrue(parsed.bool("--all"))
-    }
-
-    func testStopRejectsUnknownFlag() {
-        XCTAssertThrowsError(try ArgParser.parse(["--force"], spec: stopSpec)) { error in
-            assertInvalidArgs(error, contains: "--force")
         }
     }
 

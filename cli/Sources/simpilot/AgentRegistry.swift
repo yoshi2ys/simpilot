@@ -85,6 +85,14 @@ enum AgentRegistry {
         return removed
     }
 
+    static func remove(udid: String) -> AgentRecord? {
+        var records = load()
+        guard let index = records.firstIndex(where: { $0.udid == udid }) else { return nil }
+        let removed = records.remove(at: index)
+        save(records)
+        return removed
+    }
+
     @discardableResult
     static func removeAll() -> [AgentRecord] {
         let records = load()
