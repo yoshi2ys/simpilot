@@ -1,44 +1,31 @@
 import Foundation
 
 enum AssertCommand {
+    static let argSpec = ArgSpec(
+        command: "assert",
+        positionals: [
+            .init(name: "predicate", required: true),
+            .init(name: "query", required: true),
+            .init(name: "expected", required: false),
+        ],
+        flags: [
+            .init("--timeout", .double),
+            .init("--snapshot-on-fail", .bool),
+        ]
+    )
+
     static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        guard let predicate = args.first else {
-            throw CLIError.invalidArgs(usage)
-        }
-
-        let rest = Array(args.dropFirst())
-        var positional: [String] = []
-        var timeoutSeconds: Double?
-        var snapshotOnFail = false
-        var i = 0
-
-        while i < rest.count {
-            switch rest[i] {
-            case "--timeout":
-                i += 1
-                guard i < rest.count, let t = Double(rest[i]) else {
-                    throw CLIError.invalidArgs("--timeout requires a number of seconds")
-                }
-                timeoutSeconds = t
-            case "--snapshot-on-fail":
-                snapshotOnFail = true
-            default:
-                positional.append(rest[i])
-            }
-            i += 1
-        }
-
-        guard let query = positional.first else {
-            throw CLIError.invalidArgs(usage)
-        }
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+        let predicate = parsed.positionals[0]
+        let query = parsed.positionals[1]
+        let expected: String? = parsed.positionals.count >= 3 ? parsed.positionals[2] : nil
 
         var body: [String: Any] = [
             "predicate": predicate,
             "query": query,
-            "snapshot_on_fail": snapshotOnFail
+            "snapshot_on_fail": parsed.bool("--snapshot-on-fail"),
         ]
-        if positional.count >= 2 {
-            let expected = positional[1]
+        if let expected {
             // Preflight regex compile so typos surface with exit 3 locally
             // instead of making a round-trip to the agent just to learn the
             // pattern is invalid.
@@ -52,13 +39,10 @@ enum AssertCommand {
             }
             body["expected"] = expected
         }
-        // Default 3s timeout matches the plan; explicit 0 means "check once, no retry".
-        body["timeout_ms"] = Int((timeoutSeconds ?? 3.0) * 1000)
+        // Explicit 0 means "check once, no retry".
+        body["timeout_ms"] = Int((parsed.double("--timeout") ?? 3.0) * 1000)
 
         let data = try client.post("/assert", body: body)
         try decodeAndPrint(data: data, pretty: pretty)
     }
-
-    private static let usage =
-        "Usage: simpilot assert <exists|not-exists|enabled|hittable|stable|value|label> <query> [expected] [--timeout <s>] [--snapshot-on-fail]"
 }

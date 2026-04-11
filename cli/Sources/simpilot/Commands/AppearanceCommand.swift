@@ -1,15 +1,19 @@
 import Foundation
 
 enum AppearanceCommand {
+    static let argSpec = ArgSpec(
+        command: "appearance",
+        positionals: [.init(name: "mode", required: false)]
+    )
+
     static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        if args.isEmpty {
-            // GET current appearance
-            let data = try client.get("/appearance")
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+
+        if let mode = parsed.positionals.first {
+            let data = try client.post("/appearance", body: ["mode": mode])
             try decodeAndPrint(data: data, pretty: pretty)
         } else {
-            // SET appearance
-            let mode = args[0]
-            let data = try client.post("/appearance", body: ["mode": mode])
+            let data = try client.get("/appearance")
             try decodeAndPrint(data: data, pretty: pretty)
         }
     }

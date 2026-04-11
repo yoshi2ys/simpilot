@@ -1,23 +1,18 @@
 import Foundation
 
 enum SourceCommand {
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        var bundleId: String?
-        var i = 0
+    static let argSpec = ArgSpec(
+        command: "source",
+        flags: [
+            .init("--app", .string),
+        ]
+    )
 
-        while i < args.count {
-            if args[i] == "--app" {
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("Usage: simpilot source [--app <bundleId>]")
-                }
-                bundleId = args[i]
-            }
-            i += 1
-        }
+    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
 
         var path = "/source"
-        if let bundleId {
+        if let bundleId = parsed.string("--app") {
             path += "?bundleId=\(bundleId)"
         }
 

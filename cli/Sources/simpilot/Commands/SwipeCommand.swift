@@ -1,47 +1,24 @@
 import Foundation
 
 enum SwipeCommand {
+    static let argSpec = ArgSpec(
+        command: "swipe",
+        positionals: [.init(name: "direction", required: true)],
+        flags: [
+            .init("--on", .string),
+            .init("--velocity", .string),
+        ]
+    )
+
     static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        guard !args.isEmpty else {
-            throw CLIError.invalidArgs("Usage: simpilot swipe <direction> [--on <query>] [--velocity slow|default|fast]")
-        }
-
-        var direction: String?
-        var query: String?
-        var velocity: String?
-        var i = 0
-
-        while i < args.count {
-            switch args[i] {
-            case "--on":
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("Usage: simpilot swipe <direction> [--on <query>] [--velocity slow|default|fast]")
-                }
-                query = args[i]
-            case "--velocity":
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("Usage: simpilot swipe <direction> [--on <query>] [--velocity slow|default|fast]")
-                }
-                velocity = args[i]
-            default:
-                if direction == nil {
-                    direction = args[i]
-                }
-            }
-            i += 1
-        }
-
-        guard let direction else {
-            throw CLIError.invalidArgs("Usage: simpilot swipe <direction> [--on <query>] [--velocity slow|default|fast]")
-        }
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+        let direction = parsed.positionals[0]
 
         var body: [String: Any] = ["direction": direction]
-        if let query {
+        if let query = parsed.string("--on") {
             body["query"] = query
         }
-        if let velocity {
+        if let velocity = parsed.string("--velocity") {
             body["velocity"] = velocity
         }
         let data = try client.post("/swipe", body: body)

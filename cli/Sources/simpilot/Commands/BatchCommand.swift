@@ -1,10 +1,18 @@
 import Foundation
 
 enum BatchCommand {
+    static let argSpec = ArgSpec(
+        command: "batch",
+        positionals: [.init(name: "json", required: false)],
+        allowsExtraPositionals: true
+    )
+
     static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+
         let jsonString: String
-        if !args.isEmpty {
-            jsonString = args.joined(separator: " ")
+        if !parsed.positionals.isEmpty {
+            jsonString = parsed.positionals.joined(separator: " ")
         } else {
             // Read from stdin
             let stdinData = FileHandle.standardInput.availableData

@@ -1,35 +1,52 @@
 import Foundation
 
 enum StartCommand {
-    private enum MultiMode {
+    static let argSpec = ArgSpec(
+        command: "start",
+        flags: [
+            .init("--device", .string),
+            .init("--clone", .optionalInt(default: 1)),
+            .init("--create", .optionalInt(default: 1)),
+        ]
+    )
+
+    enum MultiMode: Equatable {
         case clone(Int)
         case create(Int)
     }
 
-    static func run(args: [String], pretty: Bool, port: Int) throws {
-        var deviceName = "iPhone 17 Pro"
-        var multiMode: MultiMode? = nil
-        var i = 0
+    /// Pure parsing+validation step extracted so tests can exercise the
+    /// `--clone`/`--create` non-positive rejection without booting the simulator
+    /// machinery in `runSingle` / `runMulti`.
+    static func resolveMultiMode(args: [String]) throws -> (deviceName: String, mode: MultiMode?) {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+        let deviceName = parsed.string("--device") ?? "iPhone 17 Pro"
 
-        while i < args.count {
-            switch args[i] {
-            case "--device":
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("Usage: simpilot start [--device <name>] [--clone [N]] [--create [N]]")
-                }
-                deviceName = args[i]
-            case "--clone":
-                let n = parseOptionalCount(args: args, index: &i)
-                multiMode = .clone(n)
-            case "--create":
-                let n = parseOptionalCount(args: args, index: &i)
-                multiMode = .create(n)
-            default:
-                break
-            }
-            i += 1
+        let cloneCount = parsed.int("--clone")
+        let createCount = parsed.int("--create")
+        if cloneCount != nil && createCount != nil {
+            throw CLIError.invalidArgs("start: --clone and --create are mutually exclusive")
         }
+        if let n = cloneCount, n <= 0 {
+            throw CLIError.invalidArgs("start: --clone count must be a positive integer (got \(n))")
+        }
+        if let n = createCount, n <= 0 {
+            throw CLIError.invalidArgs("start: --create count must be a positive integer (got \(n))")
+        }
+
+        let mode: MultiMode?
+        if let n = cloneCount {
+            mode = .clone(n)
+        } else if let n = createCount {
+            mode = .create(n)
+        } else {
+            mode = nil
+        }
+        return (deviceName, mode)
+    }
+
+    static func run(args: [String], pretty: Bool, port: Int) throws {
+        let (deviceName, multiMode) = try resolveMultiMode(args: args)
 
         // Resolve device: try simulator first, then physical device
         let resolved = resolveDevice(name: deviceName)
@@ -201,14 +218,6 @@ enum StartCommand {
     }
 
     // MARK: - Helpers
-
-    private static func parseOptionalCount(args: [String], index i: inout Int) -> Int {
-        if i + 1 < args.count, let n = Int(args[i + 1]), n > 0 {
-            i += 1
-            return n
-        }
-        return 1
-    }
 
     private static func launchXcodebuild(
         destination: String,

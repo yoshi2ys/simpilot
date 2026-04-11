@@ -67,7 +67,7 @@ enum HelpCommands {
 
         // UI INTERACTION
         .init(name: "tap", category: .interaction,
-              synopsis: "tap <query>",
+              synopsis: "tap <query> [--wait-until <csv>] [--timeout <s>] [--poll-interval <ms>]",
               description: "Tap an element by label/query",
               example: "simpilot tap 'General'"),
         .init(name: "tapcoord", category: .interaction,
@@ -79,7 +79,7 @@ enum HelpCommands {
               description: "Type text into focused or specified element",
               example: "simpilot type 'hello' --into 'textField:Email'"),
         .init(name: "swipe", category: .interaction,
-              synopsis: "swipe <up|down|left|right> [--on <query>]",
+              synopsis: "swipe <up|down|left|right> [--on <query>] [--velocity slow|default|fast]",
               description: "Swipe in a direction",
               example: "simpilot swipe up"),
         .init(name: "wait", category: .interaction,
@@ -93,7 +93,7 @@ enum HelpCommands {
 
         // OBSERVATION
         .init(name: "elements", category: .observation,
-              synopsis: "elements [--level 0|1|2|3]",
+              synopsis: "elements [--app <bundleId>] [--depth <n>] [--level 0|1|2|3] [--actionable] [--compact]",
               description: "List UI elements at given detail level",
               example: "simpilot elements --level 1"),
         .init(name: "screenshot", category: .observation,
@@ -123,7 +123,7 @@ enum HelpCommands {
               description: "Run multiple commands in one request",
               example: #"simpilot batch '{"commands":[{"method":"GET","path":"/health"}]}'"#),
         .init(name: "action", category: .utility,
-              synopsis: "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level N] [--settle <s>]",
+              synopsis: "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>]",
               description: "Compound action with screenshot/elements",
               example: "simpilot action tap 'About' --screenshot /tmp/s.png --scale 1 --level 0"),
         .init(name: "help", category: .utility,

@@ -1,7 +1,13 @@
 import Foundation
 
 enum HelpCommand {
+    static let argSpec = ArgSpec(
+        command: "help",
+        positionals: [.init(name: "command", required: false)]
+    )
+
     static func run(client: HTTPClient, args: [String], pretty: Bool, format: HelpFormat = .json) throws {
+        _ = try ArgParser.parse(args, spec: argSpec)
         switch format {
         case .text:
             print(renderText())

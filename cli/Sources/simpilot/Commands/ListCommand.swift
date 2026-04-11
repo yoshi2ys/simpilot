@@ -1,7 +1,10 @@
 import Foundation
 
 enum ListCommand {
+    static let argSpec = ArgSpec(command: "list")
+
     static func run(args: [String], pretty: Bool) throws {
+        _ = try ArgParser.parse(args, spec: argSpec)
         let records = AgentRegistry.load()
 
         var agents: [[String: Any]] = []

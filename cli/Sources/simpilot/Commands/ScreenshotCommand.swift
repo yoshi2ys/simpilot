@@ -1,33 +1,20 @@
 import Foundation
 
 enum ScreenshotCommand {
-    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
-        var filePath: String?
-        var scale: String = "1"
-        var i = 0
+    static let argSpec = ArgSpec(
+        command: "screenshot",
+        flags: [
+            .init("--file", .string),
+            .init("--scale", .string),
+        ]
+    )
 
-        while i < args.count {
-            switch args[i] {
-            case "--file":
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("Usage: simpilot screenshot [--file <path>] [--scale <N|native>]")
-                }
-                filePath = args[i]
-            case "--scale":
-                i += 1
-                guard i < args.count else {
-                    throw CLIError.invalidArgs("--scale requires a positive number or 'native'")
-                }
-                scale = try ScaleArg.validate(args[i])
-            default:
-                break
-            }
-            i += 1
-        }
+    static func run(client: HTTPClient, args: [String], pretty: Bool) throws {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+        let scale = try ScaleArg.validate(parsed.string("--scale") ?? "1")
 
         var queryItems: [String] = ["scale=\(scale)"]
-        if let filePath {
+        if let filePath = parsed.string("--file") {
             guard let encoded = filePath.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
                 throw CLIError.invalidArgs("Invalid file path: \(filePath)")
             }
