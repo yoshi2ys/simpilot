@@ -114,6 +114,8 @@ struct Simpilot {
         TapCoordCommand.self,
         TypeCommand.self,
         SwipeCommand.self,
+        LongPressCommand.self,
+        DoubleTapCommand.self,
         WaitCommand.self,
         AssertCommand.self,
         ElementsCommand.self,

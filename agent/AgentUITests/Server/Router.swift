@@ -103,6 +103,8 @@ final class Router {
         let sourceHandler = SourceHandler(appManager: appManager)
         let infoHandler = InfoHandler()
         let swipeHandler = SwipeHandler(appManager: appManager)
+        let longPressHandler = LongPressHandler(appManager: appManager)
+        let doubleTapHandler = DoubleTapHandler(appManager: appManager)
         let waitHandler = WaitHandler(appManager: appManager)
         let assertHandler = AssertHandler(appManager: appManager)
 
@@ -118,6 +120,8 @@ final class Router {
         route("GET", "/source", sourceHandler.handle)
         route("GET", "/info", infoHandler.handle)
         route("POST", "/swipe", swipeHandler.handle)
+        route("POST", "/longpress", longPressHandler.handle)
+        route("POST", "/doubletap", doubleTapHandler.handle)
         route("POST", "/wait", waitHandler.handle)
         route("POST", "/assert", assertHandler.handle)
 
