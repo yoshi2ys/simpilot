@@ -1,5 +1,10 @@
 import XCTest
 
+// This class owns `simpilot start`'s runtime entry point: `testAgent` runs
+// forever as an HTTP server hosted inside XCUITest. Do **not** run this class
+// from `xcodebuild test` without a filter — it never returns. Use
+// `-only-testing:AgentUITests/<UnitTestClass>` to run the pure-logic suites
+// (StablePredicateTests / PredicateEvaluatorTests / DebugDescriptionParserTests).
 final class AgentUITests: XCTestCase {
     func testAgent() throws {
         var port: UInt16 = 8222

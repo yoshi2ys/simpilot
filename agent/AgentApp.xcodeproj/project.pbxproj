@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		AA000000000000000001 /* AgentAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000002 /* AgentAppApp.swift */; };
 		AA000000000000000003 /* AgentUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000004 /* AgentUITests.swift */; };
+		AA0000000000000000A1 /* StablePredicateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000A0 /* StablePredicateTests.swift */; };
+		AA0000000000000000A3 /* PredicateEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000A2 /* PredicateEvaluatorTests.swift */; };
+		AA0000000000000000A5 /* DebugDescriptionParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000A4 /* DebugDescriptionParserTests.swift */; };
 		AA000000000000000005 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000006 /* HTTPServer.swift */; };
 		AA000000000000000007 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000008 /* HTTPParser.swift */; };
 		AA000000000000000009 /* HTTPResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000A /* HTTPResponse.swift */; };
@@ -55,6 +58,9 @@
 /* Begin PBXFileReference section */
 		AA000000000000000002 /* AgentAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAppApp.swift; sourceTree = "<group>"; };
 		AA000000000000000004 /* AgentUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUITests.swift; sourceTree = "<group>"; };
+		AA0000000000000000A0 /* StablePredicateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StablePredicateTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000A2 /* PredicateEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredicateEvaluatorTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000A4 /* DebugDescriptionParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugDescriptionParserTests.swift; sourceTree = "<group>"; };
 		AA000000000000000006 /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
 		AA000000000000000008 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
 		AA00000000000000000A /* HTTPResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPResponse.swift; sourceTree = "<group>"; };
@@ -133,6 +139,9 @@
 			isa = PBXGroup;
 			children = (
 				AA000000000000000004 /* AgentUITests.swift */,
+				AA0000000000000000A0 /* StablePredicateTests.swift */,
+				AA0000000000000000A2 /* PredicateEvaluatorTests.swift */,
+				AA0000000000000000A4 /* DebugDescriptionParserTests.swift */,
 				AA000000000000000044 /* AgentUITests-Bridging-Header.h */,
 				AA000000000000000055 /* Server */,
 				AA000000000000000056 /* Handlers */,
@@ -289,6 +298,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA000000000000000003 /* AgentUITests.swift in Sources */,
+				AA0000000000000000A1 /* StablePredicateTests.swift in Sources */,
+				AA0000000000000000A3 /* PredicateEvaluatorTests.swift in Sources */,
+				AA0000000000000000A5 /* DebugDescriptionParserTests.swift in Sources */,
 				AA000000000000000005 /* HTTPServer.swift in Sources */,
 				AA000000000000000007 /* HTTPParser.swift in Sources */,
 				AA000000000000000009 /* HTTPResponse.swift in Sources */,

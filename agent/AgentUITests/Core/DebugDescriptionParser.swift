@@ -22,7 +22,35 @@ enum DebugDescriptionParser {
 
     /// Parse debugDescription into a full tree (Full element tree as nested dictionaries).
     static func parseTree(from app: XCUIApplication, maxDepth: Int = 10) -> [String: Any] {
-        let desc = app.debugDescription
+        parseTree(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+    }
+
+    /// Parse debugDescription into an actionable flat list (Flat list of interactive elements).
+    static func parseActionableList(from app: XCUIApplication, maxDepth: Int = 20) -> [[String: Any]] {
+        parseActionableList(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+    }
+
+    /// Parse debugDescription into a summary of element counts (Element type counts).
+    static func parseSummary(from app: XCUIApplication) -> [String: Any] {
+        let elements = parseLines(app.debugDescription)
+        return buildSummary(from: elements)
+    }
+
+    /// Parse debugDescription into a compact tree (Tree with single-child passthrough nodes collapsed).
+    static func parseCompactTree(from app: XCUIApplication, maxDepth: Int = 10) -> [String: Any] {
+        let elements = parseLines(app.debugDescription)
+        guard let root = buildCompactTree(from: elements, maxDepth: maxDepth) else {
+            return [:]
+        }
+        return root
+    }
+
+    // MARK: - Raw-string overloads (testable without a live XCUIApplication)
+
+    /// Same as `parseTree(from:maxDepth:)` but consumes a raw debugDescription
+    /// string. Kept for unit tests; production callers should use the XCUIApplication
+    /// overload above.
+    static func parseTree(fromRawDescription desc: String, maxDepth: Int = 10) -> [String: Any] {
         let elements = parseLines(desc)
         guard let root = buildTree(from: elements, maxDepth: maxDepth) else {
             return [:]
@@ -30,28 +58,10 @@ enum DebugDescriptionParser {
         return root
     }
 
-    /// Parse debugDescription into an actionable flat list (Flat list of interactive elements).
-    static func parseActionableList(from app: XCUIApplication, maxDepth: Int = 20) -> [[String: Any]] {
-        let desc = app.debugDescription
+    /// Raw-string counterpart of `parseActionableList(from:maxDepth:)`.
+    static func parseActionableList(fromRawDescription desc: String, maxDepth: Int = 20) -> [[String: Any]] {
         let elements = parseLines(desc)
         return collectActionable(from: elements, maxDepth: maxDepth)
-    }
-
-    /// Parse debugDescription into a summary of element counts (Element type counts).
-    static func parseSummary(from app: XCUIApplication) -> [String: Any] {
-        let desc = app.debugDescription
-        let elements = parseLines(desc)
-        return buildSummary(from: elements)
-    }
-
-    /// Parse debugDescription into a compact tree (Tree with single-child passthrough nodes collapsed).
-    static func parseCompactTree(from app: XCUIApplication, maxDepth: Int = 10) -> [String: Any] {
-        let desc = app.debugDescription
-        let elements = parseLines(desc)
-        guard let root = buildCompactTree(from: elements, maxDepth: maxDepth) else {
-            return [:]
-        }
-        return root
     }
 
     // MARK: - Fast Element Resolution
@@ -249,7 +259,7 @@ enum DebugDescriptionParser {
         "Ruler", "RulerMarker", "Matte", "HelpTag", "DockItem"
     ]
 
-    private static func parseLines(_ description: String) -> [ParsedElement] {
+    static func parseLines(_ description: String) -> [ParsedElement] {
         var results: [ParsedElement] = []
         let lines = description.components(separatedBy: "\n")
 
