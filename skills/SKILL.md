@@ -6,7 +6,10 @@ description: >
   Also trigger when the user says "シミュレータを操作", "シミュレータのアプリを操作",
   "Simulatorのアプリ", "Simulator上で", "Vision Proのシミュレータ", "visionOSシミュレータ",
   "実機を操作", "実機で", "実機のアプリ", "iPhoneを操作", "iPadを操作",
-  "シミュレータでアプリを動かして", "シミュレータで検索して", or similar phrases
+  "シミュレータでアプリを動かして", "シミュレータで検索して",
+  "automate the simulator", "control the iOS app", "interact with the device",
+  "run UI automation", "test the app on simulator", "tap on the simulator",
+  "take a screenshot of the simulator", "navigate the app", or similar phrases
   about controlling apps on Simulator or physical iOS/visionOS devices.
   Do NOT trigger for generic phrases like "設定アプリを見て", "tap a button",
   "take a screenshot" — these could refer to macOS or non-device contexts.
@@ -36,8 +39,8 @@ simpilot tap 'General'
 
 ```bash
 # Build & install (one-time)
-cd /Users/yoshi/Developer/simpilot
-make install   # builds CLI and installs to /usr/local/bin
+git clone https://github.com/yoshi2ys/simpilot.git
+cd simpilot && make install    # builds CLI and symlinks to /usr/local/bin
 
 # Start the agent — Simulator
 # Priority: --udid > --device > SIMPILOT_DEFAULT_DEVICE env > first booted sim > iPhone 17 Pro
@@ -61,12 +64,16 @@ For physical devices, the device must be connected via USB or Wi-Fi, and the XCU
 
 1. **ALWAYS use bare label queries** — `simpilot tap 'General'` not `simpilot tap '#com.apple.settings.general'`. Bare labels resolve in <1s; identifier queries can take 24+ seconds on complex apps.
 2. **Start with `--level 0`** to understand the screen (~50 tokens), then `--level 1` for actionable elements (~500 tokens). Never start with full tree.
-3. **Never guess queries — always verify with `elements --level 1` first.** Common labels like "Search", "Settings", "Done" often match multiple elements (e.g., a "Search" settings row vs a search text field). The bare query matches the first one found, which may not be the intended target. Always check the `type` field to confirm you're targeting the right element. Use typed queries (`searchField:Search` vs `button:Search`) to disambiguate.
+3. **Never guess queries — always verify with `elements --level 1` first.** Common labels like "Search", "Settings", "Done" often match multiple elements (e.g., a "Search" settings row vs a search text field). The bare query matches the first one found, which may not be the intended target. Always check the `type` field to confirm you're targeting the right element. Use typed queries (`textField:Search` vs `button:Search`) to disambiguate.
 4. **Use `batch` for multi-step flows** — one HTTP round-trip instead of many.
 5. **Use `action` for tap→screenshot→elements** — the most common workflow in one command.
 6. **`tap` and `tapcoord` are different commands** — `tap` takes a label/query string; `tapcoord` takes x y coordinates. Never pass `--x`/`--y` flags to `tap`.
 7. **Use `scroll-to` instead of manual swipe loops** — `scroll-to 'Privacy' --direction down` replaces the swipe→elements→check pattern in a single command.
 8. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
+9. **WebView elements require `tapcoord`, not `tap`** — label queries (`tap 'Show more'`) do not work on WebView content. Use `source` to find coordinates, then `tapcoord <x> <y>`.
+10. **Never retry a failed approach more than once** — if an action fails, stop and analyze why. Switch to an alternative approach (different query, different command, different UI path). Repeating the same failing action wastes time and tokens.
+11. **Clearing search fields** — if the ⊗ clear button doesn't respond to tap/tapcoord, switch approach: exit the search mode entirely (tap Cancel or navigate away) and re-enter it, or select all text first (`longpress` on the field → tap 'Select All') then type the new text to overwrite.
+12. **Safari toolbar hides on scroll** — scrolling down in Safari hides the toolbar (back button, URL bar). Swipe up slightly to reveal it. Don't waste time searching for the back button in `elements` when the toolbar is hidden.
 
 ## Recommended Workflow
 
@@ -87,7 +94,13 @@ simpilot tap 'General'
 
 # 5. Or do tap + screenshot + elements in one call
 simpilot action tap 'About' --screenshot /tmp/about.png --level 0 --settle 1
+
+# 6. Element not found? Scroll to find it first
+simpilot scroll-to 'Show more' --direction down
+simpilot tap 'Show more'
 ```
+
+**If `element_not_found`**: the element is likely off-screen. Use `scroll-to` before retrying the tap — don't give up or try a different query immediately.
 
 ## Observation Strategy
 
@@ -106,6 +119,7 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 **Key principles:**
 - **Native apps** → `elements` is almost always sufficient. Skip screenshots.
 - **WebView apps** → `source` is the primary tool. It gives you both content and coordinates, like a DOM inspector. See `references/webview.md` for the full workflow.
+- **Browser navigation (Safari, Chrome, etc.)** → Read the address bar via `elements` to confirm which page you're on — don't take a screenshot just to check the current URL. Only screenshot when you need to see the visual content. **Navigate through the UI naturally** (back button, links, swipe back) — never type URLs directly into the address bar.
 - **Screenshots** → useful for horizontal scroll / carousel UIs (source can't tell what's currently visible), visual layout understanding (grids, maps, overlapping elements), and showing results to the user.
 - **Token-conscious capture**: `screenshot --file /tmp/s.png` saves to disk cheaply. Reading the image into context is what costs tokens. Capture liberally for evidence, but only read when visual analysis is actually needed for the next decision.
 - **Screenshot resolution**: Default `--scale 1` returns a 1x point-sized PNG (~1/3 long edge of native, ~70% smaller than full resolution) — ideal for AI analysis. Use `--scale 2` for @2x, or `--scale native` for design work needing the device's full pixel resolution.
@@ -170,6 +184,9 @@ simpilot tap '<query>'
 # Tap by screen coordinates (for WebView elements — get coordinates from `source`)
 simpilot tapcoord <x> <y>
 
+simpilot longpress '<query>' [--duration <s>]     # Long-press (default 0.8s)
+simpilot doubletap '<query>'                     # Double-tap
+
 simpilot type '<text>' [--into '<query>']         # Type text (keyboard input)
 simpilot type '<text>' --method paste             # Paste via clipboard (use only when keyboard is unavailable)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
@@ -200,6 +217,8 @@ simpilot info                             # Device and agent info
 
 ### Compound Commands
 
+Note: `--settle` is `action`-only — `screenshot` does not accept it. Use `action` if you need settle + screenshot in one call.
+
 ```bash
 # Execute action + wait + screenshot + elements in one call
 simpilot action tap '<query>' --screenshot /tmp/s.png --level 1 --settle 1
@@ -214,6 +233,15 @@ simpilot batch '{"commands":[
   {"method":"GET","path":"/screenshot","params":{"file":"/tmp/s.png"}},
   {"method":"GET","path":"/elements","params":{"level":"0"}}
 ]}'
+```
+
+### Device & System
+
+```bash
+simpilot rotate landscape-left                   # portrait|landscape-left|landscape-right|portrait-upside-down
+simpilot openurl 'myapp://deep/link'             # Open URL/deep link (simulator only)
+simpilot alert accept [--timeout 5]              # Accept system permission alert
+simpilot alert dismiss                           # Dismiss system permission alert
 ```
 
 ### Agent Lifecycle
@@ -280,6 +308,8 @@ Used by `tap`, `type`, `wait`, and `action` commands:
 | `button:Login` | Search buttons by label | Medium (~2s) |
 | `text:Hello` | Search static text by label | Medium (~2s) |
 | `textField:Email` | Search text fields | Medium (~2s) |
+| `secureTextField:Pass` | Search secure text fields | Medium (~2s) |
+| `switch:Dark Mode` | Search switches | Medium (~2s) |
 | `link:Learn more` | Search links | Medium (~2s) |
 | `#identifier` | Search by accessibility ID | **Slow** (10-24s) |
 
@@ -325,11 +355,14 @@ Errors:
 | Command | iOS / iPadOS | visionOS | tvOS / watchOS |
 |---|---|---|---|
 | launch / terminate / activate | OK | OK | NG |
-| tap | OK (~1s) | OK (~20s) | NG |
+| tap / longpress / doubletap | OK (~1s) | OK (~20s) | NG |
 | type | OK | OK | NG |
 | clipboard | OK | OK | NG |
 | swipe | OK | NG | tvOS only (remote) |
 | scroll-to | OK | NG | NG |
+| rotate | OK | NG | NG |
+| openurl | OK (simulator only) | NG | NG |
+| alert | OK | OK | NG |
 | screenshot | OK | OK | OK |
 | elements / source | OK | OK | NG |
 | start / stop / health | OK | OK | OK |
