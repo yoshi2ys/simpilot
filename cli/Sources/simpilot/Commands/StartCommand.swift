@@ -213,7 +213,7 @@ enum StartCommand: SimpilotCommand {
     enum ResolvedDevice {
         case simulator(udid: String)
         case physical(device: DeviceHelper.PhysicalDevice)
-        case unknown
+        case unknown(name: String)
     }
 
     struct LaunchTarget: Equatable {
@@ -222,15 +222,11 @@ enum StartCommand: SimpilotCommand {
         let isPhysical: Bool
     }
 
-    /// Build the xcodebuild `-destination` argument + registry UDID tuple from
-    /// a resolved device. Whenever a concrete simulator UDID is known (from
-    /// `--udid`, `booted`, or a successful name lookup), we launch with
-    /// `id=<UDID>` rather than `name=<name>` — duplicate-named simulators
-    /// otherwise let xcodebuild pick a different device than the one whose
-    /// UDID we wrote the port file for, stranding the agent's `/health`.
-    /// Only the `.unknown` branch falls back to `name=<name>` because it has
-    /// no UDID to anchor to.
-    static func launchTarget(for resolved: ResolvedDevice, deviceName: String) -> LaunchTarget {
+    /// Build the xcodebuild `-destination` argument + registry UDID tuple
+    /// from a resolved device. Whenever a concrete simulator UDID is known,
+    /// we launch with `id=<UDID>` so duplicate-named simulators can't be
+    /// confused. Only `.unknown` falls back to `name=<name>`.
+    static func launchTarget(for resolved: ResolvedDevice) -> LaunchTarget {
         switch resolved {
         case .simulator(let udid):
             return LaunchTarget(destination: "id=\(udid)", udid: udid, isPhysical: false)
@@ -241,9 +237,9 @@ enum StartCommand: SimpilotCommand {
                 udid: device.udid,
                 isPhysical: true
             )
-        case .unknown:
+        case .unknown(let name):
             return LaunchTarget(
-                destination: "platform=\(platformForDevice(deviceName)),name=\(deviceName)",
+                destination: "platform=\(platformForDevice(name)),name=\(name)",
                 udid: "",
                 isPhysical: false
             )
@@ -259,7 +255,7 @@ enum StartCommand: SimpilotCommand {
         if let device = try? DeviceHelper.findDevice(name: name) {
             return .physical(device: device)
         }
-        return .unknown
+        return .unknown(name: name)
     }
 
     // MARK: - Single Agent
@@ -271,7 +267,7 @@ enum StartCommand: SimpilotCommand {
         resolvedVia: ResolvedVia,
         pretty: Bool
     ) throws {
-        let target = launchTarget(for: resolved, deviceName: deviceName)
+        let target = launchTarget(for: resolved)
         let process = try launchXcodebuild(destination: target.destination, port: port, udid: target.udid)
         let pid = process.processIdentifier
 
@@ -342,7 +338,7 @@ enum StartCommand: SimpilotCommand {
             }
             try SimctlHelper.bootDevice(udid: newUDID)
 
-            let target = launchTarget(for: .simulator(udid: newUDID), deviceName: newName)
+            let target = launchTarget(for: .simulator(udid: newUDID))
             let process: Process
             do {
                 process = try launchXcodebuild(

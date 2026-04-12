@@ -96,7 +96,7 @@ extension StringMatcher: Equatable {
         switch (lhs, rhs) {
         case (.exact(let a), .exact(let b)): return a == b
         case (.contains(let a), .contains(let b)): return a == b
-        case (.regex(let a), .regex(let b)): return a.pattern == b.pattern
+        case (.regex(let a), .regex(let b)): return a.pattern == b.pattern && a.options == b.options
         default: return false
         }
     }

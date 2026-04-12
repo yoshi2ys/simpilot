@@ -264,28 +264,10 @@ final class StartCommandTests: XCTestCase {
     // when two simulators share a name, stranding the agent's `/health`.
 
     func testLaunchTargetSimulatorUsesIdFormat() {
-        let target = StartCommand.launchTarget(
-            for: .simulator(udid: "ABC-123"),
-            deviceName: "iPhone Air"
-        )
+        let target = StartCommand.launchTarget(for: .simulator(udid: "ABC-123"))
         XCTAssertEqual(target.destination, "id=ABC-123")
         XCTAssertEqual(target.udid, "ABC-123")
         XCTAssertFalse(target.isPhysical)
-    }
-
-    func testLaunchTargetSimulatorIgnoresDeviceNameForDestination() {
-        // Same underlying UDID, different display names → destination must
-        // still anchor to the UDID so duplicate-named sims are disambiguated.
-        let targetA = StartCommand.launchTarget(
-            for: .simulator(udid: "ABC-123"),
-            deviceName: "iPhone Air"
-        )
-        let targetB = StartCommand.launchTarget(
-            for: .simulator(udid: "ABC-123"),
-            deviceName: "totally unrelated label"
-        )
-        XCTAssertEqual(targetA.destination, targetB.destination)
-        XCTAssertEqual(targetA.destination, "id=ABC-123")
     }
 
     func testLaunchTargetPhysicalUsesPlatformAndId() {
@@ -295,10 +277,7 @@ final class StartCommandTests: XCTestCase {
             platform: "iOS",
             hostname: "my-iphone.coredevice.local"
         )
-        let target = StartCommand.launchTarget(
-            for: .physical(device: device),
-            deviceName: "My iPhone"
-        )
+        let target = StartCommand.launchTarget(for: .physical(device: device))
         XCTAssertEqual(target.destination, "platform=iOS,id=PHYS-456")
         XCTAssertEqual(target.udid, "PHYS-456")
         XCTAssertTrue(target.isPhysical)
@@ -311,31 +290,19 @@ final class StartCommandTests: XCTestCase {
             platform: "xrOS",
             hostname: "vp.coredevice.local"
         )
-        let target = StartCommand.launchTarget(
-            for: .physical(device: device),
-            deviceName: "My Vision Pro"
-        )
+        let target = StartCommand.launchTarget(for: .physical(device: device))
         XCTAssertEqual(target.destination, "platform=visionOS,id=VP-789")
     }
 
     func testLaunchTargetUnknownFallsBackToPlatformAndName() {
-        // No UDID anchor → last-resort name-based destination with the
-        // name-heuristic platform guess. `udid` is empty because we don't
-        // have one to record in the agent registry.
-        let target = StartCommand.launchTarget(
-            for: .unknown,
-            deviceName: "iPhone 17 Pro"
-        )
+        let target = StartCommand.launchTarget(for: .unknown(name: "iPhone 17 Pro"))
         XCTAssertEqual(target.destination, "platform=iOS Simulator,name=iPhone 17 Pro")
         XCTAssertEqual(target.udid, "")
         XCTAssertFalse(target.isPhysical)
     }
 
     func testLaunchTargetUnknownVisionDeviceHeuristic() {
-        let target = StartCommand.launchTarget(
-            for: .unknown,
-            deviceName: "Apple Vision Pro"
-        )
+        let target = StartCommand.launchTarget(for: .unknown(name: "Apple Vision Pro"))
         XCTAssertEqual(target.destination, "platform=visionOS Simulator,name=Apple Vision Pro")
     }
 
