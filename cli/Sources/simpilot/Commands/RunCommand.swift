@@ -21,7 +21,6 @@ enum RunCommand: SimpilotCommand {
         let filePath = parsed.positionals[0]
         let jsonOutput = parsed.bool("--json")
 
-        // Read scenario file
         let fileURL = URL(fileURLWithPath: filePath)
         let contents: String
         do {
@@ -30,7 +29,6 @@ enum RunCommand: SimpilotCommand {
             throw CLIError.invalidArgs("cannot read file '\(filePath)': \(error.localizedDescription)")
         }
 
-        // Parse YAML
         let yamlValue: YAMLValue
         do {
             yamlValue = try YAMLParser.parse(contents)
@@ -38,15 +36,8 @@ enum RunCommand: SimpilotCommand {
             throw CLIError.invalidArgs(e.description)
         }
 
-        // Parse --var overrides
-        let cliVars: [String: String]
-        if let varRaw = parsed.string("--var") {
-            cliVars = ScenarioParser.parseCLIVars(varRaw)
-        } else {
-            cliVars = [:]
-        }
+        let cliVars = parsed.string("--var").map(ScenarioParser.parseCLIVars) ?? [:]
 
-        // Parse scenario
         let scenarioFile: ScenarioFile
         do {
             scenarioFile = try ScenarioParser.parse(yamlValue, cliVars: cliVars)
@@ -54,7 +45,6 @@ enum RunCommand: SimpilotCommand {
             throw CLIError.invalidArgs(e.description)
         }
 
-        // Apply CLI config overrides
         var config = scenarioFile.config
         if let timeout = parsed.double("--timeout") {
             config.timeout = timeout
@@ -70,21 +60,19 @@ enum RunCommand: SimpilotCommand {
             scenarios: scenarioFile.scenarios
         )
 
-        // Run
         let result = ScenarioRunner.run(file: file, client: context.client)
 
-        // Report
         if jsonOutput {
             RunReporter.reportJSON(result, pretty: context.pretty)
         } else {
             RunReporter.reportTerminal(result)
         }
 
-        // Exit code
+        // Exit directly — the report already contains all failure details.
+        // Throwing CLIError.commandFailed would produce a second JSON envelope
+        // on stdout, corrupting --json output and confusing terminal mode.
         if result.totalFailed > 0 {
-            throw CLIError.commandFailed(
-                "\(result.totalFailed) step(s) failed in '\(filePath)'"
-            )
+            exit(2)
         }
     }
 }

@@ -50,11 +50,12 @@ enum StepAction: Sendable {
 }
 
 // MARK: - Results
-// Result types are only used synchronously on the main thread; no Sendable needed.
 
 struct StepResult {
+    enum Status { case passed, failed, skipped }
+
     let step: Step
-    let success: Bool
+    let status: Status
     let durationMs: Int
     let error: String?
     let screenshotPath: String?
@@ -63,15 +64,17 @@ struct StepResult {
 struct ScenarioResult {
     let name: String
     let stepResults: [StepResult]
-    let passed: Bool
     let durationMs: Int
+
+    var passed: Bool { stepResults.allSatisfy { $0.status != .failed } }
 }
 
 struct RunResult {
     let file: String
     let scenarioResults: [ScenarioResult]
-    let totalPassed: Int
-    let totalFailed: Int
-    let totalSkipped: Int
     let durationMs: Int
+
+    var totalPassed: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .passed } }
+    var totalFailed: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .failed } }
+    var totalSkipped: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .skipped } }
 }

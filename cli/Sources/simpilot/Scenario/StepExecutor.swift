@@ -77,6 +77,7 @@ enum StepExecutor {
 
         case .wait(let query, let timeout, let gone):
             var body: [String: Any] = ["query": query, "exists": !gone]
+            // WaitHandler expects timeout in seconds (not ms), matching legacy API
             if let timeout { body["timeout"] = timeout }
             return try postJSON(client, "/wait", body, config: config, stepTimeout: timeout)
 
@@ -91,28 +92,15 @@ enum StepExecutor {
             return try postJSON(client, "/assert", body, config: config, stepTimeout: effectiveTimeout)
 
         case .screenshot(let file, let scale, let element, let format, let quality):
-            var components = URLComponents()
-            components.path = "/screenshot"
-            var items: [URLQueryItem] = []
-            if let scale { items.append(URLQueryItem(name: "scale", value: scale)) }
-            if let file { items.append(URLQueryItem(name: "file", value: file)) }
-            if let element { items.append(URLQueryItem(name: "element", value: element)) }
-            if let format { items.append(URLQueryItem(name: "format", value: format)) }
-            if let quality { items.append(URLQueryItem(name: "quality", value: "\(quality)")) }
-            if !items.isEmpty { components.queryItems = items }
-            let path = components.string ?? "/screenshot"
-            return try getJSON(client, path, config: config)
+            return try getWithQuery(client, "/screenshot", config: config, params: [
+                ("scale", scale), ("file", file), ("element", element),
+                ("format", format), ("quality", quality.map(String.init)),
+            ])
 
         case .elements(let level, let type, let contains):
-            var components = URLComponents()
-            components.path = "/elements"
-            var items: [URLQueryItem] = []
-            if let level { items.append(URLQueryItem(name: "level", value: "\(level)")) }
-            if let type { items.append(URLQueryItem(name: "type", value: type)) }
-            if let contains { items.append(URLQueryItem(name: "contains", value: contains)) }
-            if !items.isEmpty { components.queryItems = items }
-            let path = components.string ?? "/elements"
-            return try getJSON(client, path, config: config)
+            return try getWithQuery(client, "/elements", config: config, params: [
+                ("level", level.map(String.init)), ("type", type), ("contains", contains),
+            ])
 
         case .sleep(let seconds):
             Thread.sleep(forTimeInterval: seconds)
@@ -132,11 +120,17 @@ enum StepExecutor {
         return try parseResponse(data)
     }
 
-    /// GET, return parsed response dictionary.
-    private static func getJSON(
-        _ client: HTTPClient, _ path: String,
-        config: ScenarioConfig, stepTimeout: Double? = nil
+    /// GET with optional query parameters.
+    private static func getWithQuery(
+        _ client: HTTPClient, _ basePath: String,
+        config: ScenarioConfig, stepTimeout: Double? = nil,
+        params: [(String, String?)] = []
     ) throws -> [String: Any] {
+        var components = URLComponents()
+        components.path = basePath
+        let items = params.compactMap { (k, v) in v.map { URLQueryItem(name: k, value: $0) } }
+        if !items.isEmpty { components.queryItems = items }
+        let path = components.string ?? basePath
         let httpTimeout = computeHTTPTimeout(config: config, stepTimeout: stepTimeout)
         let data = try client.get(path, timeout: httpTimeout)
         return try parseResponse(data)

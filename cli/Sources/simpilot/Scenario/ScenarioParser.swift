@@ -56,9 +56,9 @@ enum ScenarioParser {
                 }
                 config.timeout = d
             case "stop_on_failure":
-                config.stopOnFailure = parseBool(s)
+                config.stopOnFailure = try requireBool(s, field: "config.stop_on_failure")
             case "screenshot_on_failure":
-                config.screenshotOnFailure = parseBool(s)
+                config.screenshotOnFailure = try requireBool(s, field: "config.screenshot_on_failure")
             case "screenshot_dir":
                 config.screenshotDir = s
             default:
@@ -131,7 +131,7 @@ enum ScenarioParser {
             return .tap(
                 query: try requireField(value, "query", variables: variables),
                 waitUntil: optionalField(value, "wait_until", variables: variables),
-                timeout: optionalDouble(value, "timeout")
+                timeout: try optionalDouble(value, "timeout")
             )
         case "type":
             if let s = value.stringValue {
@@ -158,7 +158,7 @@ enum ScenarioParser {
             return .scrollTo(
                 query: try requireField(value, "query", variables: variables),
                 direction: optionalField(value, "direction", variables: variables),
-                maxSwipes: optionalInt(value, "max_swipes")
+                maxSwipes: try optionalInt(value, "max_swipes")
             )
         case "longpress":
             if let s = value.stringValue {
@@ -166,7 +166,7 @@ enum ScenarioParser {
             }
             return .longpress(
                 query: try requireField(value, "query", variables: variables),
-                duration: optionalDouble(value, "duration")
+                duration: try optionalDouble(value, "duration")
             )
         case "doubletap":
             return .doubletap(query: try requireScalar(value, key: key, variables: variables))
@@ -174,14 +174,14 @@ enum ScenarioParser {
             return .drag(
                 query: optionalField(value, "query", variables: variables),
                 to: optionalField(value, "to", variables: variables),
-                toX: optionalDouble(value, "to_x"),
-                toY: optionalDouble(value, "to_y"),
-                fromX: optionalDouble(value, "from_x"),
-                fromY: optionalDouble(value, "from_y"),
-                duration: optionalDouble(value, "duration")
+                toX: try optionalDouble(value, "to_x"),
+                toY: try optionalDouble(value, "to_y"),
+                fromX: try optionalDouble(value, "from_x"),
+                fromY: try optionalDouble(value, "from_y"),
+                duration: try optionalDouble(value, "duration")
             )
         case "pinch":
-            guard let scaleVal = optionalDouble(value, "scale") else {
+            guard let scaleVal = try optionalDouble(value, "scale") else {
                 throw ScenarioParseError(message: "'pinch' requires 'scale'", line: lineNumber)
             }
             return .pinch(
@@ -195,15 +195,15 @@ enum ScenarioParser {
             }
             return .wait(
                 query: try requireField(value, "query", variables: variables),
-                timeout: optionalDouble(value, "timeout"),
-                gone: optionalBool(value, "gone")
+                timeout: try optionalDouble(value, "timeout"),
+                gone: try optionalBool(value, "gone")
             )
         case "assert":
             return .assert(
                 predicate: try requireField(value, "predicate", variables: variables),
                 query: try requireField(value, "query", variables: variables),
                 expected: optionalField(value, "expected", variables: variables),
-                timeout: optionalDouble(value, "timeout")
+                timeout: try optionalDouble(value, "timeout")
             )
         case "screenshot":
             if value.stringValue != nil {
@@ -218,11 +218,11 @@ enum ScenarioParser {
                 scale: optionalField(value, "scale", variables: variables),
                 element: optionalField(value, "element", variables: variables),
                 format: optionalField(value, "format", variables: variables),
-                quality: optionalInt(value, "quality")
+                quality: try optionalInt(value, "quality")
             )
         case "elements":
             return .elements(
-                level: optionalInt(value, "level"),
+                level: try optionalInt(value, "level"),
                 type: optionalField(value, "type", variables: variables),
                 contains: optionalField(value, "contains", variables: variables)
             )
@@ -238,14 +238,14 @@ enum ScenarioParser {
 
     // MARK: - Variable Substitution
 
+    // Compiled once — substitute() is called per-field per-step.
+    private static let envPattern = try! NSRegularExpression(pattern: #"\$\{env\.([^}]+)\}"#)
+
     static func substitute(_ s: String, variables: [String: String]) -> String {
         var result = s
-        // ${var} from variables map
         for (key, val) in variables {
             result = result.replacingOccurrences(of: "${\(key)}", with: val)
         }
-        // ${env.X} from environment
-        let envPattern = try! NSRegularExpression(pattern: #"\$\{env\.([^}]+)\}"#)
         let range = NSRange(result.startIndex..., in: result)
         let matches = envPattern.matches(in: result, range: range).reversed()
         for match in matches {
@@ -286,25 +286,38 @@ enum ScenarioParser {
         return substitute(s, variables: variables)
     }
 
-    private static func optionalDouble(_ value: YAMLValue, _ field: String) -> Double? {
-        guard let s = value[field]?.stringValue else { return nil }
-        return Double(s)
-    }
-
-    private static func optionalInt(_ value: YAMLValue, _ field: String) -> Int? {
-        guard let s = value[field]?.stringValue else { return nil }
-        return Int(s)
-    }
-
-    private static func optionalBool(_ value: YAMLValue, _ field: String) -> Bool {
-        guard let s = value[field]?.stringValue else { return false }
-        return parseBool(s)
-    }
-
-    private static func parseBool(_ s: String) -> Bool {
+    private static func requireBool(_ s: String, field: String) throws -> Bool {
         switch s.lowercased() {
         case "true", "yes", "1": return true
-        default: return false
+        case "false", "no", "0": return false
+        default:
+            throw ScenarioParseError(message: "'\(field)' must be a boolean, got '\(s)'", line: nil)
+        }
+    }
+
+    private static func optionalDouble(_ value: YAMLValue, _ field: String) throws -> Double? {
+        guard let s = value[field]?.stringValue else { return nil }
+        guard let d = Double(s) else {
+            throw ScenarioParseError(message: "'\(field)' must be a number, got '\(s)'", line: nil)
+        }
+        return d
+    }
+
+    private static func optionalInt(_ value: YAMLValue, _ field: String) throws -> Int? {
+        guard let s = value[field]?.stringValue else { return nil }
+        guard let n = Int(s) else {
+            throw ScenarioParseError(message: "'\(field)' must be an integer, got '\(s)'", line: nil)
+        }
+        return n
+    }
+
+    private static func optionalBool(_ value: YAMLValue, _ field: String) throws -> Bool {
+        guard let s = value[field]?.stringValue else { return false }
+        switch s.lowercased() {
+        case "true", "yes", "1": return true
+        case "false", "no", "0": return false
+        default:
+            throw ScenarioParseError(message: "'\(field)' must be a boolean, got '\(s)'", line: nil)
         }
     }
 }

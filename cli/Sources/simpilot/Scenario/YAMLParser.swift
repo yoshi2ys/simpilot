@@ -68,7 +68,14 @@ enum YAMLParser {
         guard !lines.isEmpty else {
             return .mapping([])
         }
-        return try parseNode(lines: &lines, minIndent: 0)
+        let result = try parseNode(lines: &lines, minIndent: 0)
+        if let stray = lines.first {
+            throw YAMLParseError(
+                message: "unexpected content after root node: '\(stray.content)'",
+                line: stray.number
+            )
+        }
+        return result
     }
 
     // MARK: - Tokenizer
@@ -98,13 +105,23 @@ enum YAMLParser {
     private static func stripComment(_ line: String) -> String {
         var inSingle = false
         var inDouble = false
+        var escaped = false
         var prev: Character = "\0"
         var endIndex = line.endIndex
         for i in line.indices {
             let ch = line[i]
+            if escaped {
+                escaped = false
+                prev = ch
+                continue
+            }
+            if inDouble && ch == "\\" {
+                escaped = true
+                prev = ch
+                continue
+            }
             if ch == "'" && !inDouble { inSingle.toggle() }
-            else if ch == "\"" && !inDouble && prev != "\\" { inDouble.toggle() }
-            else if ch == "\"" && inDouble && prev != "\\" { inDouble.toggle() }
+            else if ch == "\"" && !inSingle { inDouble.toggle() }
             else if ch == "#" && !inSingle && !inDouble && (prev == " " || prev == "\t" || i == line.startIndex) {
                 endIndex = i
                 break

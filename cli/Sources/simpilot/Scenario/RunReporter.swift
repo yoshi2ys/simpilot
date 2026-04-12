@@ -11,9 +11,9 @@ enum RunReporter {
                 let label = stepLabel(step.step.action)
                 let timing = "\(step.durationMs)ms"
 
-                if step.error == "skipped" {
+                if step.status == .skipped {
                     stderrLine("  [\(i + 1)] [SKIP] \(label)")
-                } else if step.success {
+                } else if step.status == .passed {
                     stderrLine("  [\(i + 1)] [PASS] \(label) (\(timing))")
                 } else {
                     stderrLine("  [\(i + 1)] [FAIL] \(label) (\(timing))")
@@ -59,7 +59,7 @@ enum RunReporter {
                         "steps": sr.stepResults.map { step -> [String: Any] in
                             var s: [String: Any] = [
                                 "action": stepLabel(step.step.action),
-                                "success": step.success,
+                                "status": "\(step.status)",
                                 "duration_ms": step.durationMs,
                             ]
                             if let err = step.error { s["error"] = err }

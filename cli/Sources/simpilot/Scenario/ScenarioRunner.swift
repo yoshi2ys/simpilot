@@ -5,35 +5,11 @@ enum ScenarioRunner {
     /// Run all scenarios in a file and return the aggregate result.
     static func run(file: ScenarioFile, client: HTTPClient) -> RunResult {
         let startTime = CFAbsoluteTimeGetCurrent()
-        var scenarioResults: [ScenarioResult] = []
-        var totalPassed = 0
-        var totalFailed = 0
-        var totalSkipped = 0
-
-        for scenario in file.scenarios {
-            let result = runScenario(scenario, client: client, config: file.config)
-            scenarioResults.append(result)
-
-            for sr in result.stepResults {
-                if sr.error == "skipped" {
-                    totalSkipped += 1
-                } else if sr.success {
-                    totalPassed += 1
-                } else {
-                    totalFailed += 1
-                }
-            }
+        let scenarioResults = file.scenarios.map {
+            runScenario($0, client: client, config: file.config)
         }
-
         let elapsed = Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000)
-        return RunResult(
-            file: file.name,
-            scenarioResults: scenarioResults,
-            totalPassed: totalPassed,
-            totalFailed: totalFailed,
-            totalSkipped: totalSkipped,
-            durationMs: elapsed
-        )
+        return RunResult(file: file.name, scenarioResults: scenarioResults, durationMs: elapsed)
     }
 
     /// Run a single scenario.
@@ -46,10 +22,9 @@ enum ScenarioRunner {
 
         for (i, step) in scenario.steps.enumerated() {
             if failed && config.stopOnFailure {
-                // Mark remaining steps as skipped
                 stepResults.append(StepResult(
-                    step: step, success: false, durationMs: 0,
-                    error: "skipped", screenshotPath: nil
+                    step: step, status: .skipped, durationMs: 0,
+                    error: nil, screenshotPath: nil
                 ))
                 continue
             }
@@ -92,7 +67,7 @@ enum ScenarioRunner {
 
             let stepMs = Int((CFAbsoluteTimeGetCurrent() - stepStart) * 1000)
             stepResults.append(StepResult(
-                step: step, success: success, durationMs: stepMs,
+                step: step, status: success ? .passed : .failed, durationMs: stepMs,
                 error: (errorMsg?.isEmpty == true) ? nil : errorMsg,
                 screenshotPath: screenshotPath
             ))
@@ -106,7 +81,6 @@ enum ScenarioRunner {
         return ScenarioResult(
             name: scenario.name,
             stepResults: stepResults,
-            passed: !failed,
             durationMs: elapsed
         )
     }
@@ -135,7 +109,8 @@ enum ScenarioRunner {
         components.queryItems = [URLQueryItem(name: "file", value: filePath)]
         let path = components.string ?? "/screenshot?file=\(filePath)"
 
-        guard let data = try? client.get(path, timeout: 10),
+        let screenshotTimeout = config.timeout + 5
+        guard let data = try? client.get(path, timeout: screenshotTimeout),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               StepExecutor.isSuccess(json) else {
             return nil
