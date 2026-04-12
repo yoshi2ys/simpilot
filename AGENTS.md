@@ -91,6 +91,15 @@ simpilot drag 'slider:Volume' --to-x 200 --to-y 400  # element to coordinate
 # Pinch (zoom)
 simpilot pinch 'map' --scale 2.0                   # zoom in
 simpilot pinch 'photo' --scale 0.5 --velocity slow # zoom out
+
+# Slider (precise value)
+simpilot slider 'slider:Volume' --value 0.5        # set to 50%
+simpilot slider --value 0                          # first slider → min
+
+# Run YAML scenario
+simpilot run examples/settings_about.yml           # terminal output
+simpilot run test.yml --json                       # JSON output
+simpilot run test.yml --var "app=com.example.App"  # override variables
 ```
 
 ## Key Design Decisions
@@ -114,6 +123,10 @@ simpilot pinch 'photo' --scale 0.5 --velocity slow # zoom out
 - **Extended query prefixes**: 12 additional typed query prefixes (`icon`, `toggle`, `slider`, `stepper`, `picker`, `segmentedControl`, `menu`, `menuItem`, `scrollView`, `webView`, `datePicker`, `textView`) for direct element resolution. `toggle` maps to `app.toggles` (distinct from `switch` which maps to `app.switches`).
 - **Drag gesture** (DragHandler.swift): `press(forDuration:thenDragTo:)` supports element-to-element, element-to-coordinate, and coordinate-to-coordinate modes. Mutual exclusivity validation prevents silent misrouting.
 - **Pinch gesture** (PinchHandler.swift): `pinch(withScale:velocity:)` for zoom in/out. `scale > 1` = zoom in, `scale < 1` = zoom out.
+- **Slider adjustment** (SliderHandler.swift): `adjust(toNormalizedSliderPosition:)` for precise slider control. `--value 0.0` = min, `--value 1.0` = max. No query = first slider in view.
+- **Typed query type filtering** (DebugDescriptionParser.matchesQuery): typed queries (`searchField:`, `button:`, etc.) now verify element type, not just label/identifier. Previously `searchField:Search` could match a button labeled "Search". Unknown prefixes return no match (fall through to ElementResolver).
+- **SwiftUI Toggle tap offset** (TapHandler.swift): SwiftUI Toggle exposes the entire row (label + toggle) as one accessibility element. Coordinate taps offset to the trailing edge where the actual switch control sits, since center-tapping hits the label area which doesn't toggle.
+- **YAML scenario runner** (cli/Sources/simpilot/Scenario/): `simpilot run <file.yml>` executes YAML scenarios with step-by-step assertions, auto-wait, screenshot-on-failure, and variable substitution. Steps map 1:1 to existing HTTP endpoints. Custom minimal YAML parser (no external dependencies). Terminal and JSON (`--json`) output modes.
 
 ## Project Structure
 
@@ -133,4 +146,6 @@ cli/
     SimctlHelper.swift    # xcrun simctl wrapper (clone/create/boot/delete)
     DeviceHelper.swift    # xcrun devicectl wrapper (physical device discovery)
     Commands/             # One file per CLI command (ScrollToCommand, etc.)
+    Scenario/             # YAML scenario runner (YAMLParser, ScenarioRunner, etc.)
+examples/                 # Sample YAML scenario files for `simpilot run`
 ```

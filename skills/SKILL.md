@@ -179,6 +179,9 @@ simpilot pinch '<query>' --scale 0.5               # Zoom out (scale < 1)
 simpilot pinch --scale 2.0                         # Pinch on entire app
 # --velocity slow|default|fast
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
+simpilot slider [<query>] --value <0.0-1.0>      # Adjust slider (0=min, 1=max)
+simpilot slider 'slider:Volume' --value 0.5      # Named slider to 50%
+simpilot slider --value 0                        # First slider to min
 simpilot clipboard get                           # Read clipboard contents
 simpilot clipboard set '<text>'                  # Write text to clipboard
 ```
@@ -279,6 +282,16 @@ Cloned/created devices are automatically deleted when stopped.
 
 For AI agent parallel execution, launch subagents that each target a different `--port`.
 
+### Scenario Runner
+
+```bash
+# Run YAML scenario files with assertions and reporting
+simpilot run <file.yml> [--json] [--var <key=val,...>] [--timeout <s>] [--screenshot-dir <path>]
+simpilot run test.yml                              # Terminal output with pass/fail
+simpilot run test.yml --json                       # JSON output for automation
+simpilot run test.yml --var "app=com.example.App"  # Override YAML variables
+```
+
 ### Utility
 
 ```bash
@@ -361,6 +374,8 @@ Errors:
 | scroll-to | OK | NG | NG |
 | drag | OK | OK (spatial exceptions possible) | NG |
 | pinch | OK | OK (spatial exceptions possible) | NG |
+| slider | OK | OK | NG |
+| run (scenario) | OK | OK | NG |
 | rotate | OK | NG | NG |
 | openurl | OK (simulator only) | NG | NG |
 | alert | OK | OK | NG |

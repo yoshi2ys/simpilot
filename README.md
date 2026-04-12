@@ -115,6 +115,7 @@ simpilot type '<text>' --method paste                # Paste text (no keyboard n
 simpilot swipe <up|down|left|right> [--on '<query>'] # Swipe
 simpilot tapcoord <x> <y>                           # Tap at coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]     # Wait for element
+simpilot slider [<query>] --value <0.0-1.0>         # Adjust slider position
 simpilot clipboard get                              # Read clipboard contents
 simpilot clipboard set '<text>'                     # Write text to clipboard
 ```
@@ -128,6 +129,17 @@ simpilot source                           # Raw Xcode UI hierarchy
 simpilot info                             # Device and agent info
 simpilot help                             # Full command catalog (JSON)
 ```
+
+### Scenario Runner
+
+```bash
+simpilot run <file.yml> [--json] [--var <key=val,...>] [--timeout <s>]
+simpilot run examples/settings_about.yml             # terminal output
+simpilot run test.yml --json                         # JSON output
+simpilot run test.yml --var "app=com.example.App"    # override variables
+```
+
+YAML scenarios define steps (tap, type, assert, screenshot, etc.) with assertions, auto-wait, and screenshot-on-failure. See `examples/` for sample scenarios.
 
 ### Compound
 
@@ -191,7 +203,9 @@ The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead 
 | tapcoord | OK | NG | NG (no API) | -- |
 | screenshot | OK | OK | OK | OK |
 | elements / source | OK | OK | -- | -- |
+| slider | OK | OK | -- | -- |
 | wait | OK | OK | -- | -- |
+| run (scenario) | OK | OK | -- | -- |
 | action / batch | OK | OK | -- | -- |
 
 - **visionOS**: Coordinate taps fall back to XCUITest's native element resolution (slower). `swipe` and `tapcoord` not supported.
