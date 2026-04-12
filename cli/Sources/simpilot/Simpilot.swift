@@ -122,6 +122,8 @@ struct Simpilot {
         WaitCommand.self,
         AssertCommand.self,
         ScrollToCommand.self,
+        DragCommand.self,
+        PinchCommand.self,
         ElementsCommand.self,
         ScreenshotCommand.self,
         SourceCommand.self,

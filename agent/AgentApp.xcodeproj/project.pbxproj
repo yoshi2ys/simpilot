@@ -31,6 +31,8 @@
 		AA0000000000000000B5 /* RotateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B4 /* RotateHandler.swift */; };
 		AA0000000000000000B7 /* AlertHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B6 /* AlertHandler.swift */; };
 		AA0000000000000000B9 /* ScrollToHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B8 /* ScrollToHandler.swift */; };
+		AA0000000000000000BB /* DragHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000BA /* DragHandler.swift */; };
+		AA0000000000000000BD /* PinchHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000BC /* PinchHandler.swift */; };
 		AA00000000000000001F /* WaitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000020 /* WaitHandler.swift */; };
 		AA000000000000000021 /* TapCoordHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000022 /* TapCoordHandler.swift */; };
 		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
@@ -86,6 +88,8 @@
 		AA0000000000000000B4 /* RotateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotateHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000B6 /* AlertHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000B8 /* ScrollToHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollToHandler.swift; sourceTree = "<group>"; };
+		AA0000000000000000BA /* DragHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandler.swift; sourceTree = "<group>"; };
+		AA0000000000000000BC /* PinchHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinchHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000020 /* WaitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaitHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000022 /* TapCoordHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCoordHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000024 /* ElementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementResolver.swift; sourceTree = "<group>"; };
@@ -218,6 +222,8 @@
 				AA00000000000000004F /* LocationHandler.swift */,
 				AA000000000000000085 /* AssertHandler.swift */,
 				AA0000000000000000B8 /* ScrollToHandler.swift */,
+				AA0000000000000000BA /* DragHandler.swift */,
+				AA0000000000000000BC /* PinchHandler.swift */,
 			);
 			path = Handlers;
 			sourceTree = "<group>";
@@ -355,6 +361,8 @@
 				AA000000000000000082 /* PredicateEvaluator.swift in Sources */,
 				AA000000000000000084 /* AssertHandler.swift in Sources */,
 				AA0000000000000000B9 /* ScrollToHandler.swift in Sources */,
+				AA0000000000000000BB /* DragHandler.swift in Sources */,
+				AA0000000000000000BD /* PinchHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

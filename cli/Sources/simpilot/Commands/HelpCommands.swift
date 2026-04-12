@@ -56,6 +56,18 @@ enum HelpCommands {
         .init(pattern: "tab:Label",             description: "Find tab bar button",                       example: "'tab:Home'"),
         .init(pattern: "alert:Title",           description: "Find alert",                                example: "'alert:Error'"),
         .init(pattern: "link:Label",            description: "Find link by label",                        example: "'link:Learn more'"),
+        .init(pattern: "icon:Label",            description: "Find icon by label",                        example: "'icon:AppIcon'"),
+        .init(pattern: "toggle:Label",          description: "Find toggle by label",                      example: "'toggle:Dark Mode'"),
+        .init(pattern: "slider:Label",          description: "Find slider by label",                      example: "'slider:Volume'"),
+        .init(pattern: "stepper:Label",         description: "Find stepper by label",                     example: "'stepper:Quantity'"),
+        .init(pattern: "picker:Label",          description: "Find picker by label",                      example: "'picker:Country'"),
+        .init(pattern: "segmentedControl:Label", description: "Find segmented control by label",          example: "'segmentedControl:View'"),
+        .init(pattern: "menu:Label",            description: "Find menu by label",                        example: "'menu:File'"),
+        .init(pattern: "menuItem:Label",        description: "Find menu item by label",                   example: "'menuItem:Copy'"),
+        .init(pattern: "scrollView:Label",      description: "Find scroll view by label",                 example: "'scrollView:Content'"),
+        .init(pattern: "webView:Label",         description: "Find web view by label",                    example: "'webView:Browser'"),
+        .init(pattern: "datePicker:Label",      description: "Find date picker by label",                 example: "'datePicker:Birthday'"),
+        .init(pattern: "textView:Label",        description: "Find text view by label",                   example: "'textView:Notes'"),
         .init(pattern: "#identifier",           description: "Match by accessibility identifier (slow)",  example: "'#loginButton'"),
     ]
 }

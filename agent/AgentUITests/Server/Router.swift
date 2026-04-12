@@ -108,6 +108,8 @@ final class Router {
         let waitHandler = WaitHandler(appManager: appManager)
         let assertHandler = AssertHandler(appManager: appManager)
         let scrollToHandler = ScrollToHandler(appManager: appManager)
+        let dragHandler = DragHandler(appManager: appManager)
+        let pinchHandler = PinchHandler(appManager: appManager)
 
         route("GET", "/health", healthHandler.handle)
         route("POST", "/launch", launchHandler.handle)
@@ -126,6 +128,8 @@ final class Router {
         route("POST", "/wait", waitHandler.handle)
         route("POST", "/assert", assertHandler.handle)
         route("POST", "/scroll-to", scrollToHandler.handle)
+        route("POST", "/drag", dragHandler.handle)
+        route("POST", "/pinch", pinchHandler.handle)
 
         let clipboardHandler = ClipboardHandler()
         route("GET", "/clipboard", clipboardHandler.handleGet)

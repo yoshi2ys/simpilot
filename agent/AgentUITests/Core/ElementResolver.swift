@@ -21,6 +21,19 @@ enum ElementResolver {
     ///   nav:Settings          -> app.navigationBars["Settings"]
     ///   tab:Home              -> app.tabBars.buttons["Home"]
     ///   alert:Error           -> app.alerts["Error"]
+    ///   link:Label            -> app.links["Label"]
+    ///   icon:Logo             -> app.icons["Logo"]
+    ///   toggle:Dark Mode      -> app.toggles["Dark Mode"]
+    ///   slider:Volume         -> app.sliders["Volume"]
+    ///   stepper:Quantity      -> app.steppers["Quantity"]
+    ///   picker:Country        -> app.pickers["Country"]
+    ///   segmentedControl:Tab  -> app.segmentedControls["Tab"]
+    ///   menu:File             -> app.menus["File"]
+    ///   menuItem:Copy         -> app.menuItems["Copy"]
+    ///   scrollView:Content    -> app.scrollViews["Content"]
+    ///   webView:Browser       -> app.webViews["Browser"]
+    ///   datePicker:Birthday   -> app.datePickers["Birthday"]
+    ///   textView:Notes        -> app.textViews["Notes"]
     ///   Login (no prefix)     -> search descendants by label/identifier
 
     /// Look up an element by query without waiting for existence.
@@ -116,6 +129,42 @@ enum ElementResolver {
             case "link":
                 element = app.links[value]
                 queryCollection = app.links.matching(predicate)
+            case "icon":
+                element = app.icons[value]
+                queryCollection = app.icons.matching(predicate)
+            case "toggle":
+                element = app.toggles[value]
+                queryCollection = app.toggles.matching(predicate)
+            case "slider":
+                element = app.sliders[value]
+                queryCollection = app.sliders.matching(predicate)
+            case "stepper":
+                element = app.steppers[value]
+                queryCollection = app.steppers.matching(predicate)
+            case "picker":
+                element = app.pickers[value]
+                queryCollection = app.pickers.matching(predicate)
+            case "segmentedControl":
+                element = app.segmentedControls[value]
+                queryCollection = app.segmentedControls.matching(predicate)
+            case "menu":
+                element = app.menus[value]
+                queryCollection = app.menus.matching(predicate)
+            case "menuItem":
+                element = app.menuItems[value]
+                queryCollection = app.menuItems.matching(predicate)
+            case "scrollView":
+                element = app.scrollViews[value]
+                queryCollection = app.scrollViews.matching(predicate)
+            case "webView":
+                element = app.webViews[value]
+                queryCollection = app.webViews.matching(predicate)
+            case "datePicker":
+                element = app.datePickers[value]
+                queryCollection = app.datePickers.matching(predicate)
+            case "textView":
+                element = app.textViews[value]
+                queryCollection = app.textViews.matching(predicate)
             default:
                 throw ElementResolverError.invalidQuery("Unknown element type prefix: \(prefix)")
             }
