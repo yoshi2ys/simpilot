@@ -25,7 +25,7 @@ enum YAMLValue: Equatable, Sendable {
             return a == b
         case (.mapping(let a), .mapping(let b)):
             guard a.count == b.count else { return false }
-            return zip(a, b).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 }
+            return zip(a, b).allSatisfy { pair in pair.0.0 == pair.1.0 && pair.0.1 == pair.1.1 }
         default:
             return false
         }
@@ -92,7 +92,7 @@ enum YAMLParser {
         for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let lineNum = i + 1
             let stripped = stripComment(String(raw))
-            let trimmed = stripped.trimmingCharacters(in: .whitespaces)
+            let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
             let indent = stripped.prefix(while: { $0 == " " }).count
             result.append(Line(number: lineNum, indent: indent, content: trimmed))

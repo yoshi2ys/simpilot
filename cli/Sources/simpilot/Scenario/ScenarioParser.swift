@@ -45,10 +45,20 @@ enum ScenarioParser {
 
     private static func parseConfig(_ yaml: YAMLValue?) throws -> ScenarioConfig {
         var config = ScenarioConfig()
-        guard let mapping = yaml?.mappingValue else { return config }
+        guard let yaml else { return config }
+        guard let mapping = yaml.mappingValue else {
+            throw ScenarioParseError(message: "config must be a mapping", line: nil)
+        }
 
         for (key, value) in mapping {
-            guard let s = value.stringValue else { continue }
+            guard let s = value.stringValue else {
+                switch key {
+                case "timeout", "stop_on_failure", "screenshot_on_failure", "screenshot_dir":
+                    throw ScenarioParseError(message: "config.\(key) must be a scalar value", line: nil)
+                default:
+                    continue
+                }
+            }
             switch key {
             case "timeout":
                 guard let d = Double(s) else {
@@ -103,20 +113,25 @@ enum ScenarioParser {
 
     private static func parseStep(_ yaml: YAMLValue, variables: [String: String],
                                    stepIndex: Int, scenarioName: String) throws -> Step {
+        let stepNumber = stepIndex + 1
         guard let pairs = yaml.mappingValue, let (key, value) = pairs.first else {
-            throw ScenarioParseError(message: "\(scenarioName) step[\(stepIndex)] must be a mapping", line: nil)
+            throw ScenarioParseError(message: "\(scenarioName) step \(stepNumber) must be a mapping", line: nil)
         }
-
-        let lineNumber = stepIndex + 1 // approximate
-        let action = try parseAction(key: key, value: value, variables: variables, lineNumber: lineNumber)
-        return Step(action: action, lineNumber: lineNumber)
+        if pairs.count > 1 {
+            throw ScenarioParseError(
+                message: "\(scenarioName) step \(stepNumber) must have exactly one action key, got \(pairs.count)",
+                line: nil
+            )
+        }
+        let action = try parseAction(key: key, value: value, variables: variables, stepNumber: stepNumber)
+        return Step(action: action, stepNumber: stepNumber)
     }
 
     // MARK: - Actions
 
     private static func parseAction(key: String, value: YAMLValue,
                                      variables: [String: String],
-                                     lineNumber: Int) throws -> StepAction {
+                                     stepNumber: Int) throws -> StepAction {
         switch key {
         case "launch":
             return .launch(bundleId: try requireScalar(value, key: key, variables: variables))
@@ -182,7 +197,7 @@ enum ScenarioParser {
             )
         case "pinch":
             guard let scaleVal = try optionalDouble(value, "scale") else {
-                throw ScenarioParseError(message: "'pinch' requires 'scale'", line: lineNumber)
+                throw ScenarioParseError(message: "step \(stepNumber): 'pinch' requires 'scale'", line: nil)
             }
             return .pinch(
                 query: optionalField(value, "query", variables: variables),
@@ -228,11 +243,11 @@ enum ScenarioParser {
             )
         case "sleep":
             guard let s = value.stringValue, let d = Double(s) else {
-                throw ScenarioParseError(message: "'sleep' requires a numeric value", line: lineNumber)
+                throw ScenarioParseError(message: "step \(stepNumber): 'sleep' requires a numeric value", line: nil)
             }
             return .sleep(seconds: d)
         default:
-            throw ScenarioParseError(message: "unknown step type '\(key)'", line: lineNumber)
+            throw ScenarioParseError(message: "step \(stepNumber): unknown step type '\(key)'", line: nil)
         }
     }
 

@@ -23,7 +23,7 @@ struct Scenario: Sendable {
 
 struct Step: Sendable {
     let action: StepAction
-    let lineNumber: Int
+    let stepNumber: Int
 }
 
 // MARK: - Step Actions

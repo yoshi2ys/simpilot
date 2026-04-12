@@ -143,10 +143,10 @@ enum StepExecutor {
 
     private static func parseResponse(_ data: Data) throws -> [String: Any] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            if let str = String(data: data, encoding: .utf8) {
-                return ["success": true, "data": str]
-            }
-            return ["success": true, "data": NSNull()]
+            let body = String(data: data, encoding: .utf8) ?? "<non-UTF-8 data>"
+            throw NSError(domain: "simpilot", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "agent returned non-JSON response: \(body)"
+            ])
         }
         return json
     }

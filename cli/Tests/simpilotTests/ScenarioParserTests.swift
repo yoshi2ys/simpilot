@@ -237,6 +237,63 @@ final class ScenarioParserTests: XCTestCase {
         }
     }
 
+    func testConfigNonMappingThrows() throws {
+        // Scalar config
+        let yaml1 = try YAMLParser.parse("""
+        name: Test
+        config: foo
+        scenarios:
+          - name: S1
+            steps:
+              - sleep: 1
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml1)) { error in
+            XCTAssertTrue("\(error)".contains("config must be a mapping"))
+        }
+
+        // Sequence config
+        let yaml2 = try YAMLParser.parse("""
+        name: Test
+        config:
+          - item1
+          - item2
+        scenarios:
+          - name: S1
+            steps:
+              - sleep: 1
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml2)) { error in
+            XCTAssertTrue("\(error)".contains("config must be a mapping"))
+        }
+    }
+
+    func testStepMultipleActionKeysThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: Test
+        scenarios:
+          - name: S1
+            steps:
+              - tap: General
+                type: hello
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            XCTAssertTrue("\(error)".contains("exactly one action key"))
+        }
+    }
+
+    func testMalformedStepErrorIncludesStepNumber() throws {
+        let yaml = try YAMLParser.parse("""
+        name: Test
+        scenarios:
+          - name: S1
+            steps:
+              - fly: away
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            XCTAssertTrue("\(error)".contains("step 1:"), "Expected 'step 1:' prefix, got: \(error)")
+        }
+    }
+
     // MARK: - CLI var parsing
 
     func testParseCLIVars() {
