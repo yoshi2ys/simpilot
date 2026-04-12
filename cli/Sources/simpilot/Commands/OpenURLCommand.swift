@@ -17,19 +17,7 @@ enum OpenURLCommand: SimpilotCommand {
         let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let url = parsed.positionals[0]
 
-        let agents = AgentRegistry.load()
-        let agent: AgentRecord
-        if context.portExplicit {
-            guard let match = agents.first(where: { $0.port == context.port }) else {
-                throw CLIError.commandFailed("No agent found on port \(context.port)")
-            }
-            agent = match
-        } else {
-            guard let first = agents.first else {
-                throw CLIError.commandFailed("No running agent found. Start one with `simpilot start`")
-            }
-            agent = first
-        }
+        let agent = try resolveAgent(port: context.port, agents: AgentRegistry.load())
 
         if agent.isPhysical {
             throw CLIError.invalidArgs("openurl is simulator-only (device \(agent.device) is physical)")
@@ -52,5 +40,12 @@ enum OpenURLCommand: SimpilotCommand {
         let data = try JSONSerialization.data(withJSONObject: ["success": true, "data": result], options: [.sortedKeys])
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+    }
+
+    static func resolveAgent(port: Int, agents: [AgentRecord]) throws -> AgentRecord {
+        guard let match = agents.first(where: { $0.port == port }) else {
+            throw CLIError.commandFailed("No agent found on port \(port)")
+        }
+        return match
     }
 }

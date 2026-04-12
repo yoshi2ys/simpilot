@@ -196,6 +196,64 @@ final class ActionHandlerTests: XCTestCase {
         )
     }
 
+    // MARK: - AlertHandler error contract (Wave 3b fix #2)
+
+    func test_alertHandler_notFound_returnsErrorCode() throws {
+        let source = try loadHandlerSource(named: "AlertHandler.swift")
+        let notFoundOccurrences = source.components(separatedBy: "alert_not_found").count - 1
+        XCTAssertGreaterThanOrEqual(
+            notFoundOccurrences, 2,
+            "AlertHandler must return error code 'alert_not_found' for both timeout and immediate not-found paths"
+        )
+        XCTAssertFalse(
+            source.contains("\"found\": false"),
+            "AlertHandler must not return success envelope with found=false — use HTTPResponseBuilder.error"
+        )
+    }
+
+    func test_alertHandler_noButtons_returnsErrorCode() throws {
+        let source = try loadHandlerSource(named: "AlertHandler.swift")
+        XCTAssertTrue(
+            source.contains("alert_no_buttons"),
+            "AlertHandler must return error code 'alert_no_buttons' when alert has no buttons"
+        )
+        XCTAssertFalse(
+            source.contains("\"Alert found but has no buttons\""),
+            "AlertHandler must not return success envelope for no-buttons case"
+        )
+    }
+
+    func test_alertHandler_usesErrorBuilderForFailures() throws {
+        let source = try loadHandlerSource(named: "AlertHandler.swift")
+        let errorCalls = source.components(separatedBy: "HTTPResponseBuilder.error").count - 1
+        XCTAssertGreaterThanOrEqual(
+            errorCalls, 3,
+            "AlertHandler must use HTTPResponseBuilder.error for: invalid_request, alert_not_found (×2), alert_no_buttons"
+        )
+    }
+
+    // MARK: - action=type wait gate behavior backstop (Wave 3b fix #3)
+
+    func test_actionHandler_typeCase_awaitPredicatesIsEffective() {
+        let body: [String: Any] = [
+            "action": "type",
+            "query": "SearchField",
+            "text": "hello",
+            "wait_until": ["hittable"],
+            "timeout_ms": 3000
+        ]
+        let args = TapHandler.parseWaitArgs(from: body)
+        XCTAssertTrue(
+            TapHandler.needsPolling(wait: args),
+            "parseWaitArgs → needsPolling must be true when wait_until is set (action=type gate)"
+        )
+        let effective = TapHandler.effectivePredicates(wait: args)
+        XCTAssertEqual(
+            effective.map { $0.name }, ["hittable"],
+            "effectivePredicates must pass through explicit predicates from action=type body"
+        )
+    }
+
     // MARK: - Helpers
 
     private func loadActionHandlerSource() throws -> String {

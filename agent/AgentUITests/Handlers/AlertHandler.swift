@@ -19,30 +19,27 @@ final class AlertHandler: @unchecked Sendable {
 
         if timeoutSeconds > 0 {
             guard alert.waitForExistence(timeout: timeoutSeconds) else {
-                return HTTPResponseBuilder.json([
-                    "action": action,
-                    "found": false,
-                    "message": "No system alert found within \(timeoutSeconds)s"
-                ] as [String: Any])
+                return HTTPResponseBuilder.error(
+                    "No system alert found within \(timeoutSeconds)s",
+                    code: "alert_not_found"
+                )
             }
         } else {
             guard alert.exists else {
-                return HTTPResponseBuilder.json([
-                    "action": action,
-                    "found": false,
-                    "message": "No system alert found"
-                ] as [String: Any])
+                return HTTPResponseBuilder.error(
+                    "No system alert found",
+                    code: "alert_not_found"
+                )
             }
         }
 
         let buttons = alert.buttons
         let count = buttons.count
         guard count > 0 else {
-            return HTTPResponseBuilder.json([
-                "action": action,
-                "found": true,
-                "message": "Alert found but has no buttons"
-            ] as [String: Any])
+            return HTTPResponseBuilder.error(
+                "Alert has no buttons",
+                code: "alert_no_buttons"
+            )
         }
 
         // "accept" taps the last button (typically "Allow" / "OK"),
