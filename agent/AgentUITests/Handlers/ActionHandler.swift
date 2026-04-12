@@ -52,6 +52,16 @@ final class ActionHandler {
                 var targetCoord: XCUICoordinate?
                 #endif
                 if let query = query {
+                    let typeWait = TapHandler.parseWaitArgs(from: json)
+                    switch TapHandler.awaitPredicates(query: query, wait: typeWait, in: app) {
+                    case .timedOut(let lastState, let failed):
+                        return TapHandler.waitTimeoutResponse(
+                            query: query, failedPredicates: failed,
+                            lastState: lastState, timeoutMs: typeWait.timeoutMs
+                        )
+                    case .notNeeded, .satisfied:
+                        break
+                    }
                     #if !os(tvOS)
                     if let found = DebugDescriptionParser.findElement(query: query, in: app) {
                         let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))

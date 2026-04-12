@@ -149,6 +149,33 @@ final class ActionHandlerTests: XCTestCase {
         )
     }
 
+    /// Wave 3b.1: action=type with a query must gate through awaitPredicates
+    /// before the coord-tap + PasteHelper flow. Without this, --wait-until on
+    /// `simpilot action type --query SearchField --text foo --wait-until hittable`
+    /// was silently dropped.
+    func test_actionHandler_typeCase_forwardsWaitArgs() throws {
+        let source = try loadActionHandlerSource()
+        guard let typeCaseStart = source.range(of: "case \"type\":") else {
+            XCTFail("ActionHandler source missing type case")
+            return
+        }
+        let typeCaseEnd = source.range(of: "case \"", range: typeCaseStart.upperBound..<source.endIndex)?.lowerBound
+            ?? source.endIndex
+        let typeSegment = String(source[typeCaseStart.upperBound..<typeCaseEnd])
+        XCTAssertTrue(
+            typeSegment.contains("awaitPredicates"),
+            "ActionHandler type case must call TapHandler.awaitPredicates to honor wait flags"
+        )
+        XCTAssertTrue(
+            typeSegment.contains("parseWaitArgs"),
+            "ActionHandler type case must build WaitArgs from the request body"
+        )
+        XCTAssertTrue(
+            typeSegment.contains("waitTimeoutResponse"),
+            "ActionHandler type case must return waitTimeoutResponse on gate timeout"
+        )
+    }
+
     /// SwipeHandler.resolveAndSwipe must accept a `wait:` parameter and run
     /// it through `TapHandler.awaitPredicates`. This is the only runtime hook
     /// between the swipe code path and ElementPoller — losing it reintroduces
