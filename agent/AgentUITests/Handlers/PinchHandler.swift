@@ -30,11 +30,15 @@ final class PinchHandler: @unchecked Sendable {
         let query = json["query"] as? String
         let velocityName = json["velocity"] as? String ?? "default"
 
-        let pinchVelocity: XCUIGestureVelocity
+        // pinch(withScale:velocity:) expects velocity in scale-factor-per-second.
+        // XCUIGestureVelocity rawValues are pixels-per-second (for swipe) and
+        // .default is 0, which throws NSInvalidArgumentException for pinch.
+        // Use concrete CGFloat values appropriate for scale-factor velocity.
+        let pinchVelocity: CGFloat
         switch velocityName {
-        case "slow": pinchVelocity = .slow
-        case "fast": pinchVelocity = .fast
-        case "default": pinchVelocity = .default
+        case "slow": pinchVelocity = 1.0
+        case "fast": pinchVelocity = 15.0
+        case "default": pinchVelocity = 5.0
         default:
             return HTTPResponseBuilder.error(
                 "Invalid velocity: \(velocityName). Use slow, default, or fast.",
@@ -59,8 +63,12 @@ final class PinchHandler: @unchecked Sendable {
             target = app
         }
 
+        // Velocity sign must match scale direction: positive for zoom in
+        // (scale > 1), negative for zoom out (scale < 1).
+        let signedVelocity = scale >= 1.0 ? pinchVelocity : -pinchVelocity
+
         let failure = catchObjCException {
-            target.pinch(withScale: CGFloat(scale), velocity: CGFloat(pinchVelocity.rawValue))
+            target.pinch(withScale: CGFloat(scale), velocity: signedVelocity)
         }
         if let failure {
             return HTTPResponseBuilder.error(

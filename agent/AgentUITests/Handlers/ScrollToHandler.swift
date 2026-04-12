@@ -69,12 +69,14 @@ final class ScrollToHandler {
         )
     }
 
+    /// Swipe gesture direction is opposite to scroll direction:
+    /// "scroll down" (reveal content below) requires swipeUp (finger moves up).
     private func performSwipe(direction: String, on app: XCUIApplication) {
         switch direction {
-        case "up":    app.swipeUp()
-        case "down":  app.swipeDown()
-        case "left":  app.swipeLeft()
-        case "right": app.swipeRight()
+        case "down":  app.swipeUp()
+        case "up":    app.swipeDown()
+        case "left":  app.swipeRight()
+        case "right": app.swipeLeft()
         default:      break
         }
     }
