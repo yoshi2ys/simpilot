@@ -1,0 +1,21 @@
+name: Developer Settings
+config:
+  timeout: 10
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+
+scenarios:
+  - name: Navigate to Developer settings
+    steps:
+      - launch: ${app}
+      - scroll_to: Developer
+      - tap: Developer
+      - assert:
+          predicate: exists
+          query: "text:Developer"
+      - screenshot:
+          file: /tmp/simpilot-developer.png

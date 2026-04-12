@@ -1,0 +1,16 @@
+name: Variable Override Demo
+config:
+  timeout: 5
+  stop_on_failure: true
+
+variables:
+  app: com.apple.Preferences
+  target: General
+
+scenarios:
+  - name: Navigate to target screen
+    steps:
+      - launch: ${app}
+      - tap: ${target}
+      - screenshot:
+          file: /tmp/simpilot-${target}.png

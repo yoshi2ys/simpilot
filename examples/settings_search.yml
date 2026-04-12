@@ -1,0 +1,27 @@
+name: Settings Search
+config:
+  timeout: 5
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+  search_term: General
+
+scenarios:
+  - name: Type into search field and verify input
+    steps:
+      - launch: ${app}
+      - swipe: down
+      - sleep: 0.5
+      - tap: "searchField:Search"
+      - type:
+          text: ${search_term}
+          method: type
+      - assert:
+          predicate: value
+          query: "searchField:Search"
+          expected: ${search_term}
+      - screenshot:
+          file: /tmp/simpilot-search.png

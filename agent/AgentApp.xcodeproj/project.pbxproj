@@ -33,6 +33,7 @@
 		AA0000000000000000B9 /* ScrollToHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B8 /* ScrollToHandler.swift */; };
 		AA0000000000000000BB /* DragHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000BA /* DragHandler.swift */; };
 		AA0000000000000000BD /* PinchHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000BC /* PinchHandler.swift */; };
+		AA0000000000000000BF /* SliderHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000BE /* SliderHandler.swift */; };
 		AA00000000000000001F /* WaitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000020 /* WaitHandler.swift */; };
 		AA000000000000000021 /* TapCoordHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000022 /* TapCoordHandler.swift */; };
 		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
@@ -90,6 +91,7 @@
 		AA0000000000000000B8 /* ScrollToHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollToHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000BA /* DragHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000BC /* PinchHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinchHandler.swift; sourceTree = "<group>"; };
+		AA0000000000000000BE /* SliderHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SliderHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000020 /* WaitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaitHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000022 /* TapCoordHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCoordHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000024 /* ElementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementResolver.swift; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				AA0000000000000000B8 /* ScrollToHandler.swift */,
 				AA0000000000000000BA /* DragHandler.swift */,
 				AA0000000000000000BC /* PinchHandler.swift */,
+				AA0000000000000000BE /* SliderHandler.swift */,
 			);
 			path = Handlers;
 			sourceTree = "<group>";
@@ -363,6 +366,7 @@
 				AA0000000000000000B9 /* ScrollToHandler.swift in Sources */,
 				AA0000000000000000BB /* DragHandler.swift in Sources */,
 				AA0000000000000000BD /* PinchHandler.swift in Sources */,
+				AA0000000000000000BF /* SliderHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

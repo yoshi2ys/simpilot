@@ -110,6 +110,7 @@ final class Router {
         let scrollToHandler = ScrollToHandler(appManager: appManager)
         let dragHandler = DragHandler(appManager: appManager)
         let pinchHandler = PinchHandler(appManager: appManager)
+        let sliderHandler = SliderHandler(appManager: appManager)
 
         route("GET", "/health", healthHandler.handle)
         route("POST", "/launch", launchHandler.handle)
@@ -130,6 +131,7 @@ final class Router {
         route("POST", "/scroll-to", scrollToHandler.handle)
         route("POST", "/drag", dragHandler.handle)
         route("POST", "/pinch", pinchHandler.handle)
+        route("POST", "/slider", sliderHandler.handle)
 
         let clipboardHandler = ClipboardHandler()
         route("GET", "/clipboard", clipboardHandler.handleGet)

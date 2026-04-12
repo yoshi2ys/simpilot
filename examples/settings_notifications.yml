@@ -1,0 +1,20 @@
+name: Settings Notification
+config:
+  timeout: 5
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+
+scenarios:
+  - name: Navigate to Notifications
+    steps:
+      - launch: ${app}
+      - tap: Notifications
+      - assert:
+          predicate: exists
+          query: "text:Notification Style"
+      - screenshot:
+          file: /tmp/simpilot-notifications.png

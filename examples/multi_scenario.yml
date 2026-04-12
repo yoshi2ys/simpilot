@@ -1,0 +1,42 @@
+name: Settings Multi-Scenario Suite
+config:
+  timeout: 10
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+
+scenarios:
+  - name: General screen loads
+    steps:
+      - launch: ${app}
+      - tap: General
+      - assert:
+          predicate: exists
+          query: "text:About"
+      - assert:
+          predicate: exists
+          query: "text:Keyboard"
+
+  - name: Privacy screen loads
+    steps:
+      - launch: ${app}
+      - scroll_to: "Privacy & Security"
+      - tap: "Privacy & Security"
+      - assert:
+          predicate: exists
+          query: "text:Location Services"
+      - screenshot:
+          file: /tmp/simpilot-privacy.png
+
+  - name: Accessibility screen loads
+    steps:
+      - launch: ${app}
+      - tap: Accessibility
+      - assert:
+          predicate: exists
+          query: "Hover Text"
+      - screenshot:
+          file: /tmp/simpilot-accessibility.png

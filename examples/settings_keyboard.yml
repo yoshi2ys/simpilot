@@ -1,0 +1,25 @@
+name: Keyboard Settings
+config:
+  timeout: 5
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+
+scenarios:
+  - name: Verify keyboard switch states
+    steps:
+      - launch: ${app}
+      - tap: General
+      - tap: Keyboard
+      - assert:
+          predicate: exists
+          query: "switch:Character Preview"
+      - assert:
+          predicate: value
+          query: "switch:Sound"
+          expected: "1"
+      - screenshot:
+          file: /tmp/simpilot-keyboard.png

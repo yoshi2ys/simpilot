@@ -161,9 +161,20 @@ final class TapHandler: @unchecked Sendable {
 
         #if !os(tvOS)
         if let found = DebugDescriptionParser.findElement(query: query, in: app) {
+            // SwiftUI Toggle exposes the entire row (label + toggle) as one
+            // accessibility element. Tapping the row center hits the label,
+            // which doesn't toggle. Offset to the trailing edge where the
+            // actual switch control sits.
+            let tapX: Double
+            if found.type == "switch" || found.type == "toggle" {
+                tapX = found.frame.x + found.frame.w - 32
+            } else {
+                tapX = found.centerX
+            }
+
             let failure = catchObjCException {
                 let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                    .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                    .withOffset(CGVector(dx: tapX, dy: found.centerY))
                 gesture.onCoord(coord)
             }
             if failure == nil {

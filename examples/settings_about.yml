@@ -1,0 +1,24 @@
+name: Settings About Screen
+config:
+  timeout: 5
+  stop_on_failure: true
+  screenshot_on_failure: true
+  screenshot_dir: /tmp/simpilot-failures
+
+variables:
+  app: com.apple.Preferences
+
+scenarios:
+  - name: Navigate to About and verify
+    steps:
+      - launch: ${app}
+      - tap: General
+      - tap: About
+      - assert:
+          predicate: exists
+          query: "text:About"
+      - assert:
+          predicate: exists
+          query: "text:Model Name"
+      - screenshot:
+          file: /tmp/simpilot-about.png

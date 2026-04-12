@@ -233,12 +233,44 @@ enum DebugDescriptionParser {
             let id = String(query.dropFirst())
             return element.identifier == id
         } else if let colonIndex = query.firstIndex(of: ":") {
+            let prefix = String(query[query.startIndex..<colonIndex])
             let value = String(query[query.index(after: colonIndex)...])
-            return element.label == value || element.identifier == value
+            let valueMatches = element.label == value || element.identifier == value
+            guard valueMatches else { return false }
+            // Verify element type matches the query prefix
+            guard let expectedType = queryPrefixToType[prefix] else { return false }
+            return element.type == expectedType
         } else {
             return element.label == query || element.identifier == query
         }
     }
+
+    /// Maps query prefixes to debugDescription type names.
+    private static let queryPrefixToType: [String: String] = [
+        "button": "button",
+        "text": "staticText",
+        "textField": "textField",
+        "secureTextField": "secureTextField",
+        "searchField": "searchField",
+        "switch": "switch",
+        "cell": "cell",
+        "image": "image",
+        "nav": "navigationBar",
+        "alert": "alert",
+        "link": "link",
+        "icon": "icon",
+        "toggle": "toggle",
+        "slider": "slider",
+        "stepper": "stepper",
+        "picker": "picker",
+        "segmentedControl": "segmentedControl",
+        "menu": "menu",
+        "menuItem": "menuItem",
+        "scrollView": "scrollView",
+        "webView": "webView",
+        "datePicker": "datePicker",
+        "textView": "textView",
+    ]
 
     // MARK: - Line Parsing
 
