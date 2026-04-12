@@ -87,6 +87,9 @@ enum ElementResolver {
             case "secureTextField":
                 element = app.secureTextFields[value]
                 queryCollection = app.secureTextFields.matching(predicate)
+            case "searchField":
+                element = app.searchFields[value]
+                queryCollection = app.searchFields.matching(predicate)
             case "switch":
                 element = app.switches[value]
                 queryCollection = app.switches.matching(predicate)
