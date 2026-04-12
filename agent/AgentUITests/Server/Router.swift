@@ -136,6 +136,12 @@ final class Router {
         let locationHandler = LocationHandler()
         route("POST", "/location", locationHandler.handle)
 
+        let rotateHandler = RotateHandler()
+        route("POST", "/rotate", rotateHandler.handle)
+
+        let alertHandler = AlertHandler()
+        route("POST", "/alert", alertHandler.handle)
+
         let batchHandler = BatchHandler(router: self)
         let actionHandler = ActionHandler(appManager: appManager)
         route("POST", "/batch", batchHandler.handle)

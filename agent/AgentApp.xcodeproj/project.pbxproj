@@ -28,6 +28,8 @@
 		AA00000000000000001D /* SwipeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000001E /* SwipeHandler.swift */; };
 		AA0000000000000000B1 /* LongPressHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B0 /* LongPressHandler.swift */; };
 		AA0000000000000000B3 /* DoubleTapHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B2 /* DoubleTapHandler.swift */; };
+		AA0000000000000000B5 /* RotateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B4 /* RotateHandler.swift */; };
+		AA0000000000000000B7 /* AlertHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000B6 /* AlertHandler.swift */; };
 		AA00000000000000001F /* WaitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000020 /* WaitHandler.swift */; };
 		AA000000000000000021 /* TapCoordHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000022 /* TapCoordHandler.swift */; };
 		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
@@ -80,6 +82,8 @@
 		AA00000000000000001E /* SwipeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000B0 /* LongPressHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongPressHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000B2 /* DoubleTapHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapHandler.swift; sourceTree = "<group>"; };
+		AA0000000000000000B4 /* RotateHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RotateHandler.swift; sourceTree = "<group>"; };
+		AA0000000000000000B6 /* AlertHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000020 /* WaitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaitHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000022 /* TapCoordHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCoordHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000024 /* ElementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementResolver.swift; sourceTree = "<group>"; };
@@ -199,6 +203,8 @@
 				AA00000000000000001E /* SwipeHandler.swift */,
 				AA0000000000000000B0 /* LongPressHandler.swift */,
 				AA0000000000000000B2 /* DoubleTapHandler.swift */,
+				AA0000000000000000B4 /* RotateHandler.swift */,
+				AA0000000000000000B6 /* AlertHandler.swift */,
 				AA000000000000000020 /* WaitHandler.swift */,
 				AA000000000000000022 /* TapCoordHandler.swift */,
 				AA000000000000000036 /* TerminateHandler.swift */,
@@ -326,6 +332,8 @@
 				AA00000000000000001D /* SwipeHandler.swift in Sources */,
 				AA0000000000000000B1 /* LongPressHandler.swift in Sources */,
 				AA0000000000000000B3 /* DoubleTapHandler.swift in Sources */,
+				AA0000000000000000B5 /* RotateHandler.swift in Sources */,
+				AA0000000000000000B7 /* AlertHandler.swift in Sources */,
 				AA00000000000000001F /* WaitHandler.swift in Sources */,
 				AA000000000000000021 /* TapCoordHandler.swift in Sources */,
 				AA000000000000000023 /* ElementResolver.swift in Sources */,
