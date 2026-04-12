@@ -14,18 +14,18 @@ struct HTTPClient: Sendable {
         self.timeout = timeout
     }
 
-    func get(_ path: String) throws -> Data {
+    func get(_ path: String, timeout: TimeInterval? = nil) throws -> Data {
         let urlString = baseURL + path
         guard let url = URL(string: urlString) else {
             throw CLIError.invalidURL(urlString)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = timeout
+        request.timeoutInterval = timeout ?? self.timeout
         return try perform(request)
     }
 
-    func post(_ path: String, body: [String: Any]) throws -> Data {
+    func post(_ path: String, body: [String: Any], timeout: TimeInterval? = nil) throws -> Data {
         let urlString = baseURL + path
         guard let url = URL(string: urlString) else {
             throw CLIError.invalidURL(urlString)
@@ -33,7 +33,7 @@ struct HTTPClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = timeout
+        request.timeoutInterval = timeout ?? self.timeout
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try perform(request)
     }

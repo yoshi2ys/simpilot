@@ -132,6 +132,7 @@ struct Simpilot {
         LocationCommand.self,
         BatchCommand.self,
         ActionCommand.self,
+        RunCommand.self,
         HelpCommand.self,
     ]
 
