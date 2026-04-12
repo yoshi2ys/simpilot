@@ -35,31 +35,6 @@ swift run simpilot tap 'General'
 simpilot tap 'General'
 ```
 
-## Setup
-
-```bash
-# Build & install (one-time)
-git clone https://github.com/yoshi2ys/simpilot.git
-cd simpilot && make install    # builds CLI and symlinks to /usr/local/bin
-
-# Start the agent — Simulator
-# Priority: --udid > --device > SIMPILOT_DEFAULT_DEVICE env > first booted sim > iPhone 17 Pro
-simpilot start                                 # chain default
-simpilot start --device 'iPhone Air'           # specify iOS device by name
-simpilot start --device 'iPad Pro 13-inch (M5)' # iPad
-simpilot start --device 'Apple Vision Pro'     # visionOS
-simpilot start --udid <UDID>                   # reconnect to a specific simulator (from `simpilot list`)
-SIMPILOT_DEFAULT_DEVICE='iPhone Air' simpilot start  # env default
-
-# Start the agent — Physical device
-simpilot start --device 'My iPhone'            # auto-detects physical device via devicectl
-
-# Start parallel agents (see "Parallel Testing" section)
-simpilot start --device 'iPhone Air' --clone 2   # 2 clones for parallel testing
-```
-
-For physical devices, the device must be connected via USB or Wi-Fi, and the XCUITest agent must be signed with a valid team in Xcode.
-
 ## Critical Rules
 
 1. **ALWAYS use bare label queries** — `simpilot tap 'General'` not `simpilot tap '#com.apple.settings.general'`. Bare labels resolve in <1s; identifier queries can take 24+ seconds on complex apps.
@@ -396,3 +371,4 @@ WebView-based apps (Safari, Chrome, hybrid apps) need `source` instead of `eleme
 - **visionOS tap slow (~20s)**: Expected. Coordinate tap falls back to XCUITest native resolution on visionOS.
 - **Physical device unreachable after USB reconnect**: Run `simpilot stop --all` then `simpilot start --device '<name>'` to re-register with the correct hostname.
 - **WebView tap hits wrong element**: See `references/webview.md` — use `source` for coordinates, never estimate from screenshots.
+- **simpilot not found**: The CLI is not installed. Ask the user to run `make install` in the simpilot repo.
