@@ -254,7 +254,140 @@ final class ActionHandlerTests: XCTestCase {
         )
     }
 
+    // MARK: - Element screenshot wire contract (Wave 4a)
+
+    /// ScreenshotHandler must use `ElementResolver.resolve` to handle the
+    /// `element` query parameter and wrap `element.screenshot()` with
+    /// `catchObjCException` to catch NSException from detached/zero-frame elements.
+    func test_screenshotHandler_elementParam_usesResolverAndObjCGuard() throws {
+        let source = try loadHandlerSource(named: "ScreenshotHandler.swift")
+        XCTAssertTrue(
+            source.contains("request.queryParams[\"element\"]"),
+            "ScreenshotHandler must read the 'element' query parameter"
+        )
+        XCTAssertTrue(
+            source.contains("ElementResolver.resolve"),
+            "ScreenshotHandler must use ElementResolver.resolve for element screenshot"
+        )
+        XCTAssertTrue(
+            source.contains("element.screenshot()"),
+            "ScreenshotHandler must call element.screenshot() for element-level capture"
+        )
+        XCTAssertTrue(
+            source.contains("catchObjCException"),
+            "ScreenshotHandler must wrap element.screenshot() with catchObjCException"
+        )
+    }
+
+    /// ScreenshotHandler must return distinct error codes: `element_not_found`
+    /// for resolver failures vs `screenshot_failed` for ObjC exceptions during capture.
+    func test_screenshotHandler_errorCodeSeparation() throws {
+        let source = try loadHandlerSource(named: "ScreenshotHandler.swift")
+        XCTAssertTrue(
+            source.contains("\"element_not_found\""),
+            "ScreenshotHandler must return 'element_not_found' when ElementResolver fails"
+        )
+        XCTAssertTrue(
+            source.contains("\"screenshot_failed\""),
+            "ScreenshotHandler must return 'screenshot_failed' when element.screenshot() throws NSException"
+        )
+    }
+
+    /// ScreenshotHandler must fall back to XCUIScreen.main when no element param.
+    func test_screenshotHandler_noElement_usesFullScreen() throws {
+        let source = try loadHandlerSource(named: "ScreenshotHandler.swift")
+        XCTAssertTrue(
+            source.contains("XCUIScreen.main.screenshot()"),
+            "ScreenshotHandler must use XCUIScreen.main.screenshot() when no element param"
+        )
+    }
+
+    /// ActionHandler must read `screenshot_element` from the JSON body and
+    /// route it through ElementResolver + catchObjCException for element-level
+    /// screenshot, while preserving action_result on failure (soft-fail).
+    func test_actionHandler_screenshotElement_softFailShape() throws {
+        let source = try loadActionHandlerSource()
+
+        // 1. Reads the field
+        XCTAssertTrue(
+            source.contains("\"screenshot_element\""),
+            "ActionHandler must read 'screenshot_element' from the JSON body"
+        )
+
+        // 2. Uses ElementResolver
+        XCTAssertTrue(
+            source.contains("ElementResolver.resolve(query: screenshotElement"),
+            "ActionHandler must use ElementResolver.resolve for screenshot_element"
+        )
+
+        // 3. Wraps with catchObjCException
+        XCTAssertTrue(
+            source.contains("catchObjCException"),
+            "ActionHandler must wrap element.screenshot() with catchObjCException"
+        )
+
+        // 4. Soft-fail: screenshot error goes to responseData, NOT early return
+        // The screenshot section must set responseData["screenshot"] on error
+        // and must NOT return before the elements section.
+        let screenshotSection = extractSection(
+            from: source,
+            startMarker: "// 3. Screenshot",
+            endMarker: "// 4. Elements"
+        )
+        XCTAssertNotNil(screenshotSection, "ActionHandler must have labeled screenshot and elements sections")
+        if let section = screenshotSection {
+            XCTAssertTrue(
+                section.contains("responseData[\"screenshot\"]"),
+                "ActionHandler screenshot section must write errors to responseData[\"screenshot\"]"
+            )
+            XCTAssertTrue(
+                section.contains("fullPng = nil"),
+                "ActionHandler must set fullPng = nil on element screenshot failure (soft-fail)"
+            )
+            // No early return in the screenshot section — elements must still run
+            let returnCount = section.components(separatedBy: "return ").count - 1
+            XCTAssertEqual(
+                returnCount, 0,
+                "ActionHandler screenshot section must NOT return early — action_result and elements must be preserved"
+            )
+            // 5. Error objects must include structured code field
+            XCTAssertTrue(
+                section.contains("\"code\": \"element_not_found\""),
+                "ActionHandler screenshot error for resolver failure must include code: element_not_found"
+            )
+            XCTAssertTrue(
+                section.contains("\"code\": \"screenshot_failed\""),
+                "ActionHandler screenshot error for ObjC exception must include code: screenshot_failed"
+            )
+        }
+    }
+
+    /// ActionHandler must still use XCUIScreen.main when screenshot_element is absent.
+    func test_actionHandler_noScreenshotElement_usesFullScreen() throws {
+        let source = try loadActionHandlerSource()
+        // The screenshot section has the full-screen fallback
+        let screenshotSection = extractSection(
+            from: source,
+            startMarker: "// 3. Screenshot",
+            endMarker: "// 4. Elements"
+        )
+        XCTAssertNotNil(screenshotSection)
+        if let section = screenshotSection {
+            XCTAssertTrue(
+                section.contains("XCUIScreen.main.screenshot()"),
+                "ActionHandler must use XCUIScreen.main.screenshot() when screenshot_element is absent"
+            )
+        }
+    }
+
     // MARK: - Helpers
+
+    private func extractSection(from source: String, startMarker: String, endMarker: String) -> String? {
+        guard let startRange = source.range(of: startMarker) else { return nil }
+        let endPos = source.range(of: endMarker, range: startRange.upperBound..<source.endIndex)?.lowerBound
+            ?? source.endIndex
+        return String(source[startRange.lowerBound..<endPos])
+    }
 
     private func loadActionHandlerSource() throws -> String {
         return try loadHandlerSource(named: "ActionHandler.swift")

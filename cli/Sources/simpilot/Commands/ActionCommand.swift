@@ -17,15 +17,25 @@ enum ActionCommand: SimpilotCommand {
             .init("--x", .double),
             .init("--y", .double),
             .init("--method", .string),
+            .init("--element", .string),
         ] + WaitFlags.flags
     )
     static let category: HelpCommands.Category = .utility
-    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>] \(WaitFlags.synopsis)"
+    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--element <query>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>] \(WaitFlags.synopsis)"
     static let description = "Compound action with screenshot/elements"
     static let example = "simpilot action tap 'About' --screenshot /tmp/s.png --scale 1 --level 0"
 
+    /// Parse + validate action flags. Exposed for testing.
+    static func parseAndValidate(_ args: [String]) throws -> ParsedArgs {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
+        if parsed.string("--element") != nil && parsed.string("--screenshot") == nil {
+            throw CLIError.invalidArgs("--element requires --screenshot")
+        }
+        return parsed
+    }
+
     static func run(context: RunContext) throws {
-        let parsed = try ArgParser.parse(context.args, spec: argSpec)
+        let parsed = try parseAndValidate(context.args)
         let action = parsed.positionals[0]
         let query = parsed.positionals[1]
 
@@ -58,6 +68,9 @@ enum ActionCommand: SimpilotCommand {
         }
         if let method = parsed.string("--method") {
             body["method"] = method
+        }
+        if let element = parsed.string("--element") {
+            body["screenshot_element"] = element
         }
         WaitFlags.apply(parsed, to: &body)
 

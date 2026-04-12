@@ -17,6 +17,7 @@ final class ActionHandler {
         let query = json["query"] as? String
         let screenshotPath = json["screenshot"] as? String
         let screenshotScaleRaw = json["screenshot_scale"]
+        let screenshotElement = json["screenshot_element"] as? String
         let elementsLevel = json["elements_level"] as? Int
         let settleTimeout = json["settle_timeout"] as? Double ?? 1.0
 
@@ -133,23 +134,48 @@ final class ActionHandler {
 
         // 3. Screenshot (optional)
         if let path = screenshotPath, !path.isEmpty {
-            let screenshot = XCUIScreen.main.screenshot()
-            let fullPng = screenshot.pngRepresentation
-            let pngData: Data
-            let scaleOut: Any
-            if let str = screenshotScaleRaw as? String, str == "native" {
-                pngData = fullPng
-                scaleOut = "native"
+            let fullPng: Data?
+            if let screenshotElement = screenshotElement {
+                var resolved: XCUIElement?
+                do {
+                    resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
+                } catch {
+                    responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
+                }
+                if let element = resolved {
+                    var pngResult: Data?
+                    let failure = catchObjCException {
+                        pngResult = element.screenshot().pngRepresentation
+                    }
+                    if let failure {
+                        responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
+                        fullPng = nil
+                    } else {
+                        fullPng = pngResult!
+                    }
+                } else {
+                    fullPng = nil
+                }
             } else {
-                let scale = (screenshotScaleRaw as? Double) ?? 1.0
-                pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
-                scaleOut = scale
+                fullPng = XCUIScreen.main.screenshot().pngRepresentation
             }
-            do {
-                try pngData.write(to: URL(fileURLWithPath: path))
-                responseData["screenshot"] = ["file": path, "size": pngData.count, "scale": scaleOut]
-            } catch {
-                responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
+            if let fullPng = fullPng {
+                let pngData: Data
+                let scaleOut: Any
+                if let str = screenshotScaleRaw as? String, str == "native" {
+                    pngData = fullPng
+                    scaleOut = "native"
+                } else {
+                    let scale = (screenshotScaleRaw as? Double) ?? 1.0
+                    pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
+                    scaleOut = scale
+                }
+                do {
+                    try pngData.write(to: URL(fileURLWithPath: path))
+                    responseData["screenshot"] = ["file": path, "size": pngData.count, "scale": scaleOut]
+                } catch {
+                    responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
+                }
             }
         }
 

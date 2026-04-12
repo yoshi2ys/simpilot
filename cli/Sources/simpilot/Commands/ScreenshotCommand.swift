@@ -6,26 +6,34 @@ enum ScreenshotCommand: SimpilotCommand {
         flags: [
             .init("--file", .string),
             .init("--scale", .string),
+            .init("--element", .string),
         ]
     )
     static let category: HelpCommands.Category = .observation
-    static let synopsis = "screenshot [--file <path>] [--scale <N|native>]"
-    static let description = "Capture a screenshot (default --scale 1 = 1x/point-size for AI; use 'native' for device full resolution)"
+    static let synopsis = "screenshot [--file <path>] [--scale <N|native>] [--element <query>]"
+    static let description = "Capture a screenshot (full screen or a specific element; default --scale 1 = 1x/point-size for AI; use 'native' for device full resolution)"
     static let example = "simpilot screenshot --file /tmp/s.png --scale native"
 
-    static func run(context: RunContext) throws {
-        let parsed = try ArgParser.parse(context.args, spec: argSpec)
+    /// Build the GET path from CLI args. Exposed for testing.
+    static func buildPath(from args: [String]) throws -> String {
+        let parsed = try ArgParser.parse(args, spec: argSpec)
         let scale = try ScaleArg.validate(parsed.string("--scale") ?? "1")
 
-        var queryItems: [String] = ["scale=\(scale)"]
-        if let filePath = parsed.string("--file") {
-            guard let encoded = filePath.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-                throw CLIError.invalidArgs("Invalid file path: \(filePath)")
-            }
-            queryItems.append("file=\(encoded)")
+        var components = URLComponents()
+        components.path = "/screenshot"
+        var queryItems: [URLQueryItem] = [URLQueryItem(name: "scale", value: scale)]
+        if let file = parsed.string("--file") {
+            queryItems.append(URLQueryItem(name: "file", value: file))
         }
-        let path = "/screenshot?" + queryItems.joined(separator: "&")
+        if let element = parsed.string("--element") {
+            queryItems.append(URLQueryItem(name: "element", value: element))
+        }
+        components.queryItems = queryItems
+        return components.string ?? "/screenshot"
+    }
 
+    static func run(context: RunContext) throws {
+        let path = try buildPath(from: context.args)
         let data = try context.client.get(path)
         try decodeAndPrint(data: data, pretty: context.pretty)
     }

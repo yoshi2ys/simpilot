@@ -98,7 +98,7 @@ final class Router {
         let tapHandler = TapHandler(appManager: appManager)
         let tapCoordHandler = TapCoordHandler(appManager: appManager)
         let typeHandler = TypeHandler(appManager: appManager)
-        let screenshotHandler = ScreenshotHandler()
+        let screenshotHandler = ScreenshotHandler(appManager: appManager)
         let elementsHandler = ElementsHandler(appManager: appManager)
         let sourceHandler = SourceHandler(appManager: appManager)
         let infoHandler = InfoHandler()

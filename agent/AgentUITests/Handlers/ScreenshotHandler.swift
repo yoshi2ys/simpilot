@@ -7,12 +7,43 @@ import UIKit
 import XCTest
 
 final class ScreenshotHandler {
+    private let appManager: AppManager
+
+    init(appManager: AppManager) {
+        self.appManager = appManager
+    }
+
     func handle(_ request: HTTPRequest) -> Data {
         let filePath = request.queryParams["file"]
         let scaleParam = request.queryParams["scale"] ?? "1"
+        let elementQuery = request.queryParams["element"]
 
-        let screenshot = XCUIScreen.main.screenshot()
-        let fullPng = screenshot.pngRepresentation
+        let fullPng: Data
+        if let elementQuery = elementQuery {
+            let app = appManager.currentApp()
+            let element: XCUIElement
+            do {
+                element = try ElementResolver.resolve(query: elementQuery, in: app)
+            } catch {
+                return HTTPResponseBuilder.error(
+                    "Element not found: \(elementQuery)",
+                    code: "element_not_found"
+                )
+            }
+            var pngResult: Data?
+            let failure = catchObjCException {
+                pngResult = element.screenshot().pngRepresentation
+            }
+            if let failure {
+                return HTTPResponseBuilder.error(
+                    "Screenshot failed for element '\(elementQuery)': \(failure)",
+                    code: "screenshot_failed"
+                )
+            }
+            fullPng = pngResult!
+        } else {
+            fullPng = XCUIScreen.main.screenshot().pngRepresentation
+        }
         let pngData: Data
         let scaleOut: Any
         if scaleParam == "native" {
