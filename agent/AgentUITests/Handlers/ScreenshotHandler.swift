@@ -17,6 +17,20 @@ final class ScreenshotHandler {
         let filePath = request.queryParams["file"]
         let scaleParam = request.queryParams["scale"] ?? "1"
         let elementQuery = request.queryParams["element"]
+        let format = request.queryParams["format"] ?? "png"
+        guard format == "png" || format == "jpeg" else {
+            return HTTPResponseBuilder.error(
+                "Invalid format '\(format)': must be 'png' or 'jpeg'",
+                code: "invalid_request"
+            )
+        }
+        let quality = Int(request.queryParams["quality"] ?? "80") ?? 80
+        if format == "jpeg" && !(0...100).contains(quality) {
+            return HTTPResponseBuilder.error(
+                "Invalid quality \(quality): must be 0-100",
+                code: "invalid_request"
+            )
+        }
 
         let fullPng: Data
         if let elementQuery = elementQuery {
@@ -55,10 +69,23 @@ final class ScreenshotHandler {
             scaleOut = scale
         }
 
+        let outputData: Data
+        let outputFormat: String
+        if format == "jpeg" {
+            outputData = ScreenshotConverter.toJPEG(pngData: pngData, quality: quality) ?? pngData
+            outputFormat = outputData == pngData ? "png" : "jpeg"
+        } else {
+            outputData = pngData
+            outputFormat = "png"
+        }
+
         if let filePath = filePath, !filePath.isEmpty {
             do {
-                try pngData.write(to: URL(fileURLWithPath: filePath))
-                return HTTPResponseBuilder.json(["file": filePath, "size": pngData.count, "scale": scaleOut])
+                try outputData.write(to: URL(fileURLWithPath: filePath))
+                return HTTPResponseBuilder.json([
+                    "file": filePath, "size": outputData.count,
+                    "scale": scaleOut, "format": outputFormat
+                ])
             } catch {
                 return HTTPResponseBuilder.error(
                     "Failed to write screenshot: \(error.localizedDescription)",
@@ -67,9 +94,9 @@ final class ScreenshotHandler {
                 )
             }
         } else {
-            let base64 = pngData.base64EncodedString()
+            let base64 = outputData.base64EncodedString()
             return HTTPResponseBuilder.json([
-                "base64": base64, "format": "png", "size": pngData.count, "scale": scaleOut
+                "base64": base64, "format": outputFormat, "size": outputData.count, "scale": scaleOut
             ])
         }
     }
@@ -114,6 +141,24 @@ enum ScreenshotScaler {
             return nil
         }
         CGImageDestinationAddImage(dest, thumb, nil)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return out as Data
+    }
+}
+
+/// Converts PNG data to JPEG using ImageIO. Returns nil on failure.
+enum ScreenshotConverter {
+    static func toJPEG(pngData: Data, quality: Int) -> Data? {
+        guard let src = CGImageSourceCreateWithData(pngData as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+            return nil
+        }
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out, UTType.jpeg.identifier as CFString, 1, nil) else {
+            return nil
+        }
+        let opts: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: Double(quality) / 100.0]
+        CGImageDestinationAddImage(dest, cgImage, opts as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { return nil }
         return out as Data
     }

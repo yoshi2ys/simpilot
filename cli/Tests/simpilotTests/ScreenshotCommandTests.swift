@@ -59,7 +59,73 @@ final class ScreenshotCommandTests: XCTestCase {
         XCTAssertEqual(params["element"], "a+b")
     }
 
+    // MARK: - --format and --quality
+
+    func testFormatJpegAppearsInQuery() throws {
+        let path = try ScreenshotCommand.buildPath(from: ["--format", "jpeg"])
+        let params = queryParams(path)
+        XCTAssertEqual(params["format"], "jpeg")
+    }
+
+    func testFormatPngAppearsInQuery() throws {
+        let path = try ScreenshotCommand.buildPath(from: ["--format", "png"])
+        let params = queryParams(path)
+        XCTAssertEqual(params["format"], "png")
+    }
+
+    func testFormatOmittedByDefault() throws {
+        let path = try ScreenshotCommand.buildPath(from: [])
+        let params = queryParams(path)
+        XCTAssertNil(params["format"])
+    }
+
+    func testFormatInvalidIsRejected() {
+        XCTAssertThrowsError(try ScreenshotCommand.buildPath(from: ["--format", "gif"])) { error in
+            assertInvalidArgs(error, contains: "--format")
+            assertInvalidArgs(error, contains: "gif")
+        }
+    }
+
+    func testQualityAppearsInQuery() throws {
+        let path = try ScreenshotCommand.buildPath(from: ["--format", "jpeg", "--quality", "50"])
+        let params = queryParams(path)
+        XCTAssertEqual(params["quality"], "50")
+    }
+
+    func testQualityOutOfRangeIsRejected() {
+        XCTAssertThrowsError(try ScreenshotCommand.buildPath(from: ["--quality", "101"])) { error in
+            assertInvalidArgs(error, contains: "--quality")
+        }
+        XCTAssertThrowsError(try ScreenshotCommand.buildPath(from: ["--quality", "-1"])) { error in
+            assertInvalidArgs(error, contains: "--quality")
+        }
+    }
+
+    func testFormatIsCaseInsensitive() throws {
+        let path = try ScreenshotCommand.buildPath(from: ["--format", "JPEG"])
+        let params = queryParams(path)
+        XCTAssertEqual(params["format"], "jpeg")
+    }
+
     // MARK: - Helpers
+
+    private func assertInvalidArgs(
+        _ error: Error,
+        contains needle: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case CLIError.invalidArgs(let msg) = error else {
+            XCTFail("Expected CLIError.invalidArgs, got \(error)", file: file, line: line)
+            return
+        }
+        XCTAssertTrue(
+            msg.contains(needle),
+            "Expected error message to contain '\(needle)', got: \(msg)",
+            file: file,
+            line: line
+        )
+    }
 
     /// Parse query params via URLComponents so tests verify decoded values,
     /// not raw percent-encoded strings.

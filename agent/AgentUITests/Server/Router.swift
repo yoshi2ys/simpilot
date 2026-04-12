@@ -107,6 +107,7 @@ final class Router {
         let doubleTapHandler = DoubleTapHandler(appManager: appManager)
         let waitHandler = WaitHandler(appManager: appManager)
         let assertHandler = AssertHandler(appManager: appManager)
+        let scrollToHandler = ScrollToHandler(appManager: appManager)
 
         route("GET", "/health", healthHandler.handle)
         route("POST", "/launch", launchHandler.handle)
@@ -124,6 +125,7 @@ final class Router {
         route("POST", "/doubletap", doubleTapHandler.handle)
         route("POST", "/wait", waitHandler.handle)
         route("POST", "/assert", assertHandler.handle)
+        route("POST", "/scroll-to", scrollToHandler.handle)
 
         let clipboardHandler = ClipboardHandler()
         route("GET", "/clipboard", clipboardHandler.handleGet)

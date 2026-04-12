@@ -18,10 +18,12 @@ enum ActionCommand: SimpilotCommand {
             .init("--y", .double),
             .init("--method", .string),
             .init("--element", .string),
+            .init("--format", .string),
+            .init("--quality", .int),
         ] + WaitFlags.flags
     )
     static let category: HelpCommands.Category = .utility
-    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--element <query>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>] \(WaitFlags.synopsis)"
+    static let synopsis = "action <type> <query> [--screenshot <path>] [--scale <N|native>] [--element <query>] [--format png|jpeg] [--quality <0-100>] [--level <n>] [--settle <s>] [--text <t>] [--direction <d>] [--method <m>] [--x <n>] [--y <n>] \(WaitFlags.synopsis)"
     static let description = "Compound action with screenshot/elements"
     static let example = "simpilot action tap 'About' --screenshot /tmp/s.png --scale 1 --level 0"
 
@@ -30,6 +32,12 @@ enum ActionCommand: SimpilotCommand {
         let parsed = try ArgParser.parse(args, spec: argSpec)
         if parsed.string("--element") != nil && parsed.string("--screenshot") == nil {
             throw CLIError.invalidArgs("--element requires --screenshot")
+        }
+        if let format = parsed.string("--format") {
+            _ = try FormatArg.validate(format)
+        }
+        if let quality = parsed.int("--quality") {
+            try QualityArg.validate(quality)
         }
         return parsed
     }
@@ -71,6 +79,12 @@ enum ActionCommand: SimpilotCommand {
         }
         if let element = parsed.string("--element") {
             body["screenshot_element"] = element
+        }
+        if let format = parsed.string("--format") {
+            body["screenshot_format"] = format.lowercased()
+        }
+        if let quality = parsed.int("--quality") {
+            body["screenshot_quality"] = quality
         }
         WaitFlags.apply(parsed, to: &body)
 

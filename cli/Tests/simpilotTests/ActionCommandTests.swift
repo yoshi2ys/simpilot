@@ -38,6 +38,42 @@ final class ActionCommandTests: XCTestCase {
         XCTAssertNil(parsed.string("--element"))
     }
 
+    // MARK: - --format and --quality
+
+    func testFormatJpegIsAccepted() throws {
+        let parsed = try ActionCommand.parseAndValidate([
+            "tap", "General",
+            "--screenshot", "/tmp/s.jpg",
+            "--format", "jpeg",
+        ])
+        XCTAssertEqual(parsed.string("--format"), "jpeg")
+    }
+
+    func testFormatInvalidIsRejected() {
+        XCTAssertThrowsError(
+            try ActionCommand.parseAndValidate(["tap", "General", "--format", "bmp"])
+        ) { error in
+            assertInvalidArgs(error, contains: "--format")
+        }
+    }
+
+    func testQualityValidIsAccepted() throws {
+        let parsed = try ActionCommand.parseAndValidate([
+            "tap", "General",
+            "--screenshot", "/tmp/s.jpg",
+            "--quality", "50",
+        ])
+        XCTAssertEqual(parsed.int("--quality"), 50)
+    }
+
+    func testQualityOutOfRangeIsRejected() {
+        XCTAssertThrowsError(
+            try ActionCommand.parseAndValidate(["tap", "General", "--quality", "200"])
+        ) { error in
+            assertInvalidArgs(error, contains: "--quality")
+        }
+    }
+
     // MARK: - Helpers
 
     private func assertInvalidArgs(

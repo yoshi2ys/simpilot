@@ -12,6 +12,8 @@ final class ElementsHandler: @unchecked Sendable {
         let bundleId = request.queryParams["bundleId"]
         let depth = Int(request.queryParams["depth"] ?? "3") ?? 3
         let levelParam = request.queryParams["level"]
+        let typeFilter = request.queryParams["type"]
+        let containsFilter = request.queryParams["contains"]
         let mode: String
 
         if let levelStr = levelParam, let level = Int(levelStr) {
@@ -39,7 +41,8 @@ final class ElementsHandler: @unchecked Sendable {
 
         case "actionable":
             let actionableDepth = Int(request.queryParams["depth"] ?? "20") ?? 20
-            let elements = DebugDescriptionParser.parseActionableList(from: app, maxDepth: actionableDepth)
+            var elements = DebugDescriptionParser.parseActionableList(from: app, maxDepth: actionableDepth)
+            elements = Self.applyFilters(elements, type: typeFilter, contains: containsFilter)
             responseData = ["elements": elements]
 
         case "compact":
@@ -52,5 +55,34 @@ final class ElementsHandler: @unchecked Sendable {
         if let bid = appManager.currentBundleId { responseData["app"] = bid }
 
         return HTTPResponseBuilder.json(responseData)
+    }
+
+    /// Filter actionable elements by type and/or label substring. Both are
+    /// case-insensitive; when both are specified they combine as AND.
+    static func applyFilters(
+        _ elements: [[String: Any]],
+        type: String?,
+        contains: String?
+    ) -> [[String: Any]] {
+        let allowedTypes: Set<String>? = type.map { raw in
+            Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
+        }
+        let needle = contains?.lowercased()
+
+        if allowedTypes == nil && needle == nil { return elements }
+
+        return elements.filter { element in
+            if let allowedTypes {
+                guard let t = element["type"] as? String, allowedTypes.contains(t.lowercased()) else {
+                    return false
+                }
+            }
+            if let needle {
+                guard let label = element["label"] as? String, label.lowercased().contains(needle) else {
+                    return false
+                }
+            }
+            return true
+        }
     }
 }

@@ -18,6 +18,20 @@ final class ActionHandler {
         let screenshotPath = json["screenshot"] as? String
         let screenshotScaleRaw = json["screenshot_scale"]
         let screenshotElement = json["screenshot_element"] as? String
+        let screenshotFormat = json["screenshot_format"] as? String ?? "png"
+        guard screenshotFormat == "png" || screenshotFormat == "jpeg" else {
+            return HTTPResponseBuilder.error(
+                "Invalid screenshot_format '\(screenshotFormat)': must be 'png' or 'jpeg'",
+                code: "invalid_request"
+            )
+        }
+        let screenshotQuality = json["screenshot_quality"] as? Int ?? 80
+        if screenshotFormat == "jpeg" && !(0...100).contains(screenshotQuality) {
+            return HTTPResponseBuilder.error(
+                "Invalid screenshot_quality \(screenshotQuality): must be 0-100",
+                code: "invalid_request"
+            )
+        }
         let elementsLevel = json["elements_level"] as? Int
         let settleTimeout = json["settle_timeout"] as? Double ?? 1.0
 
@@ -170,9 +184,21 @@ final class ActionHandler {
                     pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
                     scaleOut = scale
                 }
+                let outputData: Data
+                let outputFormat: String
+                if screenshotFormat == "jpeg" {
+                    outputData = ScreenshotConverter.toJPEG(pngData: pngData, quality: screenshotQuality) ?? pngData
+                    outputFormat = outputData == pngData ? "png" : "jpeg"
+                } else {
+                    outputData = pngData
+                    outputFormat = "png"
+                }
                 do {
-                    try pngData.write(to: URL(fileURLWithPath: path))
-                    responseData["screenshot"] = ["file": path, "size": pngData.count, "scale": scaleOut]
+                    try outputData.write(to: URL(fileURLWithPath: path))
+                    responseData["screenshot"] = [
+                        "file": path, "size": outputData.count,
+                        "scale": scaleOut, "format": outputFormat
+                    ]
                 } catch {
                     responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
                 }
