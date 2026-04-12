@@ -65,7 +65,8 @@ For physical devices, the device must be connected via USB or Wi-Fi, and the XCU
 4. **Use `batch` for multi-step flows** — one HTTP round-trip instead of many.
 5. **Use `action` for tap→screenshot→elements** — the most common workflow in one command.
 6. **`tap` and `tapcoord` are different commands** — `tap` takes a label/query string; `tapcoord` takes x y coordinates. Never pass `--x`/`--y` flags to `tap`.
-7. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
+7. **Use `scroll-to` instead of manual swipe loops** — `scroll-to 'Privacy' --direction down` replaces the swipe→elements→check pattern in a single command.
+8. **For WebView elements, always use `source` to get coordinates** — never estimate coordinates from screenshots. Visual position and actual frame coordinates can differ by hundreds of points. See `references/webview.md` for details.
 
 ## Recommended Workflow
 
@@ -95,10 +96,12 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 | Situation | Tool | Cost |
 |---|---|---|
 | Native app — find what to tap | `elements --level 1` | ~500 tokens |
+| Native app — find specific elements | `elements --level 1 --type button --contains Login` | ~50-100 tokens |
 | Native app — screen overview | `elements --level 0` | ~50 tokens |
 | WebView — find text/links/coordinates | `source` + grep | ~varies |
-| Visual layout, carousel, unfamiliar screen | `screenshot --file` + Read | ~image tokens |
+| Visual layout, carousel, unfamiliar screen | `screenshot --format jpeg --file` + Read | ~image tokens (3-5x fewer than PNG) |
 | Evidence capture for testing | `screenshot --file` (save only, don't read) | ~0 tokens |
+| Element-specific capture | `screenshot --element 'query' --file` | ~0 tokens (save) |
 
 **Key principles:**
 - **Native apps** → `elements` is almost always sufficient. Skip screenshots.
@@ -106,6 +109,8 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 - **Screenshots** → useful for horizontal scroll / carousel UIs (source can't tell what's currently visible), visual layout understanding (grids, maps, overlapping elements), and showing results to the user.
 - **Token-conscious capture**: `screenshot --file /tmp/s.png` saves to disk cheaply. Reading the image into context is what costs tokens. Capture liberally for evidence, but only read when visual analysis is actually needed for the next decision.
 - **Screenshot resolution**: Default `--scale 1` returns a 1x point-sized PNG (~1/3 long edge of native, ~70% smaller than full resolution) — ideal for AI analysis. Use `--scale 2` for @2x, or `--scale native` for design work needing the device's full pixel resolution.
+- **JPEG for smaller screenshots**: `--format jpeg --quality 80` produces files 3-5x smaller than PNG, significantly reducing base64 token cost when sending screenshots to AI models. Use for general observation; keep PNG for pixel-precise comparison.
+- **Filter elements to reduce tokens**: `--type button,switch` and `--contains Settings` narrow `--level 1` output to only relevant elements, cutting token consumption on busy screens.
 
 ## Fast Operation Patterns
 
@@ -125,6 +130,21 @@ simpilot batch '{"commands":[
   {"method":"GET","path":"/screenshot","params":{"file":"/tmp/s.png"}},
   {"method":"GET","path":"/elements","params":{"level":"0"}}
 ]}'
+```
+
+### Scroll to find off-screen elements
+
+Instead of manually looping swipe + elements, use `scroll-to` which searches in a single command:
+
+```bash
+# Slow: manual scroll loop
+simpilot swipe down
+simpilot elements --level 1 --contains Privacy   # not found...
+simpilot swipe down
+simpilot elements --level 1 --contains Privacy   # found!
+
+# Fast: scroll-to does it in one call
+simpilot scroll-to 'Privacy' --direction down --max-swipes 10
 ```
 
 ### Skip observation on known flows
@@ -153,6 +173,7 @@ simpilot tapcoord <x> <y>
 simpilot type '<text>' [--into '<query>']         # Type text (keyboard input)
 simpilot type '<text>' --method paste             # Paste via clipboard (use only when keyboard is unavailable)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
+simpilot scroll-to '<query>' [--direction down] [--max-swipes 10]  # Scroll until element found
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
 simpilot clipboard get                           # Read clipboard contents
 simpilot clipboard set '<text>'                  # Write text to clipboard
@@ -161,8 +182,18 @@ simpilot clipboard set '<text>'                  # Write text to clipboard
 ### Observation
 
 ```bash
-simpilot screenshot [--file /tmp/s.png] [--scale <N|native>]  # Screenshot (default scale=1 for AI; scale=native for full resolution)
-simpilot elements [--level 0|1|2|3]       # UI elements (see levels below)
+# Screenshot
+simpilot screenshot [--file /tmp/s.png] [--scale <N|native>]  # PNG (default scale=1 for AI)
+simpilot screenshot --format jpeg --quality 80 --file /tmp/s.jpg  # JPEG (3-5x smaller)
+simpilot screenshot --element 'button:Login' --file /tmp/btn.png  # Element-only screenshot
+simpilot screenshot --element '#myView' --format jpeg --file /tmp/view.jpg  # Element + JPEG
+
+# Elements
+simpilot elements [--level 0|1|2|3]                           # UI elements (see levels below)
+simpilot elements --level 1 --type button,switch              # Filter by type (comma-separated)
+simpilot elements --level 1 --contains Settings               # Filter by label (case-insensitive)
+simpilot elements --level 1 --type button --contains Login    # Combined (AND condition)
+
 simpilot source                           # Raw Xcode UI hierarchy (essential for WebView)
 simpilot info                             # Device and agent info
 ```
@@ -174,6 +205,8 @@ simpilot info                             # Device and agent info
 simpilot action tap '<query>' --screenshot /tmp/s.png --level 1 --settle 1
 # Add --scale native if you need full-resolution output instead of the 1x default
 simpilot action tap '<query>' --screenshot /tmp/s.png --scale native
+# JPEG screenshot of a specific element after action
+simpilot action tap 'About' --screenshot /tmp/s.jpg --element 'nav:Settings' --format jpeg --quality 80
 
 # Execute multiple commands in one HTTP round-trip
 simpilot batch '{"commands":[
@@ -296,6 +329,7 @@ Errors:
 | type | OK | OK | NG |
 | clipboard | OK | OK | NG |
 | swipe | OK | NG | tvOS only (remote) |
+| scroll-to | OK | NG | NG |
 | screenshot | OK | OK | OK |
 | elements / source | OK | OK | NG |
 | start / stop / health | OK | OK | OK |

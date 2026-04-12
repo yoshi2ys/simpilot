@@ -41,6 +41,7 @@ cd agent && xcodebuild test \
   -only-testing:AgentUITests/StablePredicateTests \
   -only-testing:AgentUITests/PredicateEvaluatorTests \
   -only-testing:AgentUITests/DebugDescriptionParserTests \
+  -only-testing:AgentUITests/ActionHandlerTests \
   -quiet
 ```
 
@@ -69,6 +70,19 @@ simpilot stop --port 8223                         # stop specific agent by port
 simpilot stop --udid <UDID>                       # stop specific agent by device UDID
 simpilot stop --all                               # stop all + delete cloned/created devices
 # Note: `simpilot stop` with no target exits 3 — one of --port/--udid/--all is required.
+
+# Element screenshot
+simpilot screenshot --element 'button:Login' --scale native --file /tmp/btn.png
+simpilot action tap 'About' --screenshot /tmp/s.png --element 'nav:Settings'
+
+# JPEG format (smaller output for AI agents)
+simpilot screenshot --format jpeg --quality 80 --file /tmp/s.jpg
+
+# Elements filtering
+simpilot elements --level 1 --type button,switch --contains Settings
+
+# Scroll to find
+simpilot scroll-to 'Privacy' --direction down --max-swipes 10
 ```
 
 ## Key Design Decisions
@@ -85,6 +99,10 @@ simpilot stop --all                               # stop all + delete cloned/cre
 - **xcodebuild destination by UDID when known** (StartCommand.launchTarget): whenever a concrete simulator UDID is known (from `--udid`, `booted`, or name lookup), xcodebuild is launched with `-destination id=<UDID>` so duplicate-named simulators stay disambiguated. Only the `.unknown` fallback uses `name=<name>`.
 - **IPv6 URL bracketing**: Physical devices often return IPv6 addresses (e.g. `fd4d:85e2:eeb::1`). `HTTPClient.init(host:port:)` wraps IPv6 addresses in brackets per RFC 3986 (`http://[addr]:port`). Without this, `URL(string:)` fails because the port suffix is ambiguous with the IPv6 colon notation.
 - **Screenshot downscaling** (ScreenshotScaler in ScreenshotHandler.swift): `XCUIScreen.main.screenshot()` always returns native-resolution pixels (1206×2622 on iPhone @3x). Default `--scale 1` downsamples via ImageIO `CGImageSourceCreateThumbnailAtIndex` so the long edge matches 1x points (~1/3 size, ~72% byte reduction), cutting LLM token budgets. `--scale native` skips the scaler entirely for design use. `--scale N` where the target long edge is ≥ source pixel long edge short-circuits and returns the original data.
+- **Element screenshots** (ScreenshotHandler.swift): `GET /screenshot?element=<query>` resolves via `ElementResolver.resolve()` then calls `XCUIElement.screenshot()`. Wrapped in `catchObjCException` for NSException safety (detached/offscreen elements). `ScreenshotScaler` applies to both full-screen and element screenshots unchanged. Error codes: `element_not_found` (resolver fail) vs `screenshot_failed` (ObjC exception).
+- **JPEG output** (ScreenshotConverter in ScreenshotHandler.swift): `--format jpeg` converts PNG→JPEG via `CGImageDestinationCreateWithData` + `kCGImageDestinationLossyCompressionQuality`. Default quality 80. Reduces base64 token consumption for AI agents.
+- **Elements filtering**: `GET /elements?level=1&type=button,switch&contains=Settings` applies server-side AND filtering on actionable elements. `type` matches element type, `contains` matches label substring (case-insensitive).
+- **scroll-to-find** (ScrollToHandler.swift): `POST /scroll-to` loops: `DebugDescriptionParser.findElement` (fast path) → swipe → settle → repeat. `max_swipes` caps iterations (default 10, must be >0). Checks before first swipe so already-visible elements return `swipes: 0`.
 
 ## Project Structure
 
@@ -94,7 +112,7 @@ agent/
   AgentUITests/
     AgentUITests.swift    # Test entry point (runs HTTP server forever)
     Server/               # NWListener HTTP server + router
-    Handlers/             # One file per endpoint (tap, elements, etc.)
+    Handlers/             # One file per endpoint (tap, elements, scroll-to, etc.)
     Core/                 # DebugDescriptionParser, ElementResolver, AppManager
 cli/
   Sources/simpilot/
@@ -103,5 +121,5 @@ cli/
     AgentRegistry.swift   # ~/.simpilot/agents.json state management
     SimctlHelper.swift    # xcrun simctl wrapper (clone/create/boot/delete)
     DeviceHelper.swift    # xcrun devicectl wrapper (physical device discovery)
-    Commands/             # One file per CLI command
+    Commands/             # One file per CLI command (ScrollToCommand, etc.)
 ```
