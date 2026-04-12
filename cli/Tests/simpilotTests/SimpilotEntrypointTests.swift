@@ -143,13 +143,3 @@ final class SimpilotEntrypointTests: XCTestCase {
     }
 }
 
-// MARK: - HelpFormat Equatable conformance for tests
-
-extension HelpFormat: Equatable {
-    public static func == (lhs: HelpFormat, rhs: HelpFormat) -> Bool {
-        switch (lhs, rhs) {
-        case (.json, .json), (.text, .text): return true
-        default: return false
-        }
-    }
-}
