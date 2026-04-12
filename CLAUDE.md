@@ -83,6 +83,14 @@ simpilot elements --level 1 --type button,switch --contains Settings
 
 # Scroll to find
 simpilot scroll-to 'Privacy' --direction down --max-swipes 10
+
+# Drag (reorder, slider, drag-and-drop)
+simpilot drag 'item-1' --to 'item-3'              # element to element
+simpilot drag 'slider:Volume' --to-x 200 --to-y 400  # element to coordinate
+
+# Pinch (zoom)
+simpilot pinch 'map' --scale 2.0                   # zoom in
+simpilot pinch 'photo' --scale 0.5 --velocity slow # zoom out
 ```
 
 ## Key Design Decisions
@@ -103,6 +111,9 @@ simpilot scroll-to 'Privacy' --direction down --max-swipes 10
 - **JPEG output** (ScreenshotConverter in ScreenshotHandler.swift): `--format jpeg` converts PNG→JPEG via `CGImageDestinationCreateWithData` + `kCGImageDestinationLossyCompressionQuality`. Default quality 80. Reduces base64 token consumption for AI agents.
 - **Elements filtering**: `GET /elements?level=1&type=button,switch&contains=Settings` applies server-side AND filtering on actionable elements. `type` matches element type, `contains` matches label substring (case-insensitive).
 - **scroll-to-find** (ScrollToHandler.swift): `POST /scroll-to` loops: `DebugDescriptionParser.findElement` (fast path) → swipe → settle → repeat. `max_swipes` caps iterations (default 10, must be >0). Checks before first swipe so already-visible elements return `swipes: 0`.
+- **Extended query prefixes**: 12 additional typed query prefixes (`icon`, `toggle`, `slider`, `stepper`, `picker`, `segmentedControl`, `menu`, `menuItem`, `scrollView`, `webView`, `datePicker`, `textView`) for direct element resolution. `toggle` maps to `app.toggles` (distinct from `switch` which maps to `app.switches`).
+- **Drag gesture** (DragHandler.swift): `press(forDuration:thenDragTo:)` supports element-to-element, element-to-coordinate, and coordinate-to-coordinate modes. Mutual exclusivity validation prevents silent misrouting.
+- **Pinch gesture** (PinchHandler.swift): `pinch(withScale:velocity:)` for zoom in/out. `scale > 1` = zoom in, `scale < 1` = zoom out.
 
 ## Project Structure
 

@@ -166,6 +166,18 @@ simpilot type '<text>' [--into '<query>']         # Type text (keyboard input)
 simpilot type '<text>' --method paste             # Paste via clipboard (use only when keyboard is unavailable)
 simpilot swipe <up|down|left|right> [--on '<query>']  # Swipe
 simpilot scroll-to '<query>' [--direction down] [--max-swipes 10]  # Scroll until element found
+
+# Drag (element-to-element, element-to-coordinate, or coordinate-to-coordinate)
+simpilot drag '<query>' --to '<target>'            # Element to element (list reorder, drag-and-drop)
+simpilot drag '<query>' --to-x <x> --to-y <y>     # Element to coordinate (slider adjustment)
+simpilot drag --from-x <x> --from-y <y> --to-x <x> --to-y <y>  # Coordinate to coordinate
+# --duration <s> (default 0.5) controls press-and-hold time before dragging
+
+# Pinch to zoom
+simpilot pinch '<query>' --scale 2.0               # Zoom in (scale > 1)
+simpilot pinch '<query>' --scale 0.5               # Zoom out (scale < 1)
+simpilot pinch --scale 2.0                         # Pinch on entire app
+# --velocity slow|default|fast
 simpilot wait '<query>' [--timeout 10] [--gone]  # Wait for element
 simpilot clipboard get                           # Read clipboard contents
 simpilot clipboard set '<text>'                  # Write text to clipboard
@@ -286,6 +298,18 @@ Used by `tap`, `type`, `wait`, and `action` commands:
 | `secureTextField:Pass` | Search secure text fields | Medium (~2s) |
 | `switch:Dark Mode` | Search switches | Medium (~2s) |
 | `link:Learn more` | Search links | Medium (~2s) |
+| `icon:Logo` | Search icons | Fast (~1-2s) |
+| `toggle:Dark Mode` | Search toggles (alias for switch:) | Fast (~1-2s) |
+| `slider:Volume` | Search sliders | Fast (~1-2s) |
+| `stepper:Quantity` | Search steppers | Fast (~1-2s) |
+| `picker:Country` | Search pickers | Fast (~1-2s) |
+| `segmentedControl:Tab` | Search segmented controls | Fast (~1-2s) |
+| `menu:File` | Search menus | Fast (~1-2s) |
+| `menuItem:Copy` | Search menu items | Fast (~1-2s) |
+| `scrollView:Content` | Search scroll views | Fast (~1-2s) |
+| `webView:Browser` | Search web views | Fast (~1-2s) |
+| `datePicker:Birthday` | Search date pickers | Fast (~1-2s) |
+| `textView:Notes` | Search text views | Fast (~1-2s) |
 | `#identifier` | Search by accessibility ID | **Slow** (10-24s) |
 
 **Always prefer bare label queries.** The `query` field in `elements --level 1` output already returns the optimal query string.
@@ -335,6 +359,8 @@ Errors:
 | clipboard | OK | OK | NG |
 | swipe | OK | NG | tvOS only (remote) |
 | scroll-to | OK | NG | NG |
+| drag | OK | OK (spatial exceptions possible) | NG |
+| pinch | OK | OK (spatial exceptions possible) | NG |
 | rotate | OK | NG | NG |
 | openurl | OK (simulator only) | NG | NG |
 | alert | OK | OK | NG |
