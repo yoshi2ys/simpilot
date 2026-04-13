@@ -133,10 +133,10 @@ simpilot help                             # Full command catalog (JSON)
 ### Scenario Runner
 
 ```bash
-simpilot run <file.yml> [--json] [--var <key=val,...>] [--timeout <s>]
-simpilot run examples/settings_about.yml             # terminal output
-simpilot run test.yml --json                         # JSON output
-simpilot run test.yml --var "app=com.example.App"    # override variables
+simpilot run <file.yaml> [--json] [--var <key=val,...>] [--timeout <s>]
+simpilot run examples/settings_about.yaml            # terminal output
+simpilot run test.yaml --json                        # JSON output
+simpilot run test.yaml --var "app=com.example.App"   # override variables
 ```
 
 YAML scenarios define steps (tap, type, assert, screenshot, etc.) with assertions, auto-wait, and screenshot-on-failure. See `examples/` for sample scenarios.

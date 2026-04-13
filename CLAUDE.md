@@ -97,9 +97,9 @@ simpilot slider 'slider:Volume' --value 0.5        # set to 50%
 simpilot slider --value 0                          # first slider → min
 
 # Run YAML scenario
-simpilot run examples/settings_about.yml           # terminal output
-simpilot run test.yml --json                       # JSON output
-simpilot run test.yml --var "app=com.example.App"  # override variables
+simpilot run examples/settings_about.yaml          # terminal output
+simpilot run test.yaml --json                      # JSON output
+simpilot run test.yaml --var "app=com.example.App" # override variables
 ```
 
 ## Key Design Decisions
@@ -126,7 +126,7 @@ simpilot run test.yml --var "app=com.example.App"  # override variables
 - **Slider adjustment** (SliderHandler.swift): `adjust(toNormalizedSliderPosition:)` for precise slider control. `--value 0.0` = min, `--value 1.0` = max. No query = first slider in view.
 - **Typed query type filtering** (DebugDescriptionParser.matchesQuery): typed queries (`searchField:`, `button:`, etc.) now verify element type, not just label/identifier. Previously `searchField:Search` could match a button labeled "Search". Unknown prefixes return no match (fall through to ElementResolver).
 - **SwiftUI Toggle tap offset** (TapHandler.swift): SwiftUI Toggle exposes the entire row (label + toggle) as one accessibility element. Coordinate taps offset to the trailing edge where the actual switch control sits, since center-tapping hits the label area which doesn't toggle.
-- **YAML scenario runner** (cli/Sources/simpilot/Scenario/): `simpilot run <file.yml>` executes YAML scenarios with step-by-step assertions, auto-wait, screenshot-on-failure, and variable substitution. Steps map 1:1 to existing HTTP endpoints. Custom minimal YAML parser (no external dependencies). Terminal and JSON (`--json`) output modes.
+- **YAML scenario runner** (cli/Sources/simpilot/Scenario/): `simpilot run <file.yaml>` executes YAML scenarios with step-by-step assertions, auto-wait, screenshot-on-failure, and variable substitution. Steps map 1:1 to existing HTTP endpoints. Custom minimal YAML parser (no external dependencies). Terminal and JSON (`--json`) output modes.
 
 ## Project Structure
 

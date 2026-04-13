@@ -286,10 +286,10 @@ For AI agent parallel execution, launch subagents that each target a different `
 
 ```bash
 # Run YAML scenario files with assertions and reporting
-simpilot run <file.yml> [--json] [--var <key=val,...>] [--timeout <s>] [--screenshot-dir <path>]
-simpilot run test.yml                              # Terminal output with pass/fail
-simpilot run test.yml --json                       # JSON output for automation
-simpilot run test.yml --var "app=com.example.App"  # Override YAML variables
+simpilot run <file.yaml> [--json] [--var <key=val,...>] [--timeout <s>] [--screenshot-dir <path>]
+simpilot run test.yaml                             # Terminal output with pass/fail
+simpilot run test.yaml --json                      # JSON output for automation
+simpilot run test.yaml --var "app=com.example.App" # Override YAML variables
 ```
 
 ### Utility
