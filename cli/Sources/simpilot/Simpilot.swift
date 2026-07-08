@@ -117,6 +117,7 @@ struct Simpilot {
         LongPressCommand.self,
         DoubleTapCommand.self,
         RotateCommand.self,
+        ButtonCommand.self,
         OpenURLCommand.self,
         AlertCommand.self,
         WaitCommand.self,
@@ -302,6 +303,12 @@ struct Simpilot {
         case .agentUnreachable(let url):
             printError(code: "agent_unreachable", message: "Cannot connect to agent at \(url)")
             exit(1)
+        case .agentTimeout(let url, let seconds):
+            printError(
+                code: "agent_timeout",
+                message: "Agent at \(url) did not respond within \(Int(seconds))s"
+            )
+            exit(4)
         case .invalidArgs(let msg):
             printError(code: "invalid_args", message: msg)
             exit(3)

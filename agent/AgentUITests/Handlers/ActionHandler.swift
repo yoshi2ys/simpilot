@@ -174,33 +174,44 @@ final class ActionHandler {
                 fullPng = XCUIScreen.main.screenshot().pngRepresentation
             }
             if let fullPng = fullPng {
-                let pngData: Data
-                let scaleOut: Any
-                if let str = screenshotScaleRaw as? String, str == "native" {
-                    pngData = fullPng
-                    scaleOut = "native"
-                } else {
-                    let scale = (screenshotScaleRaw as? Double) ?? 1.0
-                    pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
-                    scaleOut = scale
-                }
-                let outputData: Data
-                let outputFormat: String
-                if screenshotFormat == "jpeg" {
-                    outputData = ScreenshotConverter.toJPEG(pngData: pngData, quality: screenshotQuality) ?? pngData
-                    outputFormat = outputData == pngData ? "png" : "jpeg"
-                } else {
-                    outputData = pngData
-                    outputFormat = "png"
-                }
-                do {
-                    try outputData.write(to: URL(fileURLWithPath: path))
+                // Same scale rule as ScreenshotHandler: reject a bogus factor
+                // instead of silently coercing to 1.0 (A23). Soft-fail here — a
+                // bad scale annotates the screenshot slot, it doesn't fail the
+                // whole action.
+                let spec = ScreenshotHandler.scaleSpec(from: screenshotScaleRaw)
+                if case .invalid = spec {
                     responseData["screenshot"] = [
-                        "file": path, "size": outputData.count,
-                        "scale": scaleOut, "format": outputFormat
+                        "error": "Invalid screenshot scale; must be a positive number or 'native'",
+                        "code": "invalid_request"
                     ]
-                } catch {
-                    responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
+                } else {
+                    let pngData: Data
+                    let scaleOut: Any
+                    if case .factor(let scale) = spec {
+                        pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
+                        scaleOut = scale
+                    } else {
+                        pngData = fullPng
+                        scaleOut = "native"
+                    }
+                    let outputData: Data
+                    let outputFormat: String
+                    if screenshotFormat == "jpeg" {
+                        outputData = ScreenshotConverter.toJPEG(pngData: pngData, quality: screenshotQuality) ?? pngData
+                        outputFormat = outputData == pngData ? "png" : "jpeg"
+                    } else {
+                        outputData = pngData
+                        outputFormat = "png"
+                    }
+                    do {
+                        try outputData.write(to: URL(fileURLWithPath: path))
+                        responseData["screenshot"] = [
+                            "file": path, "size": outputData.count,
+                            "scale": scaleOut, "format": outputFormat
+                        ]
+                    } catch {
+                        responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
+                    }
                 }
             }
         }

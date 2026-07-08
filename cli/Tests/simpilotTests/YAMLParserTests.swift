@@ -20,6 +20,30 @@ final class YAMLParserTests: XCTestCase {
         XCTAssertEqual(result, .scalar("hello world"))
     }
 
+    // MARK: - A18: unquote only when the opening quote closes at the end
+
+    func testUnquoteLeavesEmbeddedQuotesVerbatim() throws {
+        // `"a" and "b"` is not a single quoted scalar — the interior quote
+        // closes the string early. Must stay verbatim, not become `a" and "b`.
+        XCTAssertEqual(try YAMLParser.parse("\"a\" and \"b\""), .scalar("\"a\" and \"b\""))
+        XCTAssertEqual(try YAMLParser.parse("'x' or 'y'"), .scalar("'x' or 'y'"))
+    }
+
+    func testUnquoteStillStripsProperlyQuotedScalar() throws {
+        XCTAssertEqual(try YAMLParser.parse("\"just one\""), .scalar("just one"))
+        XCTAssertEqual(try YAMLParser.parse("'single'"), .scalar("single"))
+    }
+
+    // MARK: - A17: tab indentation is rejected, not silently flattened
+
+    func testTabIndentationThrows() {
+        XCTAssertThrowsError(try YAMLParser.parse("parent:\n\tchild: value")) { error in
+            guard let e = error as? YAMLParseError else { return XCTFail("expected YAMLParseError") }
+            XCTAssertEqual(e.line, 2)
+            XCTAssertTrue(e.message.lowercased().contains("tab"))
+        }
+    }
+
     // MARK: - Mapping
 
     func testSimpleMapping() throws {

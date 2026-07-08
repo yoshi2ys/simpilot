@@ -3,6 +3,98 @@ import XCTest
 
 final class ScenarioParserTests: XCTestCase {
 
+    // MARK: - A19: empty scalar actions are rejected, not posted as empty
+
+    func testEmptyScalarActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            XCTAssertTrue(error is ScenarioParseError)
+        }
+    }
+
+    func testEmptyRequireScalarActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - launch:
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("launch"))
+        }
+    }
+
+    /// A23/A19 gap: `{query: ""}` in the mapping form must also be rejected, not
+    /// just the bare-scalar form.
+    func testEmptyQueryInMappingFormThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - launch:
+                  query: ""
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml))
+    }
+
+    /// Regression guard: `type` is exempt from the empty-value rejection — a
+    /// whitespace-only value is a legitimate thing to type.
+    func testTypeAllowsWhitespaceOnlyText() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - type: " "
+        """)
+        let file = try ScenarioParser.parse(yaml)
+        guard case .type(let text, _, _) = file.scenarios[0].steps[0].action else {
+            return XCTFail("expected type action")
+        }
+        XCTAssertEqual(text, " ")
+    }
+
+    // MARK: - A20: unknown/typo fields are rejected, not silently dropped
+
+    func testUnknownFieldInActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+                  query: General
+                  timout: 5
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("timout"))
+        }
+    }
+
+    func testKnownFieldsAreAccepted() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+                  query: General
+                  wait_until: hittable
+                  timeout: 5
+        """)
+        XCTAssertNoThrow(try ScenarioParser.parse(yaml))
+    }
+
     // MARK: - Minimal valid scenario
 
     func testMinimalScenario() throws {
@@ -105,8 +197,42 @@ final class ScenarioParserTests: XCTestCase {
 
     func testEnvVariableSubstitution() throws {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? ""
-        let result = ScenarioParser.substitute("${env.HOME}/test", variables: [:])
+        let result = try ScenarioParser.substitute("${env.HOME}/test", variables: [:])
         XCTAssertEqual(result, "\(home)/test")
+    }
+
+    // MARK: - A21: undefined variables/env are errors, not silent passthrough
+
+    func testUndefinedVariableThrows() {
+        // `${targt}` (typo) previously passed through literally as the query.
+        XCTAssertThrowsError(try ScenarioParser.substitute("go ${targt}", variables: ["target": "x"])) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("targt"))
+        }
+    }
+
+    func testDefinedVariableSubstitutes() throws {
+        XCTAssertEqual(try ScenarioParser.substitute("go ${target}", variables: ["target": "General"]), "go General")
+    }
+
+    func testUnsetEnvVariableThrows() {
+        // Previously an unset ${env.X} silently became "".
+        XCTAssertThrowsError(
+            try ScenarioParser.substitute("${env.SIMPILOT_DEFINITELY_UNSET_XYZ}", variables: [:])
+        ) { error in
+            XCTAssertTrue(error is ScenarioParseError)
+        }
+    }
+
+    func testUndefinedVariableInScenarioThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap: ${missing}
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml))
     }
 
     // MARK: - Step parsing

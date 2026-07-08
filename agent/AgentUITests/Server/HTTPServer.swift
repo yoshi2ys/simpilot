@@ -2,8 +2,19 @@ import Foundation
 import Network
 
 final class HTTPServer {
+    /// How long a connection may take to deliver a *complete* request before we
+    /// drop it (slowloris guard). This bounds request receipt only — the timer
+    /// is cancelled the instant a full request is parsed, so slow handlers
+    /// (e.g. `wait --timeout 60`) are unaffected.
+    private static let requestTimeout: TimeInterval = 30
+
     private let port: UInt16
     private let listener: NWListener
+    /// Serial by construction (no `.concurrent` attribute). Every connection
+    /// callback, the per-connection `RequestAccumulator` mutation, and the
+    /// slowloris `deadline.cancel()` all run here, so they never race. Must stay
+    /// serial — making it concurrent would unsynchronize the accumulator writes
+    /// and the deadline-vs-completion cancel.
     private let queue = DispatchQueue(label: "com.simpilot.httpserver", qos: .userInitiated)
     private let router: Router
 
@@ -44,15 +55,28 @@ final class HTTPServer {
 
     private func handleConnection(_ connection: NWConnection) {
         connection.start(queue: queue)
-        receiveData(on: connection, accumulated: Data())
+        // Drop connections that don't deliver a complete request in time
+        // (slowloris). Cancelled the instant a full request is parsed.
+        let deadline = DispatchWorkItem {
+            print("[simpilot] Connection timed out before a complete request")
+            connection.cancel()
+        }
+        queue.asyncAfter(deadline: .now() + Self.requestTimeout, execute: deadline)
+        receiveData(on: connection, accumulated: Data(), deadline: deadline, accumulator: HTTPParser.RequestAccumulator())
     }
 
-    private func receiveData(on connection: NWConnection, accumulated: Data) {
+    private func receiveData(
+        on connection: NWConnection,
+        accumulated: Data,
+        deadline: DispatchWorkItem,
+        accumulator: HTTPParser.RequestAccumulator
+    ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
             guard let self = self else { return }
 
             if let error = error {
                 print("[simpilot] Receive error: \(error)")
+                deadline.cancel()
                 connection.cancel()
                 return
             }
@@ -62,30 +86,31 @@ final class HTTPServer {
                 data.append(content)
             }
 
-            // Try to parse the request
-            if let request = HTTPParser.parse(data) {
-                // Check if we have the full body
-                let headerEnd = HTTPParser.findHeaderEnd(data)
-                if let headerEnd = headerEnd {
-                    let bodyReceived = data.count - headerEnd
-                    let contentLength = Int(request.headers["Content-Length"] ?? request.headers["content-length"] ?? "0") ?? 0
-                    if bodyReceived < contentLength {
-                        // Need more data
-                        self.receiveData(on: connection, accumulated: data)
-                        return
-                    }
-                }
-
-                let response = self.router.handle(request)
-                connection.send(content: response, completion: .contentProcessed { _ in
+            // The parser owns every size limit and emits the reject status; the
+            // server only does I/O and enforces the receive deadline.
+            switch HTTPParser.classify(data, into: accumulator) {
+            case .complete(let request):
+                // Cancel before the (possibly slow) handler runs so the receive
+                // deadline can't fire mid-handling.
+                deadline.cancel()
+                self.send(self.router.handle(request), on: connection)
+            case .reject(let status, let code, let message):
+                deadline.cancel()
+                self.send(HTTPResponseBuilder.error(message, code: code, status: status), on: connection)
+            case .needMoreData:
+                if isComplete {
+                    deadline.cancel()
                     connection.cancel()
-                })
-            } else if isComplete {
-                connection.cancel()
-            } else {
-                // Need more data to form a complete request
-                self.receiveData(on: connection, accumulated: data)
+                } else {
+                    self.receiveData(on: connection, accumulated: data, deadline: deadline, accumulator: accumulator)
+                }
             }
         }
+    }
+
+    private func send(_ response: Data, on connection: NWConnection) {
+        connection.send(content: response, completion: .contentProcessed { _ in
+            connection.cancel()
+        })
     }
 }

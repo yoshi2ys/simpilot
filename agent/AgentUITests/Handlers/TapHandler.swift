@@ -30,6 +30,23 @@ final class TapHandler: @unchecked Sendable {
 
     // MARK: - Shared resolution path
 
+    /// Trailing-edge inset (points) from a switch/toggle row's right edge to
+    /// the switch control. SwiftUI Toggle exposes the whole row (label +
+    /// switch) as one accessibility element; center-tapping hits the label and
+    /// doesn't toggle, so coordinate taps aim this far inside the trailing edge.
+    static let switchTapInset: Double = 32
+
+    /// Coordinate to tap for `found`. `switch`/`toggle` elements offset to the
+    /// trailing edge where the control sits (see `switchTapInset`); everything
+    /// else taps its center. Shared by the debugDescription fast path and the
+    /// poller path so `tap` and `tap --timeout` land on the same point.
+    static func tapPoint(for found: DebugDescriptionParser.FoundElement) -> (x: Double, y: Double) {
+        if found.type == "switch" || found.type == "toggle" {
+            return (x: found.frame.x + found.frame.w - switchTapInset, y: found.centerY)
+        }
+        return (x: found.centerX, y: found.centerY)
+    }
+
     struct Gesture {
         let onCoord: (XCUICoordinate) -> Void
         let onElement: (XCUIElement) -> Void
@@ -161,20 +178,10 @@ final class TapHandler: @unchecked Sendable {
 
         #if !os(tvOS)
         if let found = DebugDescriptionParser.findElement(query: query, in: app) {
-            // SwiftUI Toggle exposes the entire row (label + toggle) as one
-            // accessibility element. Tapping the row center hits the label,
-            // which doesn't toggle. Offset to the trailing edge where the
-            // actual switch control sits.
-            let tapX: Double
-            if found.type == "switch" || found.type == "toggle" {
-                tapX = found.frame.x + found.frame.w - 32
-            } else {
-                tapX = found.centerX
-            }
-
+            let point = Self.tapPoint(for: found)
             let failure = catchObjCException {
                 let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                    .withOffset(CGVector(dx: tapX, dy: found.centerY))
+                    .withOffset(CGVector(dx: point.x, dy: point.y))
                 gesture.onCoord(coord)
             }
             if failure == nil {
@@ -216,9 +223,10 @@ final class TapHandler: @unchecked Sendable {
         XCUIRemote.shared.press(.select)
         return .success(element: found.asDict)
         #else
+        let point = tapPoint(for: found)
         let failure = catchObjCException {
             let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
+                .withOffset(CGVector(dx: point.x, dy: point.y))
             gesture.onCoord(coord)
         }
         if let failure {

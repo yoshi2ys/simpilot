@@ -64,7 +64,7 @@ enum YAMLParser {
     /// supported: block mappings, block sequences, plain/quoted scalars,
     /// `#` comments. No anchors, tags, flow syntax, or multi-line scalars.
     static func parse(_ text: String) throws -> YAMLValue {
-        var lines = tokenize(text)
+        var lines = try tokenize(text)
         guard !lines.isEmpty else {
             return .mapping([])
         }
@@ -87,13 +87,22 @@ enum YAMLParser {
     }
 
     /// Split source into meaningful lines (skip blanks and pure-comment lines).
-    private static func tokenize(_ text: String) -> [Line] {
+    private static func tokenize(_ text: String) throws -> [Line] {
         var result: [Line] = []
         for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let lineNum = i + 1
             let stripped = stripComment(String(raw))
             let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
+            // Reject tabs in the indentation. The space-only indent counter
+            // below would otherwise treat a tab-indented line as indent 0,
+            // silently flattening the nesting the author intended.
+            if stripped.prefix(while: { $0 == " " || $0 == "\t" }).contains("\t") {
+                throw YAMLParseError(
+                    message: "tab character in indentation is not allowed; use spaces",
+                    line: lineNum
+                )
+            }
             let indent = stripped.prefix(while: { $0 == " " }).count
             result.append(Line(number: lineNum, indent: indent, content: trimmed))
         }
@@ -258,12 +267,44 @@ enum YAMLParser {
     // MARK: - Helpers
 
     private static func unquote(_ s: String) -> String {
-        if s.count >= 2 {
-            if (s.hasPrefix("\"") && s.hasSuffix("\"")) ||
-               (s.hasPrefix("'") && s.hasSuffix("'")) {
-                return String(s.dropFirst().dropLast())
-            }
+        guard s.count >= 2, let first = s.first, let last = s.last else { return s }
+        if first == "\"" && last == "\"" && doubleQuoteClosesAtEnd(s) {
+            return String(s.dropFirst().dropLast())
+        }
+        if first == "'" && last == "'" && singleQuoteClosesAtEnd(s) {
+            return String(s.dropFirst().dropLast())
         }
         return s
+    }
+
+    /// True when a `"…"` token's opening quote is closed only by the final
+    /// character — no unescaped `"` strictly inside. `"a" and "b"` fails this
+    /// (the interior `"` closes the string early), so it's left verbatim rather
+    /// than corrupted to `a" and "b`.
+    private static func doubleQuoteClosesAtEnd(_ s: String) -> Bool {
+        let inner = s.dropFirst().dropLast()
+        var escaped = false
+        for ch in inner {
+            if escaped { escaped = false; continue }
+            if ch == "\\" { escaped = true; continue }
+            if ch == "\"" { return false }
+        }
+        return true
+    }
+
+    /// True when a `'…'` token's opening quote is closed only by the final
+    /// character. YAML escapes a literal quote as `''`, so a lone interior `'`
+    /// means the string closed early.
+    private static func singleQuoteClosesAtEnd(_ s: String) -> Bool {
+        let inner = Array(s.dropFirst().dropLast())
+        var i = 0
+        while i < inner.count {
+            if inner[i] == "'" {
+                if i + 1 < inner.count && inner[i + 1] == "'" { i += 2; continue }
+                return false
+            }
+            i += 1
+        }
+        return true
     }
 }

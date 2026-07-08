@@ -44,9 +44,10 @@ enum AssertCommand: SimpilotCommand {
             body["expected"] = expected
         }
         // Explicit 0 means "check once, no retry".
-        body["timeout_ms"] = Int((parsed.double("--timeout") ?? 3.0) * 1000)
+        let timeoutSec = parsed.double("--timeout") ?? 3.0
+        body["timeout_ms"] = Int(timeoutSec * 1000)
 
-        let data = try context.client.post("/assert", body: body)
+        let data = try context.client.post("/assert", body: body, operationBudget: timeoutSec)
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

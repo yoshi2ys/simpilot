@@ -141,16 +141,20 @@ enum SimctlHelper {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             throw CLIError.commandFailed("Failed to run xcrun \(arguments.joined(separator: " ")): \(error.localizedDescription)")
         }
+
+        // Drain stdout *before* waiting: `simctl list devices --json` output
+        // easily exceeds the ~64KB pipe buffer, and a child blocked writing to a
+        // full pipe never exits — so `waitUntilExit()` first would deadlock.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
             throw CLIError.commandFailed("xcrun \(arguments.joined(separator: " ")) exited with status \(process.terminationStatus)")
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8) ?? ""
     }
 }

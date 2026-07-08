@@ -88,7 +88,11 @@ enum ActionCommand: SimpilotCommand {
         }
         WaitFlags.apply(parsed, to: &body)
 
-        let data = try context.client.post("/action", body: body)
+        let data = try context.client.post(
+            "/action",
+            body: body,
+            operationBudget: WaitFlags.operationBudget(parsed)
+        )
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }
