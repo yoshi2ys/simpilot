@@ -45,6 +45,8 @@ enum ScenarioRunner {
                 switch cliError {
                 case .agentUnreachable(let url):
                     errorMsg = "agent unreachable at \(url)"
+                case .agentTimeout(let url, let seconds):
+                    errorMsg = "agent at \(url) timed out after \(Int(seconds))s"
                 case .invalidURL(let url):
                     errorMsg = "invalid URL: \(url)"
                 case .invalidArgs(let msg):
@@ -109,7 +111,7 @@ enum ScenarioRunner {
         components.queryItems = [URLQueryItem(name: "file", value: filePath)]
         let path = components.string ?? "/screenshot?file=\(filePath)"
 
-        let screenshotTimeout = config.timeout + 5
+        let screenshotTimeout = config.timeout + HTTPClient.operationBuffer
         guard let data = try? client.get(path, timeout: screenshotTimeout),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               StepExecutor.isSuccess(json) else {

@@ -13,6 +13,13 @@ enum WaitFlags {
 
     static let synopsis = "[--wait-until <csv>] [--timeout <s>] [--poll-interval <ms>]"
 
+    /// The server-side wait budget (seconds) these flags imply, if any. The
+    /// `--timeout` value bounds how long the agent's poll loop may run, so the
+    /// HTTP client must wait at least this long plus a buffer — see A5.
+    static func operationBudget(_ parsed: ParsedArgs) -> TimeInterval? {
+        parsed.double("--timeout")
+    }
+
     static func apply(_ parsed: ParsedArgs, to body: inout [String: Any]) {
         if let timeout = parsed.double("--timeout") {
             body["timeout_ms"] = Int(timeout * 1000)

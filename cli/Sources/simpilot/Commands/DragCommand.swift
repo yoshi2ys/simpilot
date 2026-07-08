@@ -69,7 +69,11 @@ enum DragCommand: SimpilotCommand {
             body["duration"] = duration
         }
 
-        let data = try context.client.post("/drag", body: body)
+        let data = try context.client.post(
+            "/drag",
+            body: body,
+            operationBudget: parsed.double("--duration")
+        )
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

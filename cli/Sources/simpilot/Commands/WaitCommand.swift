@@ -22,11 +22,12 @@ enum WaitCommand: SimpilotCommand {
             "query": query,
             "exists": !parsed.bool("--gone")
         ]
-        if let timeout = parsed.double("--timeout") {
+        let timeout = parsed.double("--timeout")
+        if let timeout {
             body["timeout"] = timeout
         }
 
-        let data = try context.client.post("/wait", body: body)
+        let data = try context.client.post("/wait", body: body, operationBudget: timeout)
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

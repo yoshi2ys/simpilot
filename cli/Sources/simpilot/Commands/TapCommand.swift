@@ -18,7 +18,11 @@ enum TapCommand: SimpilotCommand {
         var body: [String: Any] = ["query": query]
         WaitFlags.apply(parsed, to: &body)
 
-        let data = try context.client.post("/tap", body: body)
+        let data = try context.client.post(
+            "/tap",
+            body: body,
+            operationBudget: WaitFlags.operationBudget(parsed)
+        )
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }

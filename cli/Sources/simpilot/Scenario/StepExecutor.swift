@@ -48,12 +48,13 @@ enum StepExecutor {
             var body: [String: Any] = ["query": query]
             if let direction { body["direction"] = direction }
             if let maxSwipes { body["max_swipes"] = maxSwipes }
-            return try postJSON(client, "/scroll-to", body, config: config)
+            let scrollBudget = ScrollToCommand.operationBudget(maxSwipes: maxSwipes)
+            return try postJSON(client, "/scroll-to", body, config: config, stepTimeout: scrollBudget)
 
         case .longpress(let query, let duration):
             var body: [String: Any] = ["query": query]
             if let duration { body["duration"] = duration }
-            return try postJSON(client, "/longpress", body, config: config)
+            return try postJSON(client, "/longpress", body, config: config, stepTimeout: duration)
 
         case .doubletap(let query):
             return try postJSON(client, "/doubletap", ["query": query], config: config)
@@ -67,7 +68,7 @@ enum StepExecutor {
             if let fromX { body["from_x"] = fromX }
             if let fromY { body["from_y"] = fromY }
             if let duration { body["duration"] = duration }
-            return try postJSON(client, "/drag", body, config: config)
+            return try postJSON(client, "/drag", body, config: config, stepTimeout: duration)
 
         case .pinch(let query, let scale, let velocity):
             var body: [String: Any] = ["scale": scale]
@@ -138,7 +139,7 @@ enum StepExecutor {
 
     private static func computeHTTPTimeout(config: ScenarioConfig, stepTimeout: Double?) -> TimeInterval {
         let logical = max(config.timeout, stepTimeout ?? config.timeout)
-        return logical + 5 // 5s buffer for network/processing
+        return logical + HTTPClient.operationBuffer // buffer for network/processing
     }
 
     private static func parseResponse(_ data: Data) throws -> [String: Any] {

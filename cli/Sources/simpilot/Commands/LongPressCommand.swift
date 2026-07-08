@@ -18,12 +18,18 @@ enum LongPressCommand: SimpilotCommand {
         let query = parsed.positionals[0]
 
         var body: [String: Any] = ["query": query]
-        if let duration = parsed.double("--duration") {
+        let duration = parsed.double("--duration")
+        if let duration {
             body["duration"] = duration
         }
         WaitFlags.apply(parsed, to: &body)
 
-        let data = try context.client.post("/longpress", body: body)
+        // The agent waits (poll loop) and then presses, so the two budgets add.
+        let waitBudget = WaitFlags.operationBudget(parsed)
+        let budget: TimeInterval? = (waitBudget == nil && duration == nil)
+            ? nil
+            : (waitBudget ?? 0) + (duration ?? 0)
+        let data = try context.client.post("/longpress", body: body, operationBudget: budget)
         try decodeAndPrint(data: data, pretty: context.pretty)
     }
 }
