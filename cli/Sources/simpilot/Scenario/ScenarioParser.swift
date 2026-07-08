@@ -173,11 +173,11 @@ enum ScenarioParser {
             return .activate(bundleId: try requireScalar(value, key: key, variables: variables))
         case "tap":
             if let s = shorthandScalar(value) {
-                return .tap(query: substitute(s, variables: variables), waitUntil: nil, timeout: nil)
+                return .tap(query: try substitute(s, variables: variables), waitUntil: nil, timeout: nil)
             }
             return .tap(
                 query: try requireField(value, "query", variables: variables),
-                waitUntil: optionalField(value, "wait_until", variables: variables),
+                waitUntil: try optionalField(value, "wait_until", variables: variables),
                 timeout: try optionalDouble(value, "timeout")
             )
         case "type":
@@ -185,34 +185,34 @@ enum ScenarioParser {
             // legitimate (typing a literal space), so it keeps the raw scalar
             // and allows an empty `text` field.
             if let s = value.stringValue {
-                return .type(text: substitute(s, variables: variables), into: nil, method: nil)
+                return .type(text: try substitute(s, variables: variables), into: nil, method: nil)
             }
             return .type(
                 text: try requireField(value, "text", variables: variables, allowEmpty: true),
-                into: optionalField(value, "into", variables: variables),
-                method: optionalField(value, "method", variables: variables)
+                into: try optionalField(value, "into", variables: variables),
+                method: try optionalField(value, "method", variables: variables)
             )
         case "swipe":
             if let s = shorthandScalar(value) {
-                return .swipe(direction: substitute(s, variables: variables), on: nil, velocity: nil)
+                return .swipe(direction: try substitute(s, variables: variables), on: nil, velocity: nil)
             }
             return .swipe(
                 direction: try requireField(value, "direction", variables: variables),
-                on: optionalField(value, "on", variables: variables),
-                velocity: optionalField(value, "velocity", variables: variables)
+                on: try optionalField(value, "on", variables: variables),
+                velocity: try optionalField(value, "velocity", variables: variables)
             )
         case "scroll_to":
             if let s = shorthandScalar(value) {
-                return .scrollTo(query: substitute(s, variables: variables), direction: nil, maxSwipes: nil)
+                return .scrollTo(query: try substitute(s, variables: variables), direction: nil, maxSwipes: nil)
             }
             return .scrollTo(
                 query: try requireField(value, "query", variables: variables),
-                direction: optionalField(value, "direction", variables: variables),
+                direction: try optionalField(value, "direction", variables: variables),
                 maxSwipes: try optionalInt(value, "max_swipes")
             )
         case "longpress":
             if let s = shorthandScalar(value) {
-                return .longpress(query: substitute(s, variables: variables), duration: nil)
+                return .longpress(query: try substitute(s, variables: variables), duration: nil)
             }
             return .longpress(
                 query: try requireField(value, "query", variables: variables),
@@ -222,8 +222,8 @@ enum ScenarioParser {
             return .doubletap(query: try requireScalar(value, key: key, variables: variables))
         case "drag":
             return .drag(
-                query: optionalField(value, "query", variables: variables),
-                to: optionalField(value, "to", variables: variables),
+                query: try optionalField(value, "query", variables: variables),
+                to: try optionalField(value, "to", variables: variables),
                 toX: try optionalDouble(value, "to_x"),
                 toY: try optionalDouble(value, "to_y"),
                 fromX: try optionalDouble(value, "from_x"),
@@ -235,13 +235,13 @@ enum ScenarioParser {
                 throw ScenarioParseError(message: "step \(stepNumber): 'pinch' requires 'scale'", line: nil)
             }
             return .pinch(
-                query: optionalField(value, "query", variables: variables),
+                query: try optionalField(value, "query", variables: variables),
                 scale: scaleVal,
-                velocity: optionalField(value, "velocity", variables: variables)
+                velocity: try optionalField(value, "velocity", variables: variables)
             )
         case "wait":
             if let s = shorthandScalar(value) {
-                return .wait(query: substitute(s, variables: variables), timeout: nil, gone: false)
+                return .wait(query: try substitute(s, variables: variables), timeout: nil, gone: false)
             }
             return .wait(
                 query: try requireField(value, "query", variables: variables),
@@ -252,29 +252,29 @@ enum ScenarioParser {
             return .assert(
                 predicate: try requireField(value, "predicate", variables: variables),
                 query: try requireField(value, "query", variables: variables),
-                expected: optionalField(value, "expected", variables: variables),
+                expected: try optionalField(value, "expected", variables: variables),
                 timeout: try optionalDouble(value, "timeout")
             )
         case "screenshot":
             if value.stringValue != nil {
                 // `- screenshot: /tmp/s.png` shorthand
                 return .screenshot(
-                    file: value.stringValue.map { substitute($0, variables: variables) },
+                    file: try value.stringValue.map { try substitute($0, variables: variables) },
                     scale: nil, element: nil, format: nil, quality: nil
                 )
             }
             return .screenshot(
-                file: optionalField(value, "file", variables: variables),
-                scale: optionalField(value, "scale", variables: variables),
-                element: optionalField(value, "element", variables: variables),
-                format: optionalField(value, "format", variables: variables),
+                file: try optionalField(value, "file", variables: variables),
+                scale: try optionalField(value, "scale", variables: variables),
+                element: try optionalField(value, "element", variables: variables),
+                format: try optionalField(value, "format", variables: variables),
                 quality: try optionalInt(value, "quality")
             )
         case "elements":
             return .elements(
                 level: try optionalInt(value, "level"),
-                type: optionalField(value, "type", variables: variables),
-                contains: optionalField(value, "contains", variables: variables)
+                type: try optionalField(value, "type", variables: variables),
+                contains: try optionalField(value, "contains", variables: variables)
             )
         case "sleep":
             guard let s = value.stringValue, let d = Double(s) else {
@@ -290,20 +290,32 @@ enum ScenarioParser {
 
     // Compiled once — substitute() is called per-field per-step.
     private static let envPattern = try! NSRegularExpression(pattern: #"\$\{env\.([^}]+)\}"#)
+    private static let refPattern = try! NSRegularExpression(pattern: #"\$\{[^}]*\}"#)
 
-    static func substitute(_ s: String, variables: [String: String]) -> String {
+    /// Replace `${var}` (from `variables`) and `${env.NAME}` (from the process
+    /// environment). An undefined variable or an unset env var is an error, not
+    /// a silent literal passthrough / empty string — the two are unified so a
+    /// typo'd `${targt}` fails loudly instead of being sent verbatim (A21).
+    static func substitute(_ s: String, variables: [String: String]) throws -> String {
         var result = s
         for (key, val) in variables {
             result = result.replacingOccurrences(of: "${\(key)}", with: val)
         }
-        let range = NSRange(result.startIndex..., in: result)
-        let matches = envPattern.matches(in: result, range: range).reversed()
-        for match in matches {
-            guard let keyRange = Range(match.range(at: 1), in: result) else { continue }
+        // Resolve ${env.NAME}; an unset env var is an error, not "".
+        let envMatches = envPattern.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        for match in envMatches {
+            guard let keyRange = Range(match.range(at: 1), in: result),
+                  let fullRange = Range(match.range, in: result) else { continue }
             let envKey = String(result[keyRange])
-            let envVal = ProcessInfo.processInfo.environment[envKey] ?? ""
-            let fullRange = Range(match.range, in: result)!
+            guard let envVal = ProcessInfo.processInfo.environment[envKey] else {
+                throw ScenarioParseError(message: "undefined environment variable '${env.\(envKey)}'", line: nil)
+            }
             result.replaceSubrange(fullRange, with: envVal)
+        }
+        // Anything of the form ${...} still present is an undefined variable.
+        if let match = refPattern.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let range = Range(match.range, in: result) {
+            throw ScenarioParseError(message: "undefined variable '\(String(result[range]))'", line: nil)
         }
         return result
     }
@@ -326,13 +338,13 @@ enum ScenarioParser {
             guard !isBlank(s) else {
                 throw ScenarioParseError(message: "'\(key)' requires a non-empty value", line: nil)
             }
-            return substitute(s, variables: variables)
+            return try substitute(s, variables: variables)
         }
         if let q = value["query"]?.stringValue {
             guard !isBlank(q) else {
                 throw ScenarioParseError(message: "'\(key)' requires a non-empty value", line: nil)
             }
-            return substitute(q, variables: variables)
+            return try substitute(q, variables: variables)
         }
         throw ScenarioParseError(message: "'\(key)' requires a string value", line: nil)
     }
@@ -346,7 +358,7 @@ enum ScenarioParser {
         if !allowEmpty && isBlank(s) {
             throw ScenarioParseError(message: "required field '\(field)' must not be empty", line: nil)
         }
-        return substitute(s, variables: variables)
+        return try substitute(s, variables: variables)
     }
 
     /// The bare-scalar form of an action (`tap: General`). Returns nil when the
@@ -359,9 +371,9 @@ enum ScenarioParser {
     }
 
     private static func optionalField(_ value: YAMLValue, _ field: String,
-                                       variables: [String: String]) -> String? {
+                                       variables: [String: String]) throws -> String? {
         guard let s = value[field]?.stringValue else { return nil }
-        return substitute(s, variables: variables)
+        return try substitute(s, variables: variables)
     }
 
     private static func requireBool(_ s: String, field: String) throws -> Bool {

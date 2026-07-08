@@ -197,8 +197,42 @@ final class ScenarioParserTests: XCTestCase {
 
     func testEnvVariableSubstitution() throws {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? ""
-        let result = ScenarioParser.substitute("${env.HOME}/test", variables: [:])
+        let result = try ScenarioParser.substitute("${env.HOME}/test", variables: [:])
         XCTAssertEqual(result, "\(home)/test")
+    }
+
+    // MARK: - A21: undefined variables/env are errors, not silent passthrough
+
+    func testUndefinedVariableThrows() {
+        // `${targt}` (typo) previously passed through literally as the query.
+        XCTAssertThrowsError(try ScenarioParser.substitute("go ${targt}", variables: ["target": "x"])) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("targt"))
+        }
+    }
+
+    func testDefinedVariableSubstitutes() throws {
+        XCTAssertEqual(try ScenarioParser.substitute("go ${target}", variables: ["target": "General"]), "go General")
+    }
+
+    func testUnsetEnvVariableThrows() {
+        // Previously an unset ${env.X} silently became "".
+        XCTAssertThrowsError(
+            try ScenarioParser.substitute("${env.SIMPILOT_DEFINITELY_UNSET_XYZ}", variables: [:])
+        ) { error in
+            XCTAssertTrue(error is ScenarioParseError)
+        }
+    }
+
+    func testUndefinedVariableInScenarioThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap: ${missing}
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml))
     }
 
     // MARK: - Step parsing
