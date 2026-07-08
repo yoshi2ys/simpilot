@@ -37,6 +37,41 @@ final class DebugDescriptionParserTests: XCTestCase {
         XCTAssertFalse((root["children"] as? [[String: Any]])?.isEmpty ?? true)
     }
 
+    // MARK: - A11: apostrophe labels are not truncated
+
+    func test_parseLines_apostropheLabel_notTruncated() {
+        let line = "    StaticText, 0x1, {{0.0, 0.0}, {100.0, 20.0}}, label: 'User's Name'"
+        let parsed = DebugDescriptionParser.parseLines(line)
+        XCTAssertEqual(parsed.first?.label, "User's Name")
+    }
+
+    func test_parseLines_labelBeforeAnotherAttribute_stopsAtClosingQuote() {
+        let line = "    Button, 0x1, {{0.0, 0.0}, {44.0, 44.0}}, label: 'It's Fine', value: on"
+        let parsed = DebugDescriptionParser.parseLines(line)
+        XCTAssertEqual(parsed.first?.label, "It's Fine")
+        XCTAssertEqual(parsed.first?.value, "on")
+    }
+
+    // MARK: - A12: Disabled flag vs. "Disabled" inside a label
+
+    func test_parseLines_disabledFlag_marksDisabled() {
+        let line = "    Button, 0x1, {{0.0, 0.0}, {44.0, 44.0}}, label: 'Save', Disabled"
+        XCTAssertEqual(DebugDescriptionParser.parseLines(line).first?.enabled, false)
+    }
+
+    func test_parseLines_labelContainingDisabledWord_staysEnabled() {
+        let line = "    StaticText, 0x1, {{0.0, 0.0}, {100.0, 20.0}}, label: 'Wi-Fi Disabled'"
+        let parsed = DebugDescriptionParser.parseLines(line)
+        XCTAssertEqual(parsed.first?.enabled, true)
+        XCTAssertEqual(parsed.first?.label, "Wi-Fi Disabled")
+    }
+
+    func test_hasDisabledFlag_respectsQuotedCommas() {
+        XCTAssertTrue(DebugDescriptionParser.hasDisabledFlag("Button, label: 'Save', Disabled"))
+        XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, label: 'Wi-Fi Disabled'"))
+        XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, label: 'a, Disabled, b'"))
+    }
+
     // MARK: - findElement
 
     func test_findElement_bareLabel_returnsGeneralButton() throws {

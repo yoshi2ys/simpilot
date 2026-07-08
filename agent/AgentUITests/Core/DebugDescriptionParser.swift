@@ -352,8 +352,10 @@ enum DebugDescriptionParser {
                 .trimmingCharacters(in: .whitespaces)
         }
 
-        // Check enabled (Disabled flag)
-        let enabled = !stripped.hasSuffix("Disabled") && !stripped.contains(", Disabled,")
+        // Check enabled: the `Disabled` flag is a standalone comma-separated
+        // token, not the substring "Disabled" inside a quoted label like
+        // 'Wi-Fi Disabled' or 'a, Disabled, b' (A12).
+        let enabled = !hasDisabledFlag(stripped)
 
         // Normalize type name to camelCase matching ElementResolver
         let normalizedType = normalizeTypeName(elementType)
@@ -511,14 +513,48 @@ enum DebugDescriptionParser {
         return node
     }
 
+    /// Whether the debugDescription line carries the bare `Disabled` flag —
+    /// a standalone comma-separated token — rather than "Disabled" appearing
+    /// inside a quoted label. Splits on commas that are outside `'...'` quotes
+    /// so a comma inside a label doesn't create a spurious token.
+    static func hasDisabledFlag(_ stripped: String) -> Bool {
+        var inQuote = false
+        var token = ""
+        for ch in stripped {
+            if ch == "'" {
+                inQuote.toggle()
+                token.append(ch)
+            } else if ch == "," && !inQuote {
+                if token.trimmingCharacters(in: .whitespaces) == "Disabled" { return true }
+                token = ""
+            } else {
+                token.append(ch)
+            }
+        }
+        return token.trimmingCharacters(in: .whitespaces) == "Disabled"
+    }
+
     /// Safely extract a single-quoted value after a key like "label: '".
     /// Returns empty string if the key is not found or the quote is unclosed
     /// (which happens when debugDescription truncates long lines).
     private static func extractQuotedValue(from text: String, key: String) -> String {
         guard let keyRange = text.range(of: key) else { return "" }
-        let after = String(text[keyRange.upperBound...])
-        guard let endQuote = after.firstIndex(of: "'") else { return "" }
-        return String(after[after.startIndex..<endQuote])
+        let after = text[keyRange.upperBound...]
+        // The value ends at the closing quote: the `'` followed by the attribute
+        // delimiter `,` or the end of the line. An apostrophe *inside* the value
+        // (`User's Name`) is followed by a letter/space, not `,`, so it isn't
+        // mistaken for the close and the label is no longer truncated (A11).
+        var idx = after.startIndex
+        while idx < after.endIndex {
+            if after[idx] == "'" {
+                let next = after.index(after: idx)
+                if next == after.endIndex || after[next] == "," {
+                    return String(after[after.startIndex..<idx])
+                }
+            }
+            idx = after.index(after: idx)
+        }
+        return ""
     }
 
     private static func normalizeTypeName(_ raw: String) -> String {
