@@ -61,6 +61,9 @@ enum HTTPResponseBuilder {
         case 200: return "OK"
         case 400: return "Bad Request"
         case 404: return "Not Found"
+        case 408: return "Request Timeout"
+        case 413: return "Payload Too Large"
+        case 431: return "Request Header Fields Too Large"
         case 500: return "Internal Server Error"
         default: return "Unknown"
         }
