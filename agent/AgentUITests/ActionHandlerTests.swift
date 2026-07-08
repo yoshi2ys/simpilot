@@ -380,6 +380,40 @@ final class ActionHandlerTests: XCTestCase {
         }
     }
 
+    // MARK: - ScreenshotHandler.parseScale (A23: no silent scale coercion)
+
+    func test_parseScale_native() {
+        XCTAssertEqual(ScreenshotHandler.parseScale("native"), .native)
+    }
+
+    func test_parseScale_positiveFactor() {
+        XCTAssertEqual(ScreenshotHandler.parseScale("2"), .factor(2))
+        XCTAssertEqual(ScreenshotHandler.parseScale("0.5"), .factor(0.5))
+    }
+
+    func test_parseScale_zeroNegativeNonNumeric_areInvalid() {
+        // Previously "0"/"-1" silently returned native pixels while reporting the
+        // bogus factor, and "abc" silently coerced to 1.0.
+        XCTAssertEqual(ScreenshotHandler.parseScale("0"), .invalid)
+        XCTAssertEqual(ScreenshotHandler.parseScale("-1"), .invalid)
+        XCTAssertEqual(ScreenshotHandler.parseScale("abc"), .invalid)
+        XCTAssertEqual(ScreenshotHandler.parseScale(""), .invalid)
+    }
+
+    /// ActionHandler's inline screenshot shares this mapping so a bogus scale is
+    /// rejected there too, not silently coerced to 1.0 (A23).
+    func test_scaleSpec_fromStringDoubleAndAbsent() {
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: "native"), .native)
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: "2"), .factor(2))
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: "0"), .invalid)
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: "abc"), .invalid)
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: 2.0), .factor(2.0))
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: 0.0), .invalid)
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: -1.0), .invalid)
+        // Absent scale keeps the historical 1.0 default.
+        XCTAssertEqual(ScreenshotHandler.scaleSpec(from: nil), .factor(1.0))
+    }
+
     // MARK: - Helpers
 
     private func extractSection(from source: String, startMarker: String, endMarker: String) -> String? {

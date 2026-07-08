@@ -3,6 +3,66 @@ import XCTest
 
 final class ScenarioParserTests: XCTestCase {
 
+    // MARK: - A19: empty scalar actions are rejected, not posted as empty
+
+    func testEmptyScalarActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            XCTAssertTrue(error is ScenarioParseError)
+        }
+    }
+
+    func testEmptyRequireScalarActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - launch:
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("launch"))
+        }
+    }
+
+    /// A23/A19 gap: `{query: ""}` in the mapping form must also be rejected, not
+    /// just the bare-scalar form.
+    func testEmptyQueryInMappingFormThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - launch:
+                  query: ""
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml))
+    }
+
+    /// Regression guard: `type` is exempt from the empty-value rejection — a
+    /// whitespace-only value is a legitimate thing to type.
+    func testTypeAllowsWhitespaceOnlyText() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - type: " "
+        """)
+        let file = try ScenarioParser.parse(yaml)
+        guard case .type(let text, _, _) = file.scenarios[0].steps[0].action else {
+            return XCTFail("expected type action")
+        }
+        XCTAssertEqual(text, " ")
+    }
+
     // MARK: - Minimal valid scenario
 
     func testMinimalScenario() throws {

@@ -152,9 +152,11 @@ enum StepExecutor {
         return json
     }
 
-    /// Check if a response JSON indicates success.
+    /// Check if a response JSON indicates success. A response with no `success`
+    /// field is malformed — treat it as failure, not success, so a broken or
+    /// unexpected envelope surfaces as a failed step instead of passing silently.
     static func isSuccess(_ response: [String: Any]) -> Bool {
-        (response["success"] as? Bool) ?? true
+        (response["success"] as? Bool) ?? false
     }
 
     /// Extract error message from a failure response.

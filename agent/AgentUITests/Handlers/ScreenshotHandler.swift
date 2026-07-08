@@ -13,6 +13,31 @@ final class ScreenshotHandler {
         self.appManager = appManager
     }
 
+    /// Validity of the `scale` query param. `native` keeps native pixels,
+    /// `factor` is a positive downscale target, `invalid` is anything else
+    /// (non-numeric, zero, or negative) — rejected rather than coerced (A23).
+    enum ScaleSpec: Equatable {
+        case native
+        case factor(Double)
+        case invalid
+    }
+
+    static func parseScale(_ scaleParam: String) -> ScaleSpec {
+        if scaleParam == "native" { return .native }
+        if let value = Double(scaleParam), value > 0 { return .factor(value) }
+        return .invalid
+    }
+
+    /// Map an action body's `screenshot_scale` (a JSON String, Double, or
+    /// absent) to a `ScaleSpec`. Absent → 1.0 (the historical default); a bogus
+    /// factor → `.invalid` rather than a silent 1.0 (A23). Shared with
+    /// `ActionHandler`'s inline screenshot so both agree.
+    static func scaleSpec(from raw: Any?) -> ScaleSpec {
+        if let str = raw as? String { return parseScale(str) }
+        if let value = raw as? Double { return value > 0 ? .factor(value) : .invalid }
+        return .factor(1.0)
+    }
+
     func handle(_ request: HTTPRequest) -> Data {
         let filePath = request.queryParams["file"]
         let scaleParam = request.queryParams["scale"] ?? "1"
@@ -28,6 +53,22 @@ final class ScreenshotHandler {
         if format == "jpeg" && !(0...100).contains(quality) {
             return HTTPResponseBuilder.error(
                 "Invalid quality \(quality): must be 0-100",
+                code: "invalid_request"
+            )
+        }
+        // Validate scale up front (fail fast, before the screenshot). `nil` ==
+        // native pixels; a non-numeric / non-positive factor is rejected instead
+        // of silently coercing to 1.0 or returning native while reporting the
+        // bogus factor — see A23.
+        let scaleValue: Double?
+        switch Self.parseScale(scaleParam) {
+        case .native:
+            scaleValue = nil
+        case .factor(let s):
+            scaleValue = s
+        case .invalid:
+            return HTTPResponseBuilder.error(
+                "Invalid scale '\(scaleParam)': must be a positive number or 'native'",
                 code: "invalid_request"
             )
         }
@@ -60,13 +101,12 @@ final class ScreenshotHandler {
         }
         let pngData: Data
         let scaleOut: Any
-        if scaleParam == "native" {
+        if let scaleValue {
+            pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scaleValue) ?? fullPng
+            scaleOut = scaleValue
+        } else {
             pngData = fullPng
             scaleOut = "native"
-        } else {
-            let scale = Double(scaleParam) ?? 1.0
-            pngData = ScreenshotScaler.scaled(pngData: fullPng, scale: scale) ?? fullPng
-            scaleOut = scale
         }
 
         let outputData: Data

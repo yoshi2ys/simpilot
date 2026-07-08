@@ -140,7 +140,7 @@ enum ScenarioParser {
         case "activate":
             return .activate(bundleId: try requireScalar(value, key: key, variables: variables))
         case "tap":
-            if let s = value.stringValue {
+            if let s = shorthandScalar(value) {
                 return .tap(query: substitute(s, variables: variables), waitUntil: nil, timeout: nil)
             }
             return .tap(
@@ -149,16 +149,19 @@ enum ScenarioParser {
                 timeout: try optionalDouble(value, "timeout")
             )
         case "type":
+            // `type` is the one action where a whitespace-only value is
+            // legitimate (typing a literal space), so it keeps the raw scalar
+            // and allows an empty `text` field.
             if let s = value.stringValue {
                 return .type(text: substitute(s, variables: variables), into: nil, method: nil)
             }
             return .type(
-                text: try requireField(value, "text", variables: variables),
+                text: try requireField(value, "text", variables: variables, allowEmpty: true),
                 into: optionalField(value, "into", variables: variables),
                 method: optionalField(value, "method", variables: variables)
             )
         case "swipe":
-            if let s = value.stringValue {
+            if let s = shorthandScalar(value) {
                 return .swipe(direction: substitute(s, variables: variables), on: nil, velocity: nil)
             }
             return .swipe(
@@ -167,7 +170,7 @@ enum ScenarioParser {
                 velocity: optionalField(value, "velocity", variables: variables)
             )
         case "scroll_to":
-            if let s = value.stringValue {
+            if let s = shorthandScalar(value) {
                 return .scrollTo(query: substitute(s, variables: variables), direction: nil, maxSwipes: nil)
             }
             return .scrollTo(
@@ -176,7 +179,7 @@ enum ScenarioParser {
                 maxSwipes: try optionalInt(value, "max_swipes")
             )
         case "longpress":
-            if let s = value.stringValue {
+            if let s = shorthandScalar(value) {
                 return .longpress(query: substitute(s, variables: variables), duration: nil)
             }
             return .longpress(
@@ -205,7 +208,7 @@ enum ScenarioParser {
                 velocity: optionalField(value, "velocity", variables: variables)
             )
         case "wait":
-            if let s = value.stringValue {
+            if let s = shorthandScalar(value) {
                 return .wait(query: substitute(s, variables: variables), timeout: nil, gone: false)
             }
             return .wait(
@@ -275,24 +278,52 @@ enum ScenarioParser {
 
     // MARK: - Field Helpers
 
+    /// A scalar with no real content — empty or whitespace-only. Used to reject
+    /// `- tap:` / `{query: ""}` instead of silently posting an empty argument
+    /// (A19). `type` opts out, since a literal space is a valid thing to type.
+    private static func isBlank(_ s: String) -> Bool {
+        s.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     private static func requireScalar(_ value: YAMLValue, key: String,
                                        variables: [String: String]) throws -> String {
-        // Accept both scalar and mapping with "query" field for consistency
+        // Accept both a scalar and a mapping with a "query" field. An
+        // empty/whitespace-only value (`- launch:` or `{query: ""}`) is a
+        // mistake, not a valid empty argument — reject it loudly (A19).
         if let s = value.stringValue {
+            guard !isBlank(s) else {
+                throw ScenarioParseError(message: "'\(key)' requires a non-empty value", line: nil)
+            }
             return substitute(s, variables: variables)
         }
         if let q = value["query"]?.stringValue {
+            guard !isBlank(q) else {
+                throw ScenarioParseError(message: "'\(key)' requires a non-empty value", line: nil)
+            }
             return substitute(q, variables: variables)
         }
         throw ScenarioParseError(message: "'\(key)' requires a string value", line: nil)
     }
 
     private static func requireField(_ value: YAMLValue, _ field: String,
-                                      variables: [String: String]) throws -> String {
+                                      variables: [String: String],
+                                      allowEmpty: Bool = false) throws -> String {
         guard let s = value[field]?.stringValue else {
             throw ScenarioParseError(message: "missing required field '\(field)'", line: nil)
         }
+        if !allowEmpty && isBlank(s) {
+            throw ScenarioParseError(message: "required field '\(field)' must not be empty", line: nil)
+        }
         return substitute(s, variables: variables)
+    }
+
+    /// The bare-scalar form of an action (`tap: General`). Returns nil when the
+    /// value is a mapping (caller uses the field form) OR an empty/whitespace
+    /// scalar (`- tap:`) — so an empty value surfaces the field form's
+    /// required-value error instead of silently posting an empty query (A19).
+    private static func shorthandScalar(_ value: YAMLValue) -> String? {
+        guard let s = value.stringValue, !isBlank(s) else { return nil }
+        return s
     }
 
     private static func optionalField(_ value: YAMLValue, _ field: String,
