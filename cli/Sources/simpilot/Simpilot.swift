@@ -117,6 +117,7 @@ struct Simpilot {
         LongPressCommand.self,
         DoubleTapCommand.self,
         RotateCommand.self,
+        ButtonCommand.self,
         OpenURLCommand.self,
         AlertCommand.self,
         WaitCommand.self,

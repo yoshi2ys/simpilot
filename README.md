@@ -113,6 +113,7 @@ simpilot tap '<query>'                              # Tap an element
 simpilot type '<text>' [--into '<query>']            # Type text
 simpilot type '<text>' --method paste                # Paste text (no keyboard needed)
 simpilot swipe <up|down|left|right> [--on '<query>'] # Swipe
+simpilot button <home|volume-up|volume-down>        # Press a hardware button (tvOS: remote menu/select/up/...)
 simpilot tapcoord <x> <y>                           # Tap at coordinates
 simpilot wait '<query>' [--timeout 10] [--gone]     # Wait for element
 simpilot slider [<query>] --value <0.0-1.0>         # Adjust slider position
@@ -200,6 +201,7 @@ The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead 
 | type | OK | OK | -- | -- |
 | clipboard | OK | OK | NG | NG |
 | swipe | OK | NG | OK (remote) | -- |
+| button | OK (home; volume device-only) | NG | OK (remote) | NG |
 | tapcoord | OK | NG | NG (no API) | -- |
 | screenshot | OK | OK | OK | OK |
 | elements / source | OK | OK | -- | -- |
@@ -210,6 +212,7 @@ The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead 
 
 - **visionOS**: Coordinate taps fall back to XCUITest's native element resolution (slower). `swipe` and `tapcoord` not supported.
 - **tvOS / watchOS**: External app launch is not supported (XCUITest limitation). `launch` returns an error. Agent can start and take screenshots, but app control is not possible.
+- **button**: iOS presses `home` (Simulator + device) and `volume-up`/`volume-down` (physical device only — the Simulator SDK has no volume API). tvOS presses remote buttons (`menu`, `play-pause`, `select`, `up`/`down`/`left`/`right`, `home`). Names are kebab-case (like `rotate landscape-left`). Buttons with no public XCUITest API — lock/power, shake, Digital Crown — return an error (`invalid_args`, or `unsupported_platform` on visionOS/watchOS) rather than silently doing nothing.
 
 ## License
 

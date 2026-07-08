@@ -229,6 +229,8 @@ simpilot batch '{"commands":[
 
 ```bash
 simpilot rotate landscape-left                   # portrait|landscape-left|landscape-right|portrait-upside-down
+simpilot button home                             # Hardware button: home | volume-up | volume-down (volume = physical device only)
+simpilot button menu                             # tvOS remote: menu | play-pause | select | up | down | left | right | home
 simpilot openurl 'myapp://deep/link'             # Open URL/deep link (simulator only)
 simpilot alert accept [--timeout 5]              # Accept system permission alert
 simpilot alert dismiss                           # Dismiss system permission alert

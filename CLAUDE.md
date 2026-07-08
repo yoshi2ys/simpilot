@@ -96,6 +96,10 @@ simpilot pinch 'photo' --scale 0.5 --velocity slow # zoom out
 simpilot slider 'slider:Volume' --value 0.5        # set to 50%
 simpilot slider --value 0                          # first slider → min
 
+# Hardware buttons
+simpilot button home                               # iOS: home | volume-up | volume-down (volume = physical device only)
+simpilot button menu                               # tvOS remote: menu | play-pause | select | up | down | left | right | home
+
 # Run YAML scenario
 simpilot run examples/settings_about.yaml          # terminal output
 simpilot run test.yaml --json                      # JSON output
@@ -124,6 +128,7 @@ simpilot run test.yaml --var "app=com.example.App" # override variables
 - **Drag gesture** (DragHandler.swift): `press(forDuration:thenDragTo:)` supports element-to-element, element-to-coordinate, and coordinate-to-coordinate modes. Mutual exclusivity validation prevents silent misrouting.
 - **Pinch gesture** (PinchHandler.swift): `pinch(withScale:velocity:)` for zoom in/out. `scale > 1` = zoom in, `scale < 1` = zoom out.
 - **Slider adjustment** (SliderHandler.swift): `adjust(toNormalizedSliderPosition:)` for precise slider control. `--value 0.0` = min, `--value 1.0` = max. No query = first slider in view.
+- **Hardware buttons** (ButtonHandler.swift): `POST /button` with `{"name": ...}` (camelCase wire name). iOS/iPadOS route to `XCUIDevice.shared.press(_:)` (`home`, plus `volumeUp`/`volumeDown` on physical devices only — the volume cases are `@available`-unavailable in the Simulator SDK and gated with `#if !targetEnvironment(simulator)`); tvOS routes to `XCUIRemote.shared.press(_:)` (`menu`/`playPause`/`select`/arrows/`home`). Platform-specific bits live only in `invocation(for:)`; the error/success envelope is shared. The CLI (`ButtonCommand`) takes kebab-case (`volume-up`) like `rotate`, normalizes to the camelCase wire name, and forwards it — the agent owns per-platform validation, returning `invalid_args` for an unknown name on a button-capable platform and `unsupported_platform` where no buttons exist (visionOS/watchOS). Buttons with no public XCUITest API (lock/power, shake, Digital Crown) are never silent no-ops.
 - **Typed query type filtering** (DebugDescriptionParser.matchesQuery): typed queries (`searchField:`, `button:`, etc.) now verify element type, not just label/identifier. Previously `searchField:Search` could match a button labeled "Search". Unknown prefixes return no match (fall through to ElementResolver).
 - **SwiftUI Toggle tap offset** (TapHandler.swift): SwiftUI Toggle exposes the entire row (label + toggle) as one accessibility element. Coordinate taps offset to the trailing edge where the actual switch control sits, since center-tapping hits the label area which doesn't toggle.
 - **YAML scenario runner** (cli/Sources/simpilot/Scenario/): `simpilot run <file.yaml>` executes YAML scenarios with step-by-step assertions, auto-wait, screenshot-on-failure, and variable substitution. Steps map 1:1 to existing HTTP endpoints. Custom minimal YAML parser (no external dependencies). Terminal and JSON (`--json`) output modes.

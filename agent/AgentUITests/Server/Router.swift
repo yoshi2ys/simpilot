@@ -147,6 +147,9 @@ final class Router {
         let rotateHandler = RotateHandler()
         route("POST", "/rotate", rotateHandler.handle)
 
+        let buttonHandler = ButtonHandler()
+        route("POST", "/button", buttonHandler.handle)
+
         let alertHandler = AlertHandler()
         route("POST", "/alert", alertHandler.handle)
 
