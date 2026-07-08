@@ -72,6 +72,21 @@ final class DebugDescriptionParserTests: XCTestCase {
         XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, label: 'a, Disabled, b'"))
     }
 
+    /// Regression (Copilot review): an apostrophe inside a label must not desync
+    /// quote tracking. `'It's, fine'` has both an apostrophe and a comma, so a
+    /// naive per-`'` toggle would miss a trailing flag / spuriously detect one.
+    func test_hasDisabledFlag_apostropheAndCommaInLabel() {
+        XCTAssertTrue(DebugDescriptionParser.hasDisabledFlag("Button, label: 'It's, fine', Disabled"))
+        XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, label: 'a's, Disabled, b'"))
+    }
+
+    func test_parseLines_apostropheCommaLabel_disabledFlagDetected() {
+        let line = "    Button, 0x1, {{0.0, 0.0}, {44.0, 44.0}}, label: 'It's, fine', Disabled"
+        let parsed = DebugDescriptionParser.parseLines(line)
+        XCTAssertEqual(parsed.first?.enabled, false)
+        XCTAssertEqual(parsed.first?.label, "It's, fine")
+    }
+
     // MARK: - findElement
 
     func test_findElement_bareLabel_returnsGeneralButton() throws {

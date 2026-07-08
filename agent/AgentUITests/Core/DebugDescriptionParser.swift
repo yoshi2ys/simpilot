@@ -515,20 +515,33 @@ enum DebugDescriptionParser {
 
     /// Whether the debugDescription line carries the bare `Disabled` flag —
     /// a standalone comma-separated token — rather than "Disabled" appearing
-    /// inside a quoted label. Splits on commas that are outside `'...'` quotes
-    /// so a comma inside a label doesn't create a spurious token.
+    /// inside a quoted label. Commas inside a quoted value must not split, so a
+    /// `'` opens a value that is consumed through its matching close (the `'`
+    /// followed by `,` or end-of-line, matching `extractQuotedValue`). Toggling
+    /// on every `'` would desync on an interior apostrophe (`It's, fine`).
     static func hasDisabledFlag(_ stripped: String) -> Bool {
-        var inQuote = false
         var token = ""
-        for ch in stripped {
+        var i = stripped.startIndex
+        while i < stripped.endIndex {
+            let ch = stripped[i]
             if ch == "'" {
-                inQuote.toggle()
+                // Consume the whole quoted value (apostrophes/commas and all)
+                // into the current token, which is never a bare flag.
                 token.append(ch)
-            } else if ch == "," && !inQuote {
+                i = stripped.index(after: i)
+                while i < stripped.endIndex {
+                    let c = stripped[i]
+                    token.append(c)
+                    i = stripped.index(after: i)
+                    if c == "'" && (i == stripped.endIndex || stripped[i] == ",") { break }
+                }
+            } else if ch == "," {
                 if token.trimmingCharacters(in: .whitespaces) == "Disabled" { return true }
                 token = ""
+                i = stripped.index(after: i)
             } else {
                 token.append(ch)
+                i = stripped.index(after: i)
             }
         }
         return token.trimmingCharacters(in: .whitespaces) == "Disabled"
