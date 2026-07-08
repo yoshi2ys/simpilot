@@ -129,9 +129,41 @@ enum ScenarioParser {
 
     // MARK: - Actions
 
+    /// Fields each action's mapping form accepts. A mapping-form action carrying
+    /// any other key is a typo (`timout:`) that would otherwise be silently
+    /// dropped and default — so it's rejected (A20). Scalar-form actions
+    /// (`tap: General`) and `sleep` (scalar only) aren't listed and skip the check.
+    private static let allowedFields: [String: Set<String>] = [
+        "launch": ["query"],
+        "terminate": ["query"],
+        "activate": ["query"],
+        "doubletap": ["query"],
+        "tap": ["query", "wait_until", "timeout"],
+        "type": ["text", "into", "method"],
+        "swipe": ["direction", "on", "velocity"],
+        "scroll_to": ["query", "direction", "max_swipes"],
+        "longpress": ["query", "duration"],
+        "drag": ["query", "to", "to_x", "to_y", "from_x", "from_y", "duration"],
+        "pinch": ["query", "scale", "velocity"],
+        "wait": ["query", "timeout", "gone"],
+        "assert": ["predicate", "query", "expected", "timeout"],
+        "screenshot": ["file", "scale", "element", "format", "quality"],
+        "elements": ["level", "type", "contains"],
+    ]
+
     private static func parseAction(key: String, value: YAMLValue,
                                      variables: [String: String],
                                      stepNumber: Int) throws -> StepAction {
+        // Reject unknown/typo'd fields on the mapping form before dispatch, so a
+        // misspelled key surfaces instead of silently defaulting (A20).
+        if let allowed = allowedFields[key], let pairs = value.mappingValue {
+            for (field, _) in pairs where !allowed.contains(field) {
+                throw ScenarioParseError(
+                    message: "step \(stepNumber): '\(key)' has unknown field '\(field)'; allowed: \(allowed.sorted().joined(separator: ", "))",
+                    line: nil
+                )
+            }
+        }
         switch key {
         case "launch":
             return .launch(bundleId: try requireScalar(value, key: key, variables: variables))

@@ -63,6 +63,38 @@ final class ScenarioParserTests: XCTestCase {
         XCTAssertEqual(text, " ")
     }
 
+    // MARK: - A20: unknown/typo fields are rejected, not silently dropped
+
+    func testUnknownFieldInActionThrows() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+                  query: General
+                  timout: 5
+        """)
+        XCTAssertThrowsError(try ScenarioParser.parse(yaml)) { error in
+            guard let e = error as? ScenarioParseError else { return XCTFail("expected ScenarioParseError") }
+            XCTAssertTrue(e.description.contains("timout"))
+        }
+    }
+
+    func testKnownFieldsAreAccepted() throws {
+        let yaml = try YAMLParser.parse("""
+        name: T
+        scenarios:
+          - name: S
+            steps:
+              - tap:
+                  query: General
+                  wait_until: hittable
+                  timeout: 5
+        """)
+        XCTAssertNoThrow(try ScenarioParser.parse(yaml))
+    }
+
     // MARK: - Minimal valid scenario
 
     func testMinimalScenario() throws {
