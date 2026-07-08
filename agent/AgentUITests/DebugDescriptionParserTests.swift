@@ -87,6 +87,17 @@ final class DebugDescriptionParserTests: XCTestCase {
         XCTAssertEqual(parsed.first?.label, "It's, fine")
     }
 
+    /// Adversarial cases (in lieu of a verify pass): trailing-apostrophe label,
+    /// no quoted attributes, empty label, and an unquoted `value:` that is the
+    /// word "Disabled" (which must NOT count as the flag).
+    func test_hasDisabledFlag_adversarial() {
+        XCTAssertTrue(DebugDescriptionParser.hasDisabledFlag("Button, label: 'Boys'', Disabled"))
+        XCTAssertTrue(DebugDescriptionParser.hasDisabledFlag("Button, 0x1, {{0.0, 0.0}, {10.0, 10.0}}, Disabled"))
+        XCTAssertTrue(DebugDescriptionParser.hasDisabledFlag("Button, label: '', Disabled"))
+        XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, value: Disabled, label: 'x'"))
+        XCTAssertFalse(DebugDescriptionParser.hasDisabledFlag("Button, label: 'Disabled'"))
+    }
+
     // MARK: - findElement
 
     func test_findElement_bareLabel_returnsGeneralButton() throws {
