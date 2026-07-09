@@ -75,27 +75,31 @@ enum DebugDescriptionParser {
         let centerY: Double
         let frame: (x: Double, y: Double, w: Double, h: Double)
         let enabled: Bool
+        /// How many elements in the tree matched the query. `> 1` means the
+        /// query was ambiguous and `findElement` picked one of them.
+        let matchCount: Int
         /// Set only after the poller requests an authoritative hittability check.
         /// Nil on the fast path (no XCUIElement.isHittable IPC performed).
         var hittable: Bool?
 
         /// JSON-ready dict for HTTP responses. Shared by TapHandler and AssertHandler.
+        /// Delegates to the one shared builder so this path and
+        /// `ElementResolver.describe` cannot disagree on the schema. `selected`
+        /// is nil because a text-tree parse cannot know it.
+        ///
+        /// `value` is `""` here when debugDescription printed no value attribute
+        /// at all, which is "no value", not "an empty value" — the distinction
+        /// `elementDict` preserves for the resolver path.
         var asDict: [String: Any] {
-            var dict: [String: Any] = [
-                "type": type,
-                "label": label,
-                "identifier": identifier,
-                "frame": [
-                    "x": frame.x, "y": frame.y,
-                    "width": frame.w, "height": frame.h
-                ],
-                "enabled": enabled
-            ]
-            if let hittable {
-                dict["hittable"] = hittable
-            }
-            if !value.isEmpty {
-                dict["value"] = value
+            var dict = ElementResolver.elementDict(
+                type: type, label: label, identifier: identifier,
+                value: value.isEmpty ? nil : value, frame: frame,
+                enabled: enabled, selected: nil, hittable: hittable
+            )
+            // Only surfaced when the query was ambiguous — its presence is the
+            // signal, so an unambiguous match must not carry a `1`.
+            if matchCount > 1 {
+                dict["match_count"] = matchCount
             }
             return dict
         }
@@ -110,23 +114,34 @@ enum DebugDescriptionParser {
     }
 
     /// Testable overload that operates on a pre-parsed element list.
+    ///
+    /// A query can match several elements — in Settings the "General" row is a
+    /// Button whose inner StaticText carries the same label, so a bare label is
+    /// routinely a two-way match. The winner stays the first in parse order
+    /// (parent before child, i.e. the actionable row), but the count rides along
+    /// in `matchCount` so callers can surface the ambiguity instead of hiding it.
+    ///
+    /// Deliberately *not* "prefer the enabled match": `ElementPoller` observes
+    /// through this same function, so preferring an enabled sibling would let
+    /// `assert enabled 'X'` pass against a disabled control by reading its
+    /// enabled inner StaticText. Costs no extra IPC — the whole tree is in hand.
     static func findElement(query: String, in elements: [ParsedElement]) -> FoundElement? {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        for element in elements {
-            guard element.frame.w > 0 && element.frame.h > 0 else { continue }
-            if matchesQuery(element: element, query: trimmed) {
-                return toFound(element)
-            }
+        let matches = elements.filter { element in
+            element.frame.w > 0 && element.frame.h > 0
+                && matchesQuery(element: element, query: trimmed)
         }
-        return nil
+        guard let first = matches.first else { return nil }
+        return toFound(first, matchCount: matches.count)
     }
 
-    private static func toFound(_ e: ParsedElement) -> FoundElement {
+    private static func toFound(_ e: ParsedElement, matchCount: Int) -> FoundElement {
         FoundElement(
             type: e.type, label: e.label, identifier: e.identifier, value: e.value,
             centerX: e.frame.x + e.frame.w / 2,
             centerY: e.frame.y + e.frame.h / 2,
             frame: e.frame, enabled: e.enabled,
+            matchCount: matchCount,
             hittable: nil
         )
     }

@@ -126,6 +126,11 @@ enum StopCommand: SimpilotCommand {
     /// A bare `AgentUITests` pattern would also match any other repo's UI test
     /// runner that happened to share the scheme name, which was the problem
     /// Reviewer flagged as finding #4 (orphan cleanup was not actually bounded).
+    ///
+    /// This only ever finds the *xcodebuild* half of an agent. The simulator-side
+    /// `AgentUITests-Runner` — the process that actually holds the listening
+    /// socket — is swept by bundle identifier via `SimctlHelper`, which is exact
+    /// where a `pgrep -f` pattern would have to guess.
     static let orphanPgrepPattern = #"AgentApp\.xcodeproj.*AgentUITests"#
 
     /// Pure orphan-detection helper: given newline-delimited `pgrep` output and
@@ -154,11 +159,14 @@ enum StopCommand: SimpilotCommand {
         let pretty = context.pretty
 
         if case .all = target {
-            stopAllAgents(pretty: pretty)
+            try stopAllAgents(pretty: pretty)
             return
         }
 
-        let records = AgentRegistry.load()
+        // `allRecords`, not `load`: a record whose xcodebuild has died is exactly
+        // the one whose runner is still holding the port. Pruning it here would
+        // make `stop --port N` print "already stopped" and leave N bound.
+        let records = try AgentRegistry.allRecords()
         guard let record = try resolveSingle(target: target, in: records) else {
             printAlreadyStoppedEnvelope(target: target, pretty: pretty)
             return
@@ -166,9 +174,9 @@ enum StopCommand: SimpilotCommand {
 
         switch target {
         case .udid:
-            _ = AgentRegistry.remove(udid: record.udid)
+            _ = try AgentRegistry.remove(udid: record.udid)
         case .port, .portAndUdid:
-            _ = AgentRegistry.remove(port: record.port)
+            _ = try AgentRegistry.remove(port: record.port)
         case .all:
             preconditionFailure("unreachable: .all is dispatched above")
         }
@@ -190,8 +198,21 @@ enum StopCommand: SimpilotCommand {
 
     // MARK: - Stop All
 
-    private static func stopAllAgents(pretty: Bool) {
-        let records = AgentRegistry.removeAll()
+    private static func stopAllAgents(pretty: Bool) throws {
+        // `stop --all` is the tool you reach for *because* things are broken, so
+        // an unreadable registry must not abort it. Fall back to an empty
+        // snapshot: the pgrep + runner sweeps below need no registry at all, and
+        // they are the only cleanup available in that state.
+        var records: [AgentRecord] = []
+        var registryError: String?
+        do {
+            records = try AgentRegistry.removeAll()
+        } catch {
+            registryError = "\(error)"
+            FileHandle.standardError.write(Data(
+                "simpilot: registry unusable, sweeping orphans only (\(error))\n".utf8
+            ))
+        }
 
         var stopped: [[String: Any]] = []
         for record in records {
@@ -214,24 +235,38 @@ enum StopCommand: SimpilotCommand {
             kill(pid, SIGTERM)
         }
 
+        // pgrep only ever sees the xcodebuild half. Sweep the simulator-side
+        // runners too — they outlive their xcodebuild and keep the port bound.
+        let knownUDIDs = Set(records.filter { !$0.isPhysical }.map(\.udid))
+        let orphanRunners = SimctlHelper.terminateOrphanRunners(excluding: knownUDIDs)
+
+        let orphanCount = orphans.count + orphanRunners.count
         let agentCountMessage: String
-        if stopped.isEmpty && orphans.isEmpty {
+        if stopped.isEmpty && orphanCount == 0 {
             agentCountMessage = "No running agents found"
         } else if stopped.isEmpty {
-            agentCountMessage = "\(orphans.count) orphan agent(s) cleaned"
-        } else if orphans.isEmpty {
+            agentCountMessage = "\(orphanCount) orphan agent(s) cleaned"
+        } else if orphanCount == 0 {
             agentCountMessage = "\(stopped.count) agent(s) stopped"
         } else {
-            agentCountMessage = "\(stopped.count) agent(s) stopped, \(orphans.count) orphan(s) cleaned"
+            agentCountMessage = "\(stopped.count) agent(s) stopped, \(orphanCount) orphan(s) cleaned"
+        }
+
+        var data: [String: Any] = [
+            "message": agentCountMessage,
+            "agents": stopped,
+            "orphans_cleaned": orphans.count,
+            "orphan_runners_cleaned": orphanRunners.count,
+        ]
+        // Say so in the envelope, not just on stderr: "No running agents found"
+        // reads very differently when the registry could not be opened at all.
+        if let registryError {
+            data["registry_error"] = registryError
         }
 
         let result: [String: Any] = [
             "success": true,
-            "data": [
-                "message": agentCountMessage,
-                "agents": stopped,
-                "orphans_cleaned": orphans.count,
-            ] as [String: Any],
+            "data": data,
             "error": NSNull()
         ]
         printJSON(result, pretty: pretty)
@@ -263,10 +298,13 @@ enum StopCommand: SimpilotCommand {
 
     // MARK: - Helpers
 
+    /// SIGTERM the `xcodebuild` process, then stop the simulator-side runner it
+    /// left behind. Killing only `xcodebuild` leaves `AgentUITests-Runner`
+    /// holding the port, so the next `start` on that port fails.
     private static func teardownAgent(_ record: AgentRecord) {
         kill(record.pid, SIGTERM)
-        if !record.isPhysical {
-            AgentRegistry.removePortFile(udid: record.udid)
+        if !record.isPhysical && !record.udid.isEmpty {
+            SimctlHelper.terminateRunner(udid: record.udid)
         }
         if record.isClone {
             SimctlHelper.deleteClone(udid: record.udid)

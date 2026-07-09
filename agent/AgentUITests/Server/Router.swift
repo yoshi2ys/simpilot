@@ -5,8 +5,13 @@ typealias HandlerFunc = (HTTPRequest) -> Data
 final class Router {
     private var routes: [String: HandlerFunc] = [:]
     private let appManager = AppManager()
+    /// Held only so `/info` can report the resolved port/bind rather than
+    /// re-reading the environment. Authentication lives at the socket boundary
+    /// in `HTTPServer`, not here.
+    private let config: AgentConfig
 
-    init() {
+    init(config: AgentConfig) {
+        self.config = config
         registerRoutes()
     }
 
@@ -101,7 +106,7 @@ final class Router {
         let screenshotHandler = ScreenshotHandler(appManager: appManager)
         let elementsHandler = ElementsHandler(appManager: appManager)
         let sourceHandler = SourceHandler(appManager: appManager)
-        let infoHandler = InfoHandler()
+        let infoHandler = InfoHandler(config: config)
         let swipeHandler = SwipeHandler(appManager: appManager)
         let longPressHandler = LongPressHandler(appManager: appManager)
         let doubleTapHandler = DoubleTapHandler(appManager: appManager)

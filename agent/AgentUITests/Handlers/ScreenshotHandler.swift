@@ -97,7 +97,17 @@ final class ScreenshotHandler {
             }
             fullPng = pngResult!
         } else {
-            fullPng = XCUIScreen.main.screenshot().pngRepresentation
+            var pngResult: Data?
+            let failure = catchObjCException {
+                pngResult = XCUIScreen.main.screenshot().pngRepresentation
+            }
+            if let failure {
+                return HTTPResponseBuilder.error(
+                    "Screenshot failed: \(failure)",
+                    code: "screenshot_failed"
+                )
+            }
+            fullPng = pngResult!
         }
         let pngData: Data
         let scaleOut: Any

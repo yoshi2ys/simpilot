@@ -54,18 +54,13 @@ enum DeviceHelper {
                 return nil
             }
 
-            let platform: String
-            if let osVersion = props["osVersionNumber"] as? String {
-                if let platformStr = (device["hardwareProperties"] as? [String: Any])?["platform"] as? String {
-                    switch platformStr {
-                    case "xrOS": platform = "xrOS"
-                    default: platform = "iOS"
-                    }
-                } else {
-                    platform = osVersion.hasPrefix("2") ? "xrOS" : "iOS"
-                }
-            } else {
-                platform = "iOS"
+            let hardwarePlatform = (device["hardwareProperties"] as? [String: Any])?["platform"] as? String
+            guard let platform = resolvePlatform(hardwarePlatform: hardwarePlatform) else {
+                let raw = hardwarePlatform ?? "<missing>"
+                FileHandle.standardError.write(
+                    "simpilot: skipping device '\(name)' (\(identifier)): unrecognized platform '\(raw)'\n".data(using: .utf8)!
+                )
+                return nil
             }
 
             // Prefer stable mDNS hostname over ephemeral tunnelIPAddress (changes on each USB reconnect)
@@ -80,6 +75,18 @@ enum DeviceHelper {
             }
 
             return PhysicalDevice(udid: identifier, name: name, platform: platform, hostname: hostname)
+        }
+    }
+
+    /// Maps `hardwareProperties.platform` from `devicectl` JSON to our platform string.
+    /// Returns nil when the key is missing or the platform is unrecognized — callers
+    /// must skip such devices rather than guess (e.g. from `osVersionNumber`), which
+    /// previously misclassified iOS 26+ devices as visionOS.
+    static func resolvePlatform(hardwarePlatform: String?) -> String? {
+        switch hardwarePlatform {
+        case "iOS": return "iOS"
+        case "xrOS": return "xrOS"
+        default: return nil
         }
     }
 

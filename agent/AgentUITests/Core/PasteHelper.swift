@@ -43,7 +43,6 @@ enum PasteHelper {
     }
 
     #if !os(tvOS)
-    private static var pastePermissionGranted = false
     private static let pasteLabels = ["Paste", "ペースト", "Coller", "Einfügen", "Pegar", "Incolla"]
     private static let pastePredicate = NSPredicate(format: "label IN %@", pasteLabels)
 
@@ -80,12 +79,17 @@ enum PasteHelper {
     }
 
     private static func handlePastePermission() {
-        guard !pastePermissionGranted else { return }
+        // Not cached: the "Allow Paste" alert can reappear later for a
+        // different app (new install, different bundle), so every call
+        // must check for it again.
+        //
+        // The 1s wait is load-bearing, not a default: on the first paste into a
+        // cold app SpringBoard takes 0.5–1.0s to render the alert. Shortening it
+        // makes `paste` report success with no text entered.
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         if springboard.alerts.buttons["Allow Paste"].waitForExistence(timeout: 1.0) {
             springboard.alerts.buttons["Allow Paste"].tap()
         }
-        pastePermissionGranted = true
     }
 
     private static func findPasteElement(in app: XCUIApplication) -> XCUIElement? {

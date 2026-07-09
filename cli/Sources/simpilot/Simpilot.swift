@@ -149,18 +149,27 @@ struct Simpilot {
             exit(2)
         }
 
-        // Resolve host from agent registry (supports physical devices with non-localhost hosts).
-        let resolvedHost: String = {
-            if let record = AgentRegistry.load().first(where: { $0.port == options.port }) {
-                return record.host
-            }
-            return "localhost"
-        }()
+        // Resolve host and token from the agent registry. Physical devices sit on
+        // a non-loopback host; every agent the CLI starts requires its token.
+        //
+        // A corrupt registry must not be fatal *here*: `stop --all` is the tool
+        // you reach for when things are broken, and it needs no registry to
+        // sweep orphans. Warn on stderr and carry on token-less; commands that
+        // genuinely need the registry (`list`, `stop --port`) load it themselves
+        // and fail with the specific message.
+        var record: AgentRecord?
+        do {
+            record = try AgentRegistry.load().first { $0.port == options.port }
+        } catch {
+            FileHandle.standardError.write(Data("simpilot: \(error)\n".utf8))
+            record = nil
+        }
 
         let client = HTTPClient(
-            host: resolvedHost,
+            host: record?.host ?? StartCommand.loopbackHost,
             port: options.port,
-            timeout: options.timeout
+            timeout: options.timeout,
+            token: record?.token
         )
 
         run(options: options, client: client)

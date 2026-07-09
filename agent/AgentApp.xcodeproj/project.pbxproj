@@ -17,6 +17,9 @@
 		AA0000000000000000C3 /* TapHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000C2 /* TapHandlerTests.swift */; };
 		AA0000000000000000C5 /* ButtonHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000C4 /* ButtonHandler.swift */; };
 		AA0000000000000000C7 /* ButtonHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000C6 /* ButtonHandlerTests.swift */; };
+		AA0000000000000000C9 /* BatchHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000C8 /* BatchHandlerTests.swift */; };
+		AA0000000000000000D1 /* AgentConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D0 /* AgentConfig.swift */; };
+		AA0000000000000000D3 /* AgentConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D2 /* AgentConfigTests.swift */; };
 		AA000000000000000005 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000006 /* HTTPServer.swift */; };
 		AA000000000000000007 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000008 /* HTTPParser.swift */; };
 		AA000000000000000009 /* HTTPResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000A /* HTTPResponse.swift */; };
@@ -79,6 +82,9 @@
 		AA0000000000000000C2 /* TapHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapHandlerTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000C4 /* ButtonHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonHandler.swift; sourceTree = "<group>"; };
 		AA0000000000000000C6 /* ButtonHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonHandlerTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000C8 /* BatchHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchHandlerTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000D0 /* AgentConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfig.swift; sourceTree = "<group>"; };
+		AA0000000000000000D2 /* AgentConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigTests.swift; sourceTree = "<group>"; };
 		AA000000000000000006 /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
 		AA000000000000000008 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
 		AA00000000000000000A /* HTTPResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPResponse.swift; sourceTree = "<group>"; };
@@ -172,6 +178,8 @@
 				AA0000000000000000C0 /* HTTPParserTests.swift */,
 				AA0000000000000000C2 /* TapHandlerTests.swift */,
 				AA0000000000000000C6 /* ButtonHandlerTests.swift */,
+				AA0000000000000000C8 /* BatchHandlerTests.swift */,
+				AA0000000000000000D2 /* AgentConfigTests.swift */,
 				AA000000000000000044 /* AgentUITests-Bridging-Header.h */,
 				AA000000000000000055 /* Server */,
 				AA000000000000000056 /* Handlers */,
@@ -200,6 +208,7 @@
 		AA000000000000000055 /* Server */ = {
 			isa = PBXGroup;
 			children = (
+				AA0000000000000000D0 /* AgentConfig.swift */,
 				AA000000000000000006 /* HTTPServer.swift */,
 				AA000000000000000008 /* HTTPParser.swift */,
 				AA00000000000000000A /* HTTPResponse.swift */,
@@ -345,6 +354,9 @@
 				AA0000000000000000C3 /* TapHandlerTests.swift in Sources */,
 				AA0000000000000000C5 /* ButtonHandler.swift in Sources */,
 				AA0000000000000000C7 /* ButtonHandlerTests.swift in Sources */,
+				AA0000000000000000C9 /* BatchHandlerTests.swift in Sources */,
+				AA0000000000000000D3 /* AgentConfigTests.swift in Sources */,
+				AA0000000000000000D1 /* AgentConfig.swift in Sources */,
 				AA000000000000000005 /* HTTPServer.swift in Sources */,
 				AA000000000000000007 /* HTTPParser.swift in Sources */,
 				AA000000000000000009 /* HTTPResponse.swift in Sources */,

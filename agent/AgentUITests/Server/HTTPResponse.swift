@@ -60,6 +60,7 @@ enum HTTPResponseBuilder {
         switch status {
         case 200: return "OK"
         case 400: return "Bad Request"
+        case 401: return "Unauthorized"
         case 404: return "Not Found"
         case 408: return "Request Timeout"
         case 413: return "Payload Too Large"

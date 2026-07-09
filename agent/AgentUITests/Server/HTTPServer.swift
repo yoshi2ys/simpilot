@@ -8,7 +8,7 @@ final class HTTPServer {
     /// (e.g. `wait --timeout 60`) are unaffected.
     private static let requestTimeout: TimeInterval = 30
 
-    private let port: UInt16
+    private let config: AgentConfig
     private let listener: NWListener
     /// Serial by construction (no `.concurrent` attribute). Every connection
     /// callback, the per-connection `RequestAccumulator` mutation, and the
@@ -18,27 +18,39 @@ final class HTTPServer {
     private let queue = DispatchQueue(label: "com.simpilot.httpserver", qos: .userInitiated)
     private let router: Router
 
-    init(port: UInt16) {
-        self.port = port
-        self.router = Router()
+    init(config: AgentConfig) {
+        self.config = config
+        self.router = Router(config: config)
 
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
-        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
-            fatalError("[simpilot] Invalid port: \(port)")
+        guard let nwPort = NWEndpoint.Port(rawValue: config.port) else {
+            fatalError("[simpilot] Invalid port: \(config.port)")
         }
         do {
-            self.listener = try NWListener(using: params, on: nwPort)
+            switch config.bind {
+            case .loopback:
+                // Pinning `requiredLocalEndpoint` binds the socket to 127.0.0.1
+                // in the kernel, which `lsof` can confirm. `requiredInterfaceType
+                // = .loopback` leaves a wildcard bind in place and only filters
+                // at accept time, so it is not used here.
+                params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: nwPort)
+                self.listener = try NWListener(using: params)
+            case .all:
+                // `AgentConfig.resolve` guarantees a token accompanies this mode.
+                self.listener = try NWListener(using: params, on: nwPort)
+            }
         } catch {
             fatalError("[simpilot] Failed to create listener: \(error)")
         }
     }
 
     func start() {
-        listener.stateUpdateHandler = { state in
+        listener.stateUpdateHandler = { [config] state in
             switch state {
             case .ready:
-                print("[simpilot] HTTP server listening on port \(self.port)")
+                print("[simpilot] HTTP server listening on \(config.bind.rawValue) port \(config.port)"
+                    + " (auth: \(config.token == nil ? "off" : "token"))")
             case .failed(let error):
                 print("[simpilot] Listener failed: \(error)")
             default:
@@ -93,6 +105,13 @@ final class HTTPServer {
                 // Cancel before the (possibly slow) handler runs so the receive
                 // deadline can't fire mid-handling.
                 deadline.cancel()
+                // Authenticate at the socket boundary, beside the parser's own
+                // `.reject` responses — not inside `Router`, whose `handleDirect`
+                // would then have to be a documented unauthenticated exception.
+                guard self.isAuthorized(request) else {
+                    self.send(Self.unauthorizedResponse, on: connection)
+                    return
+                }
                 self.send(self.router.handle(request), on: connection)
             case .reject(let status, let code, let message):
                 deadline.cancel()
@@ -107,6 +126,22 @@ final class HTTPServer {
             }
         }
     }
+
+    /// True when the agent has no token (loopback-only, nothing to guard) or the
+    /// request carries the right one.
+    private func isAuthorized(_ request: HTTPRequest) -> Bool {
+        guard let token = config.token else { return true }
+        return TokenAuth.matches(
+            expected: token,
+            provided: HTTPParser.headerValue(TokenAuth.headerName, in: request.headers)
+        )
+    }
+
+    private static let unauthorizedResponse = HTTPResponseBuilder.error(
+        "Missing or invalid \(TokenAuth.headerName) header",
+        code: "unauthorized",
+        status: 401
+    )
 
     private func send(_ response: Data, on connection: NWConnection) {
         connection.send(content: response, completion: .contentProcessed { _ in

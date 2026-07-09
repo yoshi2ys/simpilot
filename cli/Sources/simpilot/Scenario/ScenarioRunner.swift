@@ -89,15 +89,20 @@ enum ScenarioRunner {
 
     /// Attempt to capture a screenshot for failure diagnostics.
     /// Returns the file path on success, nil on failure (best-effort).
+    /// File name for a failure screenshot: the scenario name with path- and
+    /// shell-hostile characters folded to `_`, plus the 1-based step number.
+    static func failureScreenshotFileName(scenarioName: String, stepIndex: Int) -> String {
+        let safeName = scenarioName
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+        return "\(safeName)_step\(stepIndex + 1).png"
+    }
+
     private static func captureFailureScreenshot(
         client: HTTPClient, config: ScenarioConfig,
         scenarioName: String, stepIndex: Int
     ) -> String? {
-        // Sanitize scenario name for filesystem
-        let safeName = scenarioName
-            .replacingOccurrences(of: " ", with: "_")
-            .replacingOccurrences(of: "/", with: "_")
-        let fileName = "\(safeName)_step\(stepIndex + 1).png"
+        let fileName = failureScreenshotFileName(scenarioName: scenarioName, stepIndex: stepIndex)
         let filePath = (config.screenshotDir as NSString).appendingPathComponent(fileName)
 
         // Ensure directory exists

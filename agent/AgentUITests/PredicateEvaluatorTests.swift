@@ -20,6 +20,7 @@ final class PredicateEvaluatorTests: XCTestCase {
             centerY: 100,
             frame: (x: 0, y: 0, w: 200, h: 44),
             enabled: enabled,
+            matchCount: 1,
             hittable: hittable
         )
     }

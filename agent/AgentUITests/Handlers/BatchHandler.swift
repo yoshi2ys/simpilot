@@ -1,5 +1,11 @@
 import Foundation
 
+/// Rejection reason for a malformed `command["params"]` value (A16).
+struct BatchParamError: Error {
+    let code: String
+    let message: String
+}
+
 final class BatchHandler {
     private let router: Router
 
@@ -38,11 +44,18 @@ final class BatchHandler {
                 continue
             }
 
-            // Build query string from params
-            var fullPath = path
-            if let params = command["params"] as? [String: String], !params.isEmpty {
-                let queryString = params.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-                fullPath += "?\(queryString)"
+            let subQueryParams: [String: String]
+            switch Self.queryParams(from: command["params"]) {
+            case .success(let params):
+                subQueryParams = params
+            case .failure(let failure):
+                let errResult: [String: Any] = ["success": false, "data": NSNull(),
+                    "error": ["code": failure.code, "message": failure.message],
+                    "duration_ms": 0]
+                results.append(errResult)
+                failed += 1
+                if stopOnError { stopped = true }
+                continue
             }
 
             // Build body data
@@ -55,7 +68,7 @@ final class BatchHandler {
             let subRequest = HTTPRequest(
                 method: method,
                 path: path,
-                queryParams: parseQueryParams(from: fullPath),
+                queryParams: subQueryParams,
                 headers: request.headers,
                 body: bodyData
             )
@@ -94,17 +107,53 @@ final class BatchHandler {
         ])
     }
 
-    private func parseQueryParams(from path: String) -> [String: String] {
-        guard let queryStart = path.firstIndex(of: "?") else { return [:] }
-        let queryString = String(path[path.index(after: queryStart)...])
-        var params: [String: String] = [:]
-        for pair in queryString.components(separatedBy: "&") {
-            let parts = pair.components(separatedBy: "=")
-            if parts.count == 2 {
-                params[parts[0]] = parts[1].removingPercentEncoding ?? parts[1]
+    /// Coerces a decoded `command["params"]` value into query params without
+    /// a string round-trip, so `=`/`&` inside a value can't corrupt it (A16).
+    /// An absent key — or an explicit JSON `null`, which clients emit for an
+    /// unset optional — means no params. A present non-dictionary, or a
+    /// dictionary value that isn't a string/number/bool, is rejected loudly
+    /// rather than silently dropped.
+    static func queryParams(from raw: Any?) -> Result<[String: String], BatchParamError> {
+        // JSONSerialization decodes `null` to NSNull(), not Swift nil, so
+        // `guard let` alone would let it fall through to the dictionary cast
+        // and reject a perfectly valid `"params": null`.
+        guard let raw, !(raw is NSNull) else { return .success([:]) }
+        guard let dict = raw as? [String: Any] else {
+            return .failure(BatchParamError(code: "invalid_command", message: "'params' must be an object"))
+        }
+        var result: [String: String] = [:]
+        for (key, value) in dict {
+            switch value {
+            case let string as String:
+                result[key] = string
+            case let number as NSNumber:
+                result[key] = queryValue(for: number)
+            default:
+                return .failure(BatchParamError(code: "invalid_command", message: "params.\(key) must be a string, number, or boolean"))
             }
         }
-        return params
+        return .success(result)
+    }
+
+    /// Render a JSON number the way the receiving handler will parse it.
+    ///
+    /// Handlers read integer params with `Int(_:)`, which returns nil for
+    /// `"1.0"` — so a client (or an LLM) writing `{"level": 1.0}` would have its
+    /// filter silently ignored. Any float with no fractional part is therefore
+    /// rendered as an integer; `Double("1")` still parses for the genuinely
+    /// fractional params.
+    private static func queryValue(for number: NSNumber) -> String {
+        if CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return number.boolValue ? "true" : "false"
+        }
+        if CFNumberIsFloatType(number) {
+            let value = number.doubleValue
+            guard value == value.rounded(), let exact = Int64(exactly: value) else {
+                return String(value)
+            }
+            return String(exact)
+        }
+        return String(number.int64Value)
     }
 
     private func extractJSON(from httpResponse: Data) -> [String: Any]? {

@@ -37,13 +37,24 @@ enum SimctlHelper {
     /// `SIMPILOT_DEFAULT_DEVICE` is set.
     static func firstBootedDevice() throws -> (udid: String, name: String)? {
         try findFirstDevice { _, device in
-            guard let state = device["state"] as? String, state == "Booted",
-                  let name = device["name"] as? String,
-                  let udid = device["udid"] as? String else {
+            guard let udid = bootedUDID(device), let name = device["name"] as? String else {
                 return nil
             }
             return (udid: udid, name: name)
         }?.device
+    }
+
+    /// Every booted simulator's UDID. Used by `simpilot stop --all` to sweep
+    /// agent runners the registry never knew about.
+    static func bootedDeviceUDIDs() throws -> [String] {
+        try findAllDevices { _, device in bootedUDID(device) }
+    }
+
+    /// The one definition of "this simulator is booted", shared by both lookups
+    /// above so they cannot disagree.
+    private static func bootedUDID(_ device: [String: Any]) -> String? {
+        guard device["state"] as? String == "Booted" else { return nil }
+        return device["udid"] as? String
     }
 
     /// Reverse-lookup a simulator UDID to its human-readable name. Returns
@@ -76,6 +87,16 @@ enum SimctlHelper {
             }
         }
         return nil
+    }
+
+    /// `findFirstDevice`'s collect-them-all sibling, for lookups that need every
+    /// match rather than the first.
+    private static func findAllDevices<T>(
+        where predicate: (_ runtime: String, _ device: [String: Any]) -> T?
+    ) throws -> [T] {
+        try listDevicesByRuntime().flatMap { runtime, devices in
+            devices.compactMap { predicate(runtime, $0) }
+        }
     }
 
     private static func listDevicesByRuntime() throws -> [String: [[String: Any]]] {
@@ -123,6 +144,31 @@ enum SimctlHelper {
     }
 
     /// Shutdown and delete a created simulator device.
+    /// Bundle identifier of the XCUITest runner app Xcode installs on the
+    /// simulator: the UI-test target's bundle id with `.xctrunner` appended.
+    ///
+    /// The runner is what actually holds the agent's listening socket. It is
+    /// parented by the simulator's `launchd_sim`, not by `xcodebuild`, so
+    /// SIGTERMing `xcodebuild` alone leaves it running and holding the port.
+    static let runnerBundleID = "dev.yoshi.simpilot.AgentUITests.xctrunner"
+
+    /// Best-effort shutdown of the runner app on `udid`. Returns whether the
+    /// runner was actually running: `simctl terminate` exits non-zero when the
+    /// app is not, and when the device is gone.
+    @discardableResult
+    static func terminateRunner(udid: String) -> Bool {
+        (try? run(["simctl", "terminate", udid, runnerBundleID])) != nil
+    }
+
+    /// Terminate leftover agent runners on every booted simulator except the
+    /// ones already torn down. Scoped by bundle identifier, so unlike a
+    /// `pgrep -f` sweep it cannot touch another project's test runner.
+    /// Returns the UDIDs where a runner was actually killed.
+    static func terminateOrphanRunners(excluding knownUDIDs: Set<String>) -> [String] {
+        let booted = (try? bootedDeviceUDIDs()) ?? []
+        return booted.filter { !knownUDIDs.contains($0) && terminateRunner(udid: $0) }
+    }
+
     static func deleteClone(udid: String) {
         shutdownDevice(udid: udid)
         try? deleteDevice(udid: udid)

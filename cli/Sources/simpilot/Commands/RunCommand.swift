@@ -14,7 +14,7 @@ enum RunCommand: SimpilotCommand {
     static let category: HelpCommands.Category = .utility
     static let synopsis = "run <file> [--json] [--var <key=val,...>] [--timeout <s>] [--screenshot-dir <path>]"
     static let description = "Run a YAML scenario file with assertions"
-    static let example = "simpilot run test.yml --json"
+    static let example = "simpilot run test.yaml --json"
 
     static func run(context: RunContext) throws {
         let parsed = try ArgParser.parse(context.args, spec: argSpec)

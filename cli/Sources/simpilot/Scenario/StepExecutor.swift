@@ -137,12 +137,15 @@ enum StepExecutor {
         return try parseResponse(data)
     }
 
-    private static func computeHTTPTimeout(config: ScenarioConfig, stepTimeout: Double?) -> TimeInterval {
+    /// The HTTP deadline must outlast whatever budget the agent was given for
+    /// the step, or a legitimately slow operation is aborted client-side and
+    /// misreported as an unreachable agent (A5).
+    static func computeHTTPTimeout(config: ScenarioConfig, stepTimeout: Double?) -> TimeInterval {
         let logical = max(config.timeout, stepTimeout ?? config.timeout)
         return logical + HTTPClient.operationBuffer // buffer for network/processing
     }
 
-    private static func parseResponse(_ data: Data) throws -> [String: Any] {
+    static func parseResponse(_ data: Data) throws -> [String: Any] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             let body = String(data: data, encoding: .utf8) ?? "<non-UTF-8 data>"
             throw NSError(domain: "simpilot", code: 1, userInfo: [
