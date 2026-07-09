@@ -77,4 +77,9 @@ struct RunResult {
     var totalPassed: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .passed } }
     var totalFailed: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .failed } }
     var totalSkipped: Int { scenarioResults.flatMap(\.stepResults).count { $0.status == .skipped } }
+
+    /// Process exit status for `simpilot run`. Hoisted out of `RunCommand` so
+    /// the mapping can be tested without calling `exit(_:)`. Skipped steps are
+    /// a consequence of a failure, so they do not add a second failure signal.
+    var exitCode: Int32 { totalFailed > 0 ? 2 : 0 }
 }

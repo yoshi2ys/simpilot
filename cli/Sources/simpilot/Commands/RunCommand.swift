@@ -71,8 +71,8 @@ enum RunCommand: SimpilotCommand {
         // Exit directly — the report already contains all failure details.
         // Throwing CLIError.commandFailed would produce a second JSON envelope
         // on stdout, corrupting --json output and confusing terminal mode.
-        if result.totalFailed > 0 {
-            exit(2)
+        if result.exitCode != 0 {
+            exit(result.exitCode)
         }
     }
 }

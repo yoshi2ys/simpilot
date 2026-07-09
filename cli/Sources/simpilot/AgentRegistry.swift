@@ -58,8 +58,15 @@ struct AgentRecord: Codable {
 
 enum AgentRegistry {
 
+    /// Where the registry lives. `SIMPILOT_HOME` relocates it — read through
+    /// `getenv` rather than `ProcessInfo.environment`, which snapshots on first
+    /// access, so a test can point it at a temp directory instead of clobbering
+    /// the developer's real `~/.simpilot`.
     private static var dirURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".simpilot")
+        if let raw = getenv("SIMPILOT_HOME"), let path = String(validatingCString: raw), !path.isEmpty {
+            return URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".simpilot")
     }
 
     private static var fileURL: URL {
@@ -185,8 +192,24 @@ enum AgentRegistry {
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
     }
 
+    /// Register an agent. Fails if the port is already claimed.
+    ///
+    /// `findAvailablePort` cannot hold the lock across the minute-long
+    /// `xcodebuild` launch, so two cold `start`s can pick the same port. Only
+    /// one of their agents will manage to bind it; this check makes the loser
+    /// fail here, loudly, instead of writing a second record for a port that
+    /// `stop --port` and `Simpilot.main` both assume is unique.
     static func add(_ record: AgentRecord) throws {
-        try mutate { $0.append(record) }
+        try mutate { records -> Result<Void, CLIError> in
+            if let claimant = records.first(where: { $0.port == record.port }) {
+                return .failure(.commandFailed(
+                    "Port \(record.port) is already claimed by an agent on '\(claimant.device)' "
+                    + "— run `simpilot stop --port \(record.port)` first"
+                ))
+            }
+            records.append(record)
+            return .success(())
+        }.get()
     }
 
     static func remove(port: Int) throws -> AgentRecord? {

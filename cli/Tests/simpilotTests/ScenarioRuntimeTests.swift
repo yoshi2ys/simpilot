@@ -150,4 +150,60 @@ final class ScenarioRuntimeTests: XCTestCase {
         XCTAssertEqual(result.totalFailed, 0)
         XCTAssertTrue(result.scenarioResults[0].passed)
     }
+
+    // MARK: - Exit code
+
+    func testExitCodeIsTwoOnlyWhenAStepFailed() {
+        let passing = ScenarioRunner.run(file: scenarioFile(of: .sleep(seconds: 0)), client: unreachableClient())
+        XCTAssertEqual(passing.exitCode, 0)
+
+        let failing = ScenarioRunner.run(file: scenarioFile(of: Self.failingStep), client: unreachableClient())
+        XCTAssertEqual(failing.exitCode, 2)
+        XCTAssertEqual(failing.totalSkipped, 2, "skipped steps exist here…")
+        XCTAssertEqual(failing.exitCode, 2, "…but they must not add a second failure signal")
+    }
+
+    // MARK: - RunReporter --json wire shape
+
+    func testReportJSONCarriesTheCountsAndPerStepDetail() throws {
+        let result = ScenarioRunner.run(file: scenarioFile(of: Self.failingStep), client: unreachableClient())
+        let json = RunReporter.buildJSON(result)
+
+        XCTAssertEqual(json["success"] as? Bool, false, "a failed run must not envelope as success")
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        XCTAssertEqual(data["file"] as? String, "t.yaml")
+        XCTAssertEqual(data["total_passed"] as? Int, 0)
+        XCTAssertEqual(data["total_failed"] as? Int, 1)
+        XCTAssertEqual(data["total_skipped"] as? Int, 2)
+        XCTAssertNotNil(data["duration_ms"] as? Int)
+
+        let scenarios = try XCTUnwrap(data["scenarios"] as? [[String: Any]])
+        XCTAssertEqual(scenarios.count, 1)
+        XCTAssertEqual(scenarios[0]["name"] as? String, "s")
+        XCTAssertEqual(scenarios[0]["passed"] as? Bool, false)
+
+        let steps = try XCTUnwrap(scenarios[0]["steps"] as? [[String: Any]])
+        XCTAssertEqual(steps.map { $0["status"] as? String }, ["failed", "skipped", "skipped"])
+        XCTAssertTrue((steps[0]["error"] as? String ?? "").contains("agent unreachable"))
+        XCTAssertNil(steps[1]["error"], "a skipped step has no error of its own")
+    }
+
+    func testReportJSONSucceedsWhenEveryStepPassed() throws {
+        let result = ScenarioRunner.run(file: scenarioFile(of: .sleep(seconds: 0)), client: unreachableClient())
+        let json = RunReporter.buildJSON(result)
+        XCTAssertEqual(json["success"] as? Bool, true)
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        XCTAssertEqual(data["total_failed"] as? Int, 0)
+    }
+
+    func testReportJSONIsSerializable() throws {
+        let result = ScenarioRunner.run(file: scenarioFile(of: .sleep(seconds: 0)), client: unreachableClient())
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(RunReporter.buildJSON(result)))
+        XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: RunReporter.buildJSON(result)))
+    }
+
+    func testStepLabelNamesTheActionAndItsTarget() {
+        XCTAssertTrue(RunReporter.stepLabel(.tap(query: "Login", waitUntil: nil, timeout: nil)).contains("Login"))
+        XCTAssertTrue(RunReporter.stepLabel(.sleep(seconds: 1.5)).lowercased().contains("sleep"))
+    }
 }

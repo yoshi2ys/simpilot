@@ -307,26 +307,29 @@ struct Simpilot {
         }
     }
 
-    private static func handleCLIError(_ error: CLIError) -> Never {
+    /// The error envelope and exit status for a `CLIError`. Pure, so the
+    /// mapping can be tested — `handleCLIError` itself calls `exit(_:)` and
+    /// cannot be. `agent_timeout` (4) must stay distinct from
+    /// `agent_unreachable` (1): the first means "retry with a longer budget",
+    /// the second means "there is no agent there".
+    static func envelope(for error: CLIError) -> (code: String, message: String, status: Int32) {
         switch error {
         case .agentUnreachable(let url):
-            printError(code: "agent_unreachable", message: "Cannot connect to agent at \(url)")
-            exit(1)
+            return ("agent_unreachable", "Cannot connect to agent at \(url)", 1)
         case .agentTimeout(let url, let seconds):
-            printError(
-                code: "agent_timeout",
-                message: "Agent at \(url) did not respond within \(Int(seconds))s"
-            )
-            exit(4)
+            return ("agent_timeout", "Agent at \(url) did not respond within \(Int(seconds))s", 4)
         case .invalidArgs(let msg):
-            printError(code: "invalid_args", message: msg)
-            exit(3)
+            return ("invalid_args", msg, 3)
         case .commandFailed(let msg):
-            printError(code: "command_failed", message: msg)
-            exit(2)
+            return ("command_failed", msg, 2)
         case .invalidURL(let url):
-            printError(code: "invalid_args", message: "Invalid URL: \(url)")
-            exit(3)
+            return ("invalid_args", "Invalid URL: \(url)", 3)
         }
+    }
+
+    private static func handleCLIError(_ error: CLIError) -> Never {
+        let (code, message, status) = envelope(for: error)
+        printError(code: code, message: message)
+        exit(status)
     }
 }
