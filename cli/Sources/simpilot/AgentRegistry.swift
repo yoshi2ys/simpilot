@@ -108,11 +108,31 @@ enum AgentRegistry {
 
     private static func createDirectory() throws {
         do {
-            try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: dirURL,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
         } catch {
             throw CLIError.commandFailed(
                 "Failed to create \(dirURL.path): \(error.localizedDescription)"
             )
+        }
+        // The directory, not just `agents.json`, is the security boundary: it
+        // holds agent tokens and sits one traversal below the user's home, which
+        // `createDirectory` leaves at the umask default (0755). At 0700 other
+        // local users can't enter, so the token file is unreachable regardless of
+        // its own mode — including the brief 0644 window a fresh atomic write
+        // opens before the file is re-restricted.
+        //
+        // `attributes:` above sets 0700 on a directory this call *creates* — safe
+        // everywhere, since we made it. Tightening a *pre-existing* one is scoped
+        // to the default `~/.simpilot`: a `SIMPILOT_HOME` the caller pointed at a
+        // shared directory (`/tmp`, `$HOME`) must not be chmod'd out from under
+        // whatever else lives there. A dir we just created is already 0700, so
+        // this only re-tightens a `~/.simpilot` that predates this fix.
+        if getenv("SIMPILOT_HOME") == nil {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dirURL.path)
         }
     }
 
@@ -187,8 +207,11 @@ enum AgentRegistry {
                 "Failed to write agent registry at \(fileURL.path): \(error.localizedDescription)"
             )
         }
-        // `.atomic` writes land via a temp file whose mode ignores the original,
-        // so the token-bearing registry is re-restricted on every save.
+        // Defense in depth behind the 0700 directory: keep the token file itself
+        // owner-only. A first `.atomic` write lands at the umask default (0755 →
+        // 0644) since there is no prior file to inherit from; a later one over an
+        // existing 0600 file preserves it. Best-effort — the directory mode is the
+        // load-bearing guarantee, so a failure here is not a token exposure.
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
     }
 
