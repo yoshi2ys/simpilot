@@ -27,18 +27,20 @@ final class BatchHandler {
 
         for command in commands {
             if stopped {
-                results.append(["success": false, "data": NSNull(),
-                              "error": ["code": "skipped", "message": "Skipped due to previous error"],
-                              "duration_ms": 0])
+                results.append(Self.failureResult(code: "skipped", message: "Skipped due to previous error"))
                 continue
             }
 
             guard let method = command["method"] as? String,
                   let path = command["path"] as? String else {
-                let errResult: [String: Any] = ["success": false, "data": NSNull(),
-                    "error": ["code": "invalid_command", "message": "Missing method or path"],
-                    "duration_ms": 0]
-                results.append(errResult)
+                results.append(Self.failureResult(code: "invalid_command", message: "Missing method or path"))
+                failed += 1
+                if stopOnError { stopped = true }
+                continue
+            }
+
+            guard !Self.isNestedBatch(method: method, path: path) else {
+                results.append(Self.failureResult(code: "invalid_command", message: "Nested /batch is not allowed"))
                 failed += 1
                 if stopOnError { stopped = true }
                 continue
@@ -49,10 +51,7 @@ final class BatchHandler {
             case .success(let params):
                 subQueryParams = params
             case .failure(let failure):
-                let errResult: [String: Any] = ["success": false, "data": NSNull(),
-                    "error": ["code": failure.code, "message": failure.message],
-                    "duration_ms": 0]
-                results.append(errResult)
+                results.append(Self.failureResult(code: failure.code, message: failure.message))
                 failed += 1
                 if stopOnError { stopped = true }
                 continue
@@ -90,16 +89,39 @@ final class BatchHandler {
                     if stopOnError { stopped = true }
                 }
             } else {
-                let errResult: [String: Any] = ["success": false, "data": NSNull(),
-                    "error": ["code": "parse_error", "message": "Failed to parse sub-command response"],
-                    "duration_ms": durationMs]
-                results.append(errResult)
+                results.append(Self.failureResult(
+                    code: "parse_error",
+                    message: "Failed to parse sub-command response",
+                    durationMs: durationMs
+                ))
                 failed += 1
                 if stopOnError { stopped = true }
             }
         }
 
         return Self.summarize(results: results, completed: completed, failed: failed)
+    }
+
+    /// Whether a batch sub-command would re-enter the batch route.
+    ///
+    /// `POST /batch` routes through `handleDirect`, so a batch nested in a command
+    /// re-enters `handle` on the same thread; a deeply nested payload recurses
+    /// until the agent's stack is exhausted and it crashes. A batch inside a
+    /// batch has no use — it exists to fold many commands into one round-trip —
+    /// so `handle` rejects it. Matched on method *and* path so it names exactly
+    /// the recursion vector: `GET /batch` or `/batch?x` are not it — they miss
+    /// `handleDirect`'s exact-key lookup and 404 on their own.
+    static func isNestedBatch(method: String, path: String) -> Bool {
+        method == "POST" && path == "/batch"
+    }
+
+    /// A batch sub-result envelope for a command that never reached its handler.
+    /// Matches the `{success, data, error, duration_ms}` shape a real sub-command
+    /// response carries, so `summarize` and the CLI see one consistent schema.
+    static func failureResult(code: String, message: String, durationMs: Int = 0) -> [String: Any] {
+        ["success": false, "data": NSNull(),
+         "error": ["code": code, "message": message],
+         "duration_ms": durationMs]
     }
 
     /// Whether a sub-command's envelope reports success.

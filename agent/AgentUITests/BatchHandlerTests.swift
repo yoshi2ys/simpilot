@@ -116,6 +116,32 @@ final class BatchHandlerTests: XCTestCase {
         XCTAssertTrue(failure.message.contains("level"))
     }
 
+    // MARK: - isNestedBatch (A35): a batch may not nest a batch
+
+    func test_isNestedBatch_matchesOnlyThePostBatchRoute() {
+        XCTAssertTrue(BatchHandler.isNestedBatch(method: "POST", path: "/batch"))
+        // Everything else misses `handleDirect`'s exact `method + path` lookup and
+        // 404s on its own — it is not the recursion vector. `GET /batch` included:
+        // no such route exists, so calling it "nested batch" would misdiagnose it.
+        let notNested = [("GET", "/batch"), ("POST", "/batch?foo=bar"),
+                         ("POST", "/batchx"), ("POST", "/foo/batch"), ("POST", "/tap")]
+        for (method, path) in notNested {
+            XCTAssertFalse(BatchHandler.isNestedBatch(method: method, path: path), "wrongly flagged \(method) \(path)")
+        }
+    }
+
+    // MARK: - failureResult (A35): one shape for a command that never ran
+
+    func test_failureResult_hasTheStandardEnvelopeShape() {
+        let result = BatchHandler.failureResult(code: "invalid_command", message: "nope", durationMs: 7)
+        XCTAssertEqual(result["success"] as? Bool, false)
+        XCTAssertTrue(result["data"] is NSNull)
+        XCTAssertEqual(result["duration_ms"] as? Int, 7)
+        let error = result["error"] as? [String: Any]
+        XCTAssertEqual(error?["code"] as? String, "invalid_command")
+        XCTAssertEqual(error?["message"] as? String, "nope")
+    }
+
     // MARK: - subCommandSucceeded (A34): only an explicit `true` is a success
 
     func test_subCommandSucceeded_explicitTrue() {
@@ -153,9 +179,10 @@ final class BatchHandlerTests: XCTestCase {
         ["success": true, "data": NSNull(), "error": NSNull(), "duration_ms": 1]
     }
 
+    /// Built through the production helper so a change to the sub-result shape
+    /// can't leave the fixtures behind.
     private func failedResult() -> [String: Any] {
-        ["success": false, "data": NSNull(),
-         "error": ["code": "element_not_found", "message": "no such element"], "duration_ms": 1]
+        BatchHandler.failureResult(code: "element_not_found", message: "no such element", durationMs: 1)
     }
 
     func test_summarize_allSucceeded_reportsSuccess() throws {
@@ -210,8 +237,7 @@ final class BatchHandlerTests: XCTestCase {
     /// to `total_commands`; a caller filtering `results` on `success == false`
     /// would otherwise count 3 failures where the envelope claims 1.
     func test_summarize_reportsSkippedSeparatelyFromFailed() throws {
-        let skipped: [String: Any] = ["success": false, "data": NSNull(),
-            "error": ["code": "skipped", "message": "Skipped due to previous error"], "duration_ms": 0]
+        let skipped = BatchHandler.failureResult(code: "skipped", message: "Skipped due to previous error")
         let (_, json) = try envelope(
             of: BatchHandler.summarize(results: [failedResult(), skipped, skipped], completed: 0, failed: 1)
         )
