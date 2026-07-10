@@ -152,21 +152,82 @@ enum SimctlHelper {
     /// SIGTERMing `xcodebuild` alone leaves it running and holding the port.
     static let runnerBundleID = "dev.yoshi.simpilot.AgentUITests.xctrunner"
 
-    /// Best-effort shutdown of the runner app on `udid`. Returns whether the
-    /// runner was actually running: `simctl terminate` exits non-zero when the
-    /// app is not, and when the device is gone.
-    @discardableResult
-    static func terminateRunner(udid: String) -> Bool {
-        (try? run(["simctl", "terminate", udid, runnerBundleID])) != nil
+    /// Best-effort shutdown of the runner app on `udid`. `simctl terminate` exits
+    /// non-zero when the app is not running and when the device is gone; no
+    /// caller can act on either, so the result is dropped.
+    static func terminateRunner(udid: String) {
+        _ = try? run(["simctl", "terminate", udid, runnerBundleID])
     }
 
-    /// Terminate leftover agent runners on every booted simulator except the
-    /// ones already torn down. Scoped by bundle identifier, so unlike a
-    /// `pgrep -f` sweep it cannot touch another project's test runner.
-    /// Returns the UDIDs where a runner was actually killed.
-    static func terminateOrphanRunners(excluding knownUDIDs: Set<String>) -> [String] {
+    /// Best-effort removal of the runner app from `udid`.
+    ///
+    /// `terminate` frees the port but leaves the app installed, and `launchd_sim`
+    /// goes on relaunching it in the background for hours. Only `xcodebuild test`
+    /// puts `XCTest.framework` on the runner's search path, so every one of those
+    /// background launches aborts in dyld with `Library not loaded:
+    /// @rpath/XCTest.framework/XCTest` — and macOS raises a "quit unexpectedly"
+    /// dialog for each. `start` reinstalls the runner (it runs `xcodebuild test`,
+    /// not `test-without-building`), so removing it here is not a cost.
+    static func uninstallRunner(udid: String) {
+        _ = try? run(["simctl", "uninstall", udid, runnerBundleID])
+    }
+
+    /// Whether the runner app is installed on `udid`.
+    ///
+    /// `simctl uninstall` exits 0 whether or not the app was there, so it cannot
+    /// report what it removed; `simctl get_app_container` exits non-zero only
+    /// when the app is absent.
+    static func isRunnerInstalled(udid: String) -> Bool {
+        (try? run(["simctl", "get_app_container", udid, runnerBundleID])) != nil
+    }
+
+    /// The simulator-side teardown a runner needs, as data. Kept separate from
+    /// `teardownRunner` so the branching is unit-testable without shelling out.
+    enum TeardownStep: Equatable {
+        case terminateRunner
+        case uninstallRunner
+        case deleteClone
+    }
+
+    /// Physical devices are driven by `devicectl`, so no `simctl` step applies to
+    /// them. Removal and deletion are mutually exclusive: a `--clone`/`--create`
+    /// device is deleted outright, which takes the runner app with it, so
+    /// uninstalling it first would be wasted work.
+    static func teardownSteps(udid: String, isPhysical: Bool, isClone: Bool) -> [TeardownStep] {
+        guard !isPhysical, !udid.isEmpty else { return [] }
+        return [.terminateRunner, isClone ? .deleteClone : .uninstallRunner]
+    }
+
+    /// Tear down the simulator-side half of an agent. The single place that
+    /// knows what "removing a runner" means, so `stop`, `start`'s rollback, and
+    /// the orphan sweep cannot drift apart.
+    static func teardownRunner(udid: String, isPhysical: Bool, isClone: Bool) {
+        for step in teardownSteps(udid: udid, isPhysical: isPhysical, isClone: isClone) {
+            switch step {
+            case .terminateRunner: terminateRunner(udid: udid)
+            case .uninstallRunner: uninstallRunner(udid: udid)
+            case .deleteClone: deleteClone(udid: udid)
+            }
+        }
+    }
+
+    /// Remove leftover agent runners from every booted simulator except the ones
+    /// already torn down. Scoped by bundle identifier, so unlike a `pgrep -f`
+    /// sweep it cannot touch another project's test runner.
+    ///
+    /// Selecting on whether `simctl terminate` found something to kill would miss
+    /// the very state this sweep exists to clean: a runner that `launchd_sim`
+    /// keeps relaunching into an immediate dyld abort is dead almost all the
+    /// time. Select on *installed* instead.
+    ///
+    /// Returns the UDIDs where a runner was actually removed.
+    static func sweepOrphanRunners(excluding knownUDIDs: Set<String>) -> [String] {
         let booted = (try? bootedDeviceUDIDs()) ?? []
-        return booted.filter { !knownUDIDs.contains($0) && terminateRunner(udid: $0) }
+        let orphans = booted.filter { !knownUDIDs.contains($0) && isRunnerInstalled(udid: $0) }
+        for udid in orphans {
+            teardownRunner(udid: udid, isPhysical: false, isClone: false)
+        }
+        return orphans
     }
 
     static func deleteClone(udid: String) {

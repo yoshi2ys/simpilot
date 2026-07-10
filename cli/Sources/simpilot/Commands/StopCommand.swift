@@ -236,9 +236,10 @@ enum StopCommand: SimpilotCommand {
         }
 
         // pgrep only ever sees the xcodebuild half. Sweep the simulator-side
-        // runners too — they outlive their xcodebuild and keep the port bound.
+        // runners too — they outlive their xcodebuild and keep the port bound,
+        // and an idle one left installed crash-loops under `launchd_sim`.
         let knownUDIDs = Set(records.filter { !$0.isPhysical }.map(\.udid))
-        let orphanRunners = SimctlHelper.terminateOrphanRunners(excluding: knownUDIDs)
+        let orphanRunners = SimctlHelper.sweepOrphanRunners(excluding: knownUDIDs)
 
         let orphanCount = orphans.count + orphanRunners.count
         let agentCountMessage: String
@@ -298,17 +299,19 @@ enum StopCommand: SimpilotCommand {
 
     // MARK: - Helpers
 
-    /// SIGTERM the `xcodebuild` process, then stop the simulator-side runner it
-    /// left behind. Killing only `xcodebuild` leaves `AgentUITests-Runner`
-    /// holding the port, so the next `start` on that port fails.
+    /// SIGTERM the `xcodebuild` process, then tear down the simulator-side runner
+    /// it left behind. Killing only `xcodebuild` leaves `AgentUITests-Runner`
+    /// holding the port, so the next `start` on that port fails. Terminating it
+    /// but leaving it installed is not enough either: `launchd_sim` relaunches
+    /// the app in the background, where it aborts in dyld for want of
+    /// `XCTest.framework` and pops a macOS crash dialog each time.
     private static func teardownAgent(_ record: AgentRecord) {
         kill(record.pid, SIGTERM)
-        if !record.isPhysical && !record.udid.isEmpty {
-            SimctlHelper.terminateRunner(udid: record.udid)
-        }
-        if record.isClone {
-            SimctlHelper.deleteClone(udid: record.udid)
-        }
+        SimctlHelper.teardownRunner(
+            udid: record.udid,
+            isPhysical: record.isPhysical,
+            isClone: record.isClone
+        )
     }
 
     private static func printAlreadyStoppedEnvelope(target: StopTarget, pretty: Bool) {

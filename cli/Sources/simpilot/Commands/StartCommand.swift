@@ -422,14 +422,19 @@ enum StartCommand: SimpilotCommand {
     /// for `--clone`/`--create` the device itself. Terminating only the process
     /// — which every rollback here used to do — leaves the port held by a runner
     /// with no registry record, so the next `start` silently shifts to port+1.
-    /// This mirrors `StopCommand.teardownAgent`.
+    /// A rollback that terminated the runner but left it installed would also
+    /// leave `launchd_sim` crash-looping it, so this goes through the same
+    /// `SimctlHelper.teardownRunner` as `StopCommand.teardownAgent`. A `.unknown`
+    /// target is still cleaned up by nothing here — it has no UDID until the
+    /// agent reports one, which only happens once the health check passes. The
+    /// `stop --all` orphan sweep is the backstop for that case.
     private static func rollback(process: Process, target: LaunchTarget, deleteClone: Bool = false) {
         process.terminate()
-        guard !target.isPhysical, !target.udid.isEmpty else { return }
-        SimctlHelper.terminateRunner(udid: target.udid)
-        if deleteClone {
-            SimctlHelper.deleteClone(udid: target.udid)
-        }
+        SimctlHelper.teardownRunner(
+            udid: target.udid,
+            isPhysical: target.isPhysical,
+            isClone: deleteClone
+        )
     }
 
     /// Bind mode the agent must use to be reachable from this CLI. Simulators
