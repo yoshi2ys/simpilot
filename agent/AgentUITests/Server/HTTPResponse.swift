@@ -2,21 +2,20 @@ import Foundation
 
 enum HTTPResponseBuilder {
     static func json(_ data: Any, status: Int = 200, durationMs: Double = 0) -> Data {
-        let envelope: [String: Any] = [
-            "success": true,
-            "data": data,
-            "error": NSNull(),
-            "duration_ms": Int(durationMs)
-        ]
-        return buildHTTP(jsonObject: envelope, status: status)
+        envelope(success: true, data: data, error: NSNull(), status: status, durationMs: durationMs)
     }
 
+    /// A failure envelope. `data` is `null` for the usual case, where a failed
+    /// request has nothing to report but the failure. `/batch` overrides it: the
+    /// caller must still see every sub-command's result, since one who cannot
+    /// tell *which* command failed is no better off than one who saw nothing.
     static func error(
         _ message: String,
         code: String,
         status: Int = 400,
         durationMs: Double = 0,
-        extra: [String: Any] = [:]
+        extra: [String: Any] = [:],
+        data: Any = NSNull()
     ) -> Data {
         var errorObject: [String: Any] = [
             "code": code,
@@ -27,13 +26,21 @@ enum HTTPResponseBuilder {
         for (key, value) in extra where key != "code" && key != "message" {
             errorObject[key] = value
         }
-        let envelope: [String: Any] = [
-            "success": false,
-            "data": NSNull(),
-            "error": errorObject,
-            "duration_ms": Int(durationMs)
-        ]
-        return buildHTTP(jsonObject: envelope, status: status)
+        return envelope(success: false, data: data, error: errorObject, status: status, durationMs: durationMs)
+    }
+
+    /// The one place the envelope's shape is written. `classify` on the CLI side
+    /// depends on every response having a boolean `success`.
+    private static func envelope(success: Bool, data: Any, error: Any, status: Int, durationMs: Double) -> Data {
+        buildHTTP(
+            jsonObject: [
+                "success": success,
+                "data": data,
+                "error": error,
+                "duration_ms": Int(durationMs)
+            ],
+            status: status
+        )
     }
 
     private static func buildHTTP(jsonObject: [String: Any], status: Int) -> Data {

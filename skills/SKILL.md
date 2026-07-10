@@ -121,6 +121,9 @@ simpilot batch '{"commands":[
 ]}'
 ```
 
+If any sub-command fails, the batch exits **2** with `error.code: "batch_failed"`, and
+`data.results` still lists every sub-command so you can see which one failed.
+
 ### Scroll to find off-screen elements
 
 Instead of manually looping swipe + elements, use `scroll-to` which searches in a single command:

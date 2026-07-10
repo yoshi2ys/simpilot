@@ -115,4 +115,114 @@ final class BatchHandlerTests: XCTestCase {
         XCTAssertEqual(failure.code, "invalid_command")
         XCTAssertTrue(failure.message.contains("level"))
     }
+
+    // MARK: - subCommandSucceeded (A34): only an explicit `true` is a success
+
+    func test_subCommandSucceeded_explicitTrue() {
+        XCTAssertTrue(BatchHandler.subCommandSucceeded(["success": true]))
+    }
+
+    func test_subCommandSucceeded_explicitFalse() {
+        XCTAssertFalse(BatchHandler.subCommandSucceeded(["success": false]))
+    }
+
+    /// The counting rule that decides `failed`. A sub-envelope with no boolean
+    /// `success` must not be counted as completed — that would let a batch that
+    /// did not succeed report `success: true` and exit 0.
+    func test_subCommandSucceeded_missingOrNonBooleanSuccessIsNotASuccess() {
+        XCTAssertFalse(BatchHandler.subCommandSucceeded([:]))
+        XCTAssertFalse(BatchHandler.subCommandSucceeded(["data": ["x": 1]]))
+        XCTAssertFalse(BatchHandler.subCommandSucceeded(["success": "true"]))
+        XCTAssertFalse(BatchHandler.subCommandSucceeded(["success": NSNull()]))
+    }
+
+    // MARK: - summarize (A34): sub-command failures must reach the exit code
+
+    /// The status line and envelope body of an `HTTPResponseBuilder` response.
+    private func envelope(of response: Data) throws -> (status: Int, json: [String: Any]) {
+        let text = try XCTUnwrap(String(data: response, encoding: .utf8))
+        let statusLine = try XCTUnwrap(text.components(separatedBy: "\r\n").first)
+        let status = try XCTUnwrap(Int(statusLine.components(separatedBy: " ")[1]))
+        let separator = try XCTUnwrap(text.range(of: "\r\n\r\n"))
+        let body = Data(String(text[separator.upperBound...]).utf8)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        return (status, json)
+    }
+
+    private func okResult() -> [String: Any] {
+        ["success": true, "data": NSNull(), "error": NSNull(), "duration_ms": 1]
+    }
+
+    private func failedResult() -> [String: Any] {
+        ["success": false, "data": NSNull(),
+         "error": ["code": "element_not_found", "message": "no such element"], "duration_ms": 1]
+    }
+
+    func test_summarize_allSucceeded_reportsSuccess() throws {
+        let (status, json) = try envelope(
+            of: BatchHandler.summarize(results: [okResult(), okResult()], completed: 2, failed: 0)
+        )
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["success"] as? Bool, true)
+        XCTAssertTrue(json["error"] is NSNull)
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        XCTAssertEqual(data["failed"] as? Int, 0)
+        XCTAssertEqual(data["skipped"] as? Int, 0)
+        XCTAssertEqual(data["total_commands"] as? Int, 2)
+    }
+
+    /// A34. The outer envelope used to be `success: true` no matter how many
+    /// sub-commands failed, so `simpilot batch` exited 0 and every script
+    /// gating on `$?` missed the failure.
+    ///
+    /// The 200 matters: `HTTPResponseBuilder.error` defaults to 400, but the
+    /// batch request itself was well-formed and ran.
+    func test_summarize_anyFailure_reportsFailureAt200SoTheCLIExitsNonZero() throws {
+        let (status, json) = try envelope(
+            of: BatchHandler.summarize(results: [okResult(), failedResult()], completed: 1, failed: 1)
+        )
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["success"] as? Bool, false)
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        XCTAssertEqual(error["code"] as? String, "batch_failed")
+        XCTAssertEqual(error["message"] as? String, "1 of 2 commands failed")
+    }
+
+    /// Failing loudly must not cost the caller the per-command results: without
+    /// them there is no way to learn *which* command failed.
+    func test_summarize_failureStillCarriesEveryResult() throws {
+        let (_, json) = try envelope(
+            of: BatchHandler.summarize(results: [okResult(), failedResult()], completed: 1, failed: 1)
+        )
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        let results = try XCTUnwrap(data["results"] as? [[String: Any]])
+        XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(results[1]["success"] as? Bool, false)
+        XCTAssertEqual(data["completed"] as? Int, 1)
+        XCTAssertEqual(data["failed"] as? Int, 1)
+    }
+
+    /// `stop_on_error` skips the tail. A skipped entry carries `success: false`
+    /// too, so `summarize` must trust the caller's `failed` count rather than
+    /// recount `results` — otherwise "1 of 3 failed" would read "3 of 3".
+    ///
+    /// `skipped` is reported explicitly so `completed + failed + skipped` adds up
+    /// to `total_commands`; a caller filtering `results` on `success == false`
+    /// would otherwise count 3 failures where the envelope claims 1.
+    func test_summarize_reportsSkippedSeparatelyFromFailed() throws {
+        let skipped: [String: Any] = ["success": false, "data": NSNull(),
+            "error": ["code": "skipped", "message": "Skipped due to previous error"], "duration_ms": 0]
+        let (_, json) = try envelope(
+            of: BatchHandler.summarize(results: [failedResult(), skipped, skipped], completed: 0, failed: 1)
+        )
+        XCTAssertEqual(json["success"] as? Bool, false)
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        XCTAssertEqual(error["message"] as? String, "1 of 3 commands failed (2 skipped)")
+
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        XCTAssertEqual(data["failed"] as? Int, 1)
+        XCTAssertEqual(data["skipped"] as? Int, 2)
+        XCTAssertEqual(data["completed"] as? Int, 0)
+        XCTAssertEqual(data["total_commands"] as? Int, 3)
+    }
 }

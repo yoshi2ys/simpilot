@@ -155,6 +155,8 @@ simpilot batch '{"commands":[
 ]}'
 ```
 
+A batch exits `2` if any sub-command fails; `data.results` still lists every one, so you can see which.
+
 ## Element Query Syntax
 
 | Format | Example | Speed |

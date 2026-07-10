@@ -83,11 +83,11 @@ final class BatchHandler {
                 result["duration_ms"] = durationMs
                 results.append(result)
 
-                if parsed["success"] as? Bool == false {
+                if Self.subCommandSucceeded(parsed) {
+                    completed += 1
+                } else {
                     failed += 1
                     if stopOnError { stopped = true }
-                } else {
-                    completed += 1
                 }
             } else {
                 let errResult: [String: Any] = ["success": false, "data": NSNull(),
@@ -99,12 +99,52 @@ final class BatchHandler {
             }
         }
 
-        return HTTPResponseBuilder.json([
+        return Self.summarize(results: results, completed: completed, failed: failed)
+    }
+
+    /// Whether a sub-command's envelope reports success.
+    ///
+    /// Only an explicit `true` counts. Testing `success == false` instead would
+    /// send an envelope whose `success` is missing or non-boolean down the
+    /// *completed* path, so a batch that did not succeed would report
+    /// `success: true` — the opposite of the CLI's `classify`, which calls such
+    /// a body malformed. Static so `handle`'s counting rule is testable without
+    /// a live `Router`.
+    static func subCommandSucceeded(_ parsed: [String: Any]) -> Bool {
+        parsed["success"] as? Bool == true
+    }
+
+    /// The batch envelope. `success` mirrors `simpilot run`'s report: false when
+    /// any sub-command failed, so the CLI exits non-zero instead of reporting a
+    /// clean run over a batch that tapped nothing.
+    ///
+    /// `completed` and `failed` come from the caller rather than being recounted
+    /// here: a `stop_on_error` skip also carries `success: false`, so recounting
+    /// `results` would report every skipped command as a failure. `skipped` is
+    /// reported explicitly for the same reason — a caller who filters `results`
+    /// on `success == false` would otherwise disagree with `failed`.
+    /// `results.count` *is* the command count: every branch of `handle` appends
+    /// exactly one entry.
+    static func summarize(results: [[String: Any]], completed: Int, failed: Int) -> Data {
+        let skipped = results.count - completed - failed
+        let data: [String: Any] = [
             "results": results,
-            "total_commands": commands.count,
+            "total_commands": results.count,
             "completed": completed,
-            "failed": failed
-        ])
+            "failed": failed,
+            "skipped": skipped
+        ]
+        guard failed > 0 else { return HTTPResponseBuilder.json(data) }
+
+        let skippedNote = skipped > 0 ? " (\(skipped) skipped)" : ""
+        return HTTPResponseBuilder.error(
+            "\(failed) of \(results.count) commands failed\(skippedNote)",
+            code: "batch_failed",
+            // 200, not the default 400: the batch request itself was well-formed
+            // and ran. Only some of the commands inside it failed.
+            status: 200,
+            data: data
+        )
     }
 
     /// Coerces a decoded `command["params"]` value into query params without
