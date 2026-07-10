@@ -2,28 +2,25 @@ import Foundation
 import XCTest
 @testable import simpilot
 
-/// A31's contract: **a command that receives an agent envelope writes exactly
-/// one JSON object to stdout**, whether it succeeds or fails.
+/// A31/A33's contract: **a command writes exactly one JSON object to stdout**,
+/// whether it succeeds, fails, or the agent answers with garbage.
 ///
 /// simpilot's first consumer is an AI agent running `json.loads(stdout)`. A
 /// failing command used to print the agent's envelope and then a second,
 /// CLI-generated one — so stdout held two objects, `json.loads` raised
 /// `Extra data`, and the agent's specific code (`element_not_found`) was
-/// buried under a generic `command_failed`.
-///
-/// The contract is scoped to envelopes on purpose: `decodeAndPrint` still
-/// passes a non-JSON agent response through verbatim and exits 0. That path
-/// predates A31 and is tracked separately.
+/// buried under a generic `command_failed` (A31). A response that was not an
+/// envelope at all used to be echoed verbatim with exit 0 (A33).
 ///
 /// The end-to-end cases spawn the real binary against a stub agent, because the
 /// bug lived in the seam between `decodeAndPrint` (which prints) and
 /// `main` (which printed again) — no in-process call crosses it.
 final class StdoutEnvelopeTests: XCTestCase {
 
-    // MARK: - Exit-status mapping (pure)
+    // MARK: - Envelope classification (pure)
 
-    func testSuccessEnvelopeYieldsNoFailureStatus() {
-        XCTAssertNil(agentFailureStatus(in: ["success": true, "data": ["x": 1]]))
+    func testSuccessEnvelopeClassifiesAsSuccess() {
+        XCTAssertEqual(classify(agentResponse: ["success": true, "data": ["x": 1]]), .success)
     }
 
     func testFailureEnvelopeExitsTwo() {
@@ -31,7 +28,7 @@ final class StdoutEnvelopeTests: XCTestCase {
             "success": false,
             "error": ["code": "element_not_found", "message": "no such element"],
         ]
-        XCTAssertEqual(agentFailureStatus(in: json), 2)
+        XCTAssertEqual(classify(agentResponse: json), .failure(status: 2))
     }
 
     func testInvalidRegexExitsThreeLikeACLISideArgError() {
@@ -39,18 +36,73 @@ final class StdoutEnvelopeTests: XCTestCase {
             "success": false,
             "error": ["code": "invalid_regex", "message": "bad pattern"],
         ]
-        XCTAssertEqual(agentFailureStatus(in: json), 3)
+        XCTAssertEqual(classify(agentResponse: json), .failure(status: 3))
     }
 
     func testFailureWithoutAnErrorObjectStillExitsTwo() {
-        XCTAssertEqual(agentFailureStatus(in: ["success": false]), 2)
+        XCTAssertEqual(classify(agentResponse: ["success": false]), .failure(status: 2))
     }
 
-    /// Pins the existing contract. Unreachable against a real agent —
-    /// `HTTPResponse` puts `success` in every envelope it builds — so this
-    /// documents the fallback rather than endorsing it.
-    func testEnvelopeWithoutSuccessKeyReadsAsSuccess() {
-        XCTAssertNil(agentFailureStatus(in: ["data": ["x": 1]]))
+    /// A33. Reading a missing `success` as success would make the same body mean
+    /// opposite things here and in `StepExecutor.isSuccess`, which fails the step.
+    func testResponseWithoutSuccessKeyIsMalformedNotSuccess() {
+        XCTAssertEqual(classify(agentResponse: ["data": ["x": 1]]), .malformed)
+    }
+
+    /// `success` must be a JSON bool. `1` / `"true"` are a different server's schema.
+    ///
+    /// Driven through real JSON bytes, not a Swift dictionary literal: `1` decodes
+    /// to `NSNumber`, and `NSNumber(1) as? Bool` is `true`, so a literal-based test
+    /// passes against a `classify` that wrongly accepts `{"success": 1}`.
+    func testNumericOrStringSuccessIsMalformed() throws {
+        for body in [#"{"success":1}"#, #"{"success":0}"#, #"{"success":1.0}"#, #"{"success":"true"}"#] {
+            assertInvalidResponse(try decodeAgentEnvelope(Data(body.utf8)), message: "accepted \(body)")
+        }
+    }
+
+    /// The other side of the same coin: real JSON `true`/`false` must still parse.
+    func testJSONBooleanSuccessIsAccepted() throws {
+        XCTAssertEqual(try decodeAgentEnvelope(Data(#"{"success":true}"#.utf8)).outcome, .success)
+        XCTAssertEqual(try decodeAgentEnvelope(Data(#"{"success":false}"#.utf8)).outcome, .failure(status: 2))
+    }
+
+    // MARK: - decodeAgentEnvelope — one owner of "is this an envelope"
+
+    func testDecodeAgentEnvelopeRejectsNonJSON() {
+        assertInvalidResponse(try decodeAgentEnvelope(Data("<html>502</html>".utf8)), preview: "<html>502</html>")
+    }
+
+    func testDecodeAgentEnvelopeRejectsJSONThatIsNotAnObject() {
+        assertInvalidResponse(try decodeAgentEnvelope(Data("[1,2,3]".utf8)))
+        assertInvalidResponse(try decodeAgentEnvelope(Data(#""ok""#.utf8)))
+    }
+
+    func testDecodeAgentEnvelopeRejectsAnObjectWithoutSuccess() {
+        assertInvalidResponse(try decodeAgentEnvelope(Data(#"{"data":{}}"#.utf8)))
+    }
+
+    /// `success: false` is a normal outcome, not a malformed body — a scenario
+    /// step must still see the envelope and report the failure itself.
+    func testDecodeAgentEnvelopeAcceptsAFailureEnvelope() throws {
+        let (json, outcome) = try decodeAgentEnvelope(Data(#"{"success":false,"error":{"code":"x"}}"#.utf8))
+        XCTAssertEqual(outcome, .failure(status: 2))
+        XCTAssertEqual(json["success"] as? Bool, false)
+    }
+
+    private func assertInvalidResponse<T>(
+        _ expression: @autoclosure () throws -> T,
+        preview expected: String? = nil,
+        message: String = "",
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try expression(), message, file: file, line: line) { error in
+            guard case CLIError.invalidResponse(let preview) = error else {
+                return XCTFail("expected invalidResponse, got \(error). \(message)", file: file, line: line)
+            }
+            if let expected {
+                XCTAssertEqual(preview, expected, file: file, line: line)
+            }
+        }
     }
 
     func testDecodeAndPrintThrowsAlreadyReportedRatherThanACLIError() throws {
@@ -61,6 +113,57 @@ final class StdoutEnvelopeTests: XCTestCase {
             }
             XCTAssertEqual(reported.status, 2)
         }
+    }
+
+    /// A33: rejected *before* printing, so `main`'s envelope is the only object.
+    func testDecodeAndPrintRejectsANonEnvelopeBeforePrintingAnything() {
+        assertInvalidResponse(try decodeAndPrint(data: Data("<html>502</html>".utf8), pretty: false),
+                              preview: "<html>502</html>")
+        assertInvalidResponse(try decodeAndPrint(data: Data(#"{"foo":1}"#.utf8), pretty: false))
+    }
+
+    // MARK: - Response preview (pure)
+
+    func testPreviewBoundsLongBodies() {
+        let preview = responsePreview(Data(String(repeating: "x", count: 500).utf8))
+        XCTAssertTrue(preview.hasPrefix(String(repeating: "x", count: 200)), preview)
+        XCTAssertTrue(preview.contains("500 bytes"), preview)
+    }
+
+    /// The bytes are bounded before decoding, so a body far past the limit must
+    /// still not blow up the message.
+    func testPreviewOfAHugeBodyStaysShort() {
+        let preview = responsePreview(Data(String(repeating: "y", count: 5_000_000).utf8))
+        XCTAssertLessThan(preview.count, 260, preview)
+        XCTAssertTrue(preview.contains("5000000 bytes"), preview)
+    }
+
+    func testPreviewCollapsesNewlines() {
+        XCTAssertEqual(responsePreview(Data("a\nb\n\nc".utf8)), "a b c")
+    }
+
+    /// Bounding cuts on a byte boundary, which can land mid-scalar. A truncated
+    /// trailing scalar is not evidence the body is binary.
+    func testPreviewOfMultiByteScalarsIsNotMisreportedAsBinary() {
+        let preview = responsePreview(Data(String(repeating: "あ", count: 500).utf8))
+        XCTAssertTrue(preview.hasPrefix("あ"), preview)
+        XCTAssertFalse(preview.contains("non-UTF-8"), preview)
+    }
+
+    func testPreviewOfEmptyAndBlankBodies() {
+        XCTAssertEqual(responsePreview(Data()), "<empty response body>")
+        XCTAssertEqual(responsePreview(Data("\n\n".utf8)), "<2 bytes of whitespace>")
+    }
+
+    func testPreviewDescribesNonUTF8Bytes() {
+        XCTAssertEqual(responsePreview(Data([0xFF, 0xFE])), "<2 bytes of non-UTF-8 data>")
+    }
+
+    /// A short body is never cut, so an invalid trailing byte is binary — not a
+    /// scalar the bound sliced in half. Dropping it would print `A` for a body
+    /// that is not text.
+    func testPreviewDoesNotDropInvalidTrailingBytesOfAnUncutBody() {
+        XCTAssertEqual(responsePreview(Data([0x41, 0xFF])), "<2 bytes of non-UTF-8 data>")
     }
 
     // MARK: - End-to-end: one JSON object on stdout
@@ -106,6 +209,36 @@ final class StdoutEnvelopeTests: XCTestCase {
         let json = try singleJSONObject(from: result.stdout)
         let error = try XCTUnwrap(json["error"] as? [String: Any])
         XCTAssertEqual(error["code"] as? String, "invalid_regex")
+    }
+
+    /// A33: the whole reason `json.loads(stdout)` used to be unsafe even on a
+    /// "successful" exit — a proxy or a wrong `--port` answers with HTML.
+    func testNonJSONResponseFailsLoudlyWithOneObject() throws {
+        let agent = try StubAgent(responseBody: "<html><body>502 Bad Gateway</body></html>")
+        defer { agent.stop() }
+
+        let result = try runCLI(["--port", "\(agent.port)", "health"])
+
+        XCTAssertEqual(result.status, 2, "a non-envelope body must not read as success")
+        let json = try singleJSONObject(from: result.stdout)
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        XCTAssertEqual(error["code"] as? String, "invalid_response")
+        XCTAssertTrue(
+            (error["message"] as? String)?.contains("502 Bad Gateway") == true,
+            "the body must be quoted back: \(error)"
+        )
+    }
+
+    func testJSONWithoutSuccessKeyFailsLoudlyWithOneObject() throws {
+        let agent = try StubAgent(responseBody: #"{"data":{"status":"ok"}}"#)
+        defer { agent.stop() }
+
+        let result = try runCLI(["--port", "\(agent.port)", "health"])
+
+        XCTAssertEqual(result.status, 2)
+        let json = try singleJSONObject(from: result.stdout)
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        XCTAssertEqual(error["code"] as? String, "invalid_response")
     }
 
     func testSuccessfulCommandStillExitsZeroWithOneObject() throws {

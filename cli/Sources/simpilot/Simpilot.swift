@@ -63,36 +63,76 @@ struct AlreadyReported: Error {
     let status: Int32
 }
 
-/// The exit status implied by a decoded agent envelope, or `nil` when the agent
-/// reported success. `invalid_regex` surfaces as exit 3 (invalid args) to match
-/// the CLI-side preflight path; other agent-reported failures keep the exit-2
-/// mapping.
-func agentFailureStatus(in json: Any) -> Int32? {
-    guard let dict = json as? [String: Any],
-          (dict["success"] as? Bool) == false else {
+/// What an agent envelope means to the CLI.
+enum AgentEnvelope: Equatable {
+    case success
+    case failure(status: Int32)
+    /// A JSON object, but with no boolean `success` — not an envelope.
+    case malformed
+}
+
+/// Classifies an agent response object. `invalid_regex` surfaces as exit 3
+/// (invalid args) to match the CLI-side preflight path; other agent-reported
+/// failures keep the exit-2 mapping.
+///
+/// A response carrying no boolean `success` is `malformed`, never a success:
+/// every envelope the agent builds has one (`HTTPResponse` is the single
+/// builder), and `StepExecutor.isSuccess` already fails a scenario step on its
+/// absence.
+func classify(agentResponse json: [String: Any]) -> AgentEnvelope {
+    guard let success = jsonBoolean(json["success"]) else { return .malformed }
+    guard !success else { return .success }
+    let code = (json["error"] as? [String: Any])?["code"] as? String
+    return .failure(status: code == "invalid_regex" ? 3 : 2)
+}
+
+/// `true` and `1` both decode to `NSNumber`, and `NSNumber(1) as? Bool` is `true`.
+/// A plain `as? Bool` would therefore accept a foreign server's `{"success": 1}`
+/// as a simpilot envelope — the very thing `.malformed` exists to catch. Only
+/// `kCFBoolean` carries the boolean type ID.
+private func jsonBoolean(_ value: Any?) -> Bool? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) == CFBooleanGetTypeID() else {
         return nil
     }
-    let code = (dict["error"] as? [String: Any])?["code"] as? String
-    return code == "invalid_regex" ? 3 : 2
+    return number.boolValue
+}
+
+/// The single owner of "is this an agent envelope at all".
+///
+/// Both response paths go through it — `decodeAndPrint` for a direct command and
+/// `StepExecutor.parseResponse` for a scenario step — so the same body cannot be
+/// an `invalid_response` on one and an anonymous failure on the other. Rejects a
+/// body that is not JSON, is not a JSON object, or carries no boolean `success`.
+func decodeAgentEnvelope(_ data: Data) throws -> (json: [String: Any], outcome: AgentEnvelope) {
+    guard let raw = try? JSONSerialization.jsonObject(with: data),
+          let json = raw as? [String: Any] else {
+        throw CLIError.invalidResponse(responsePreview(data))
+    }
+    let outcome = classify(agentResponse: json)
+    guard outcome != .malformed else {
+        throw CLIError.invalidResponse(responsePreview(data))
+    }
+    return (json, outcome)
 }
 
 /// Prints the agent's envelope — the *only* thing this command writes to stdout —
 /// then throws `AlreadyReported` when it reports `success: false`.
 ///
-/// The agent's envelope is the response. Throwing a `CLIError` here instead would
-/// make `main` print a second envelope, so `stdout` would hold two JSON objects
-/// (`json.loads` fails on the pair) and the specific code the agent chose
+/// The agent's envelope is the response. Throwing a `CLIError` after printing it
+/// would make `main` print a second envelope, so `stdout` would hold two JSON
+/// objects (`json.loads` fails on the pair) and the specific code the agent chose
 /// (`element_not_found`) would be buried under a generic `command_failed`.
+///
+/// A body that is not an envelope is therefore rejected *before* anything is
+/// printed: `main` then prints its `invalid_response` envelope and stdout still
+/// holds exactly one JSON object.
 func decodeAndPrint(data: Data, pretty: Bool) throws {
-    guard let json = try? JSONSerialization.jsonObject(with: data) else {
-        if let str = String(data: data, encoding: .utf8) {
-            print(str)
-        }
-        return
-    }
+    let (json, outcome) = try decodeAgentEnvelope(data)
+
     printJSON(json, pretty: pretty)
 
-    if let status = agentFailureStatus(in: json) {
+    if case .failure(let status) = outcome {
         throw AlreadyReported(status: status)
     }
 }
@@ -343,6 +383,10 @@ struct Simpilot {
             return ("command_failed", msg, 2)
         case .invalidURL(let url):
             return ("invalid_args", "Invalid URL: \(url)", 3)
+        case .invalidResponse(let preview):
+            // Exit 2, not 1: something answered on that port, so "unreachable"
+            // would send the caller to look for an agent that is in fact there.
+            return ("invalid_response", "Agent did not return a simpilot envelope: \(preview)", 2)
         }
     }
 

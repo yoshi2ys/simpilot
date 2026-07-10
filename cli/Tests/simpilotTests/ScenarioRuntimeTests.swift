@@ -55,13 +55,34 @@ final class ScenarioRuntimeTests: XCTestCase {
         XCTAssertNil(StepExecutor.errorMessage([:]))
     }
 
+    /// Typed, not an untyped `NSError`: `ScenarioRunner` switches over `CLIError`
+    /// to build the step's message, and anything else falls to its generic catch.
     func testParseResponseRejectsNonJSON() {
         XCTAssertThrowsError(try StepExecutor.parseResponse(Data("<html>502</html>".utf8))) { error in
-            XCTAssertTrue(
-                error.localizedDescription.contains("non-JSON"),
-                "the raw body must appear in the error: \(error.localizedDescription)"
-            )
+            guard case CLIError.invalidResponse(let preview) = error else {
+                return XCTFail("expected invalidResponse, got \(error)")
+            }
+            XCTAssertTrue(preview.contains("<html>502</html>"), "the body must appear in the error: \(preview)")
         }
+    }
+
+    /// The scenario path and the direct-command path must agree on what a
+    /// non-envelope is. `{"data":{}}` used to slip through here and be reported
+    /// as a failed step with no message, while `simpilot tap` called it
+    /// `invalid_response`.
+    func testParseResponseRejectsAnObjectWithoutSuccess() {
+        XCTAssertThrowsError(try StepExecutor.parseResponse(Data(#"{"data":{}}"#.utf8))) { error in
+            guard case CLIError.invalidResponse = error else {
+                return XCTFail("expected invalidResponse, got \(error)")
+            }
+        }
+    }
+
+    /// ...but a plain failing step is not malformed: the runner must see the
+    /// envelope and report the failure itself.
+    func testParseResponseAcceptsAFailureEnvelope() throws {
+        let json = try StepExecutor.parseResponse(Data(#"{"success":false,"error":{"code":"x"}}"#.utf8))
+        XCTAssertFalse(StepExecutor.isSuccess(json))
     }
 
     func testParseResponseAcceptsAnEnvelope() throws {

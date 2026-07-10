@@ -53,6 +53,8 @@ enum ScenarioRunner {
                     errorMsg = msg
                 case .commandFailed(let msg):
                     errorMsg = msg
+                case .invalidResponse(let preview):
+                    errorMsg = "agent did not return a simpilot envelope: \(preview)"
                 }
             } catch {
                 success = false
