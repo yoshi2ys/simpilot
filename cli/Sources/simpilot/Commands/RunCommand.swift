@@ -68,11 +68,11 @@ enum RunCommand: SimpilotCommand {
             RunReporter.reportTerminal(result)
         }
 
-        // Exit directly — the report already contains all failure details.
-        // Throwing CLIError.commandFailed would produce a second JSON envelope
-        // on stdout, corrupting --json output and confusing terminal mode.
+        // The report above already carries every failure detail. Throwing a
+        // `CLIError` would print an error envelope after it, corrupting --json
+        // output and confusing terminal mode.
         if result.exitCode != 0 {
-            exit(result.exitCode)
+            throw AlreadyReported(status: result.exitCode)
         }
     }
 }

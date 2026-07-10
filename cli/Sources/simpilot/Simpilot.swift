@@ -45,17 +45,44 @@ func printError(code: String, message: String) {
     }
 }
 
-func printResponse(data: Data, pretty: Bool) {
-    if let json = try? JSONSerialization.jsonObject(with: data) {
-        printJSON(json, pretty: pretty)
-    } else if let str = String(data: data, encoding: .utf8) {
-        print(str)
-    }
+/// A command has already written everything it intends to write, and only its
+/// exit status is left to deliver. `main` exits with `status` and prints nothing
+/// more.
+///
+/// Deliberately not a `CLIError` case. Swift's exhaustiveness check is
+/// per-type, not per-reachable-path, so a new case would force a branch in
+/// every `switch` over `CLIError` — `Simpilot.envelope` and `ScenarioRunner`
+/// alike — and each would have to invent a `(code, message)` for a value whose
+/// whole point is that it has none.
+///
+/// Only `Simpilot.run` knows what to do with it, so throw it only from a path
+/// that unwinds straight there: `decodeAndPrint`, or a command's own tail. A
+/// scenario step must never throw it — `ScenarioRunner`'s generic `catch` would
+/// swallow the status and report the default `localizedDescription`.
+struct AlreadyReported: Error {
+    let status: Int32
 }
 
-/// Prints the agent response, then throws `CLIError.commandFailed` when the envelope
-/// reports `success: false`. Callers that want agent-reported failures to surface as
-/// exit code 2 must use this instead of `printResponse`.
+/// The exit status implied by a decoded agent envelope, or `nil` when the agent
+/// reported success. `invalid_regex` surfaces as exit 3 (invalid args) to match
+/// the CLI-side preflight path; other agent-reported failures keep the exit-2
+/// mapping.
+func agentFailureStatus(in json: Any) -> Int32? {
+    guard let dict = json as? [String: Any],
+          (dict["success"] as? Bool) == false else {
+        return nil
+    }
+    let code = (dict["error"] as? [String: Any])?["code"] as? String
+    return code == "invalid_regex" ? 3 : 2
+}
+
+/// Prints the agent's envelope — the *only* thing this command writes to stdout —
+/// then throws `AlreadyReported` when it reports `success: false`.
+///
+/// The agent's envelope is the response. Throwing a `CLIError` here instead would
+/// make `main` print a second envelope, so `stdout` would hold two JSON objects
+/// (`json.loads` fails on the pair) and the specific code the agent chose
+/// (`element_not_found`) would be buried under a generic `command_failed`.
 func decodeAndPrint(data: Data, pretty: Bool) throws {
     guard let json = try? JSONSerialization.jsonObject(with: data) else {
         if let str = String(data: data, encoding: .utf8) {
@@ -65,21 +92,9 @@ func decodeAndPrint(data: Data, pretty: Bool) throws {
     }
     printJSON(json, pretty: pretty)
 
-    guard let dict = json as? [String: Any],
-          (dict["success"] as? Bool) == false else {
-        return
+    if let status = agentFailureStatus(in: json) {
+        throw AlreadyReported(status: status)
     }
-    let error = dict["error"] as? [String: Any]
-    let code = error?["code"] as? String
-    let message = (error?["message"] as? String)
-        ?? code
-        ?? "agent returned success:false"
-    // invalid_regex surfaces as exit 3 (invalid args) to match the CLI-side
-    // preflight path. Other agent-reported failures keep the exit-2 mapping.
-    if code == "invalid_regex" {
-        throw CLIError.invalidArgs(message)
-    }
-    throw CLIError.commandFailed(message)
 }
 
 // MARK: - Entry Point
@@ -299,6 +314,10 @@ struct Simpilot {
         )
         do {
             try cmdType.run(context: context)
+        } catch let reported as AlreadyReported {
+            // stdout already carries the command's own output. Printing an error
+            // envelope on top of it would leave stdout unparseable.
+            exit(reported.status)
         } catch let error as CLIError {
             handleCLIError(error)
         } catch {
