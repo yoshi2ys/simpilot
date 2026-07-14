@@ -46,7 +46,9 @@ enum RunReporter {
 
     // MARK: - JSON Builder
 
-    private static func buildJSON(_ result: RunResult) -> [String: Any] {
+    /// Internal rather than private so the `--json` wire shape can be pinned
+    /// by tests without capturing stdout.
+    static func buildJSON(_ result: RunResult) -> [String: Any] {
         [
             "success": result.totalFailed == 0,
             "data": [

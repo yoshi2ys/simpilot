@@ -1,17 +1,26 @@
 import Foundation
 
 struct HTTPClient: Sendable {
+    /// Header carrying the agent's shared secret. Must match the agent's
+    /// `TokenAuth.headerName`.
+    static let tokenHeader = "X-Simpilot-Token"
+
     let baseURL: String
     let timeout: TimeInterval
+    /// Secret for the agent this client talks to, read from the registry. Nil
+    /// for a loopback agent started without one (e.g. launched from Xcode).
+    let token: String?
 
-    init(baseURL: String, timeout: TimeInterval = 30) {
+    init(baseURL: String, timeout: TimeInterval = 30, token: String? = nil) {
         self.baseURL = baseURL
         self.timeout = timeout
+        self.token = token
     }
 
-    init(host: String, port: Int, timeout: TimeInterval = 30) {
+    init(host: String, port: Int, timeout: TimeInterval = 30, token: String? = nil) {
         self.baseURL = "http://\(host.urlHost):\(port)"
         self.timeout = timeout
+        self.token = token
     }
 
     /// Buffer added on top of a server-side operation budget to absorb network
@@ -29,27 +38,32 @@ struct HTTPClient: Sendable {
     }
 
     func get(_ path: String, timeout: TimeInterval? = nil) throws -> Data {
-        let urlString = baseURL + path
-        guard let url = URL(string: urlString) else {
-            throw CLIError.invalidURL(urlString)
-        }
-        var request = URLRequest(url: url)
+        var request = try makeRequest(path, timeout: timeout)
         request.httpMethod = "GET"
-        request.timeoutInterval = timeout ?? self.timeout
         return try perform(request)
     }
 
     func post(_ path: String, body: [String: Any], timeout: TimeInterval? = nil) throws -> Data {
+        var request = try makeRequest(path, timeout: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try perform(request)
+    }
+
+    /// Internal rather than private so tests can assert the token header and
+    /// URL construction without standing up an agent.
+    func makeRequest(_ path: String, timeout: TimeInterval?) throws -> URLRequest {
         let urlString = baseURL + path
         guard let url = URL(string: urlString) else {
             throw CLIError.invalidURL(urlString)
         }
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = timeout ?? self.timeout
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return try perform(request)
+        if let token {
+            request.setValue(token, forHTTPHeaderField: Self.tokenHeader)
+        }
+        return request
     }
 
     /// POST with a per-call timeout sized to the server-side operation budget
@@ -99,6 +113,50 @@ enum CLIError: Error {
     case invalidURL(String)
     case invalidArgs(String)
     case commandFailed(String)
+    /// The agent answered, but with something that is not a simpilot envelope —
+    /// not JSON at all, or JSON without a boolean `success`. Carries a bounded
+    /// excerpt of the body.
+    case invalidResponse(String)
+}
+
+/// A one-line, bounded excerpt of a response body that could not be used, for
+/// embedding in an error message. A wrong `--port` can land on a file server
+/// answering with megabytes, and none of it belongs on the user's terminal.
+///
+/// The bytes are bounded *before* decoding: decoding first would materialize the
+/// whole body as a `String`, copy it again to collapse newlines, and then throw
+/// all but `limit` characters away.
+func responsePreview(_ data: Data) -> String {
+    let limit = 200
+    guard !data.isEmpty else { return "<empty response body>" }
+
+    // 4 bytes is the longest UTF-8 scalar, so `limit` characters always fit.
+    let head = data.prefix(limit * 4)
+    guard let text = utf8Decoding(head, cutFromLongerBody: data.count > head.count) else {
+        return "<\(data.count) bytes of non-UTF-8 data>"
+    }
+
+    let oneLine = text.split(whereSeparator: \.isNewline).joined(separator: " ")
+    guard !oneLine.isEmpty else { return "<\(data.count) bytes of whitespace>" }
+    guard oneLine.count > limit || data.count > head.count else { return oneLine }
+    return "\(oneLine.prefix(limit))… (\(data.count) bytes)"
+}
+
+/// Strict UTF-8 decode, tolerating only a scalar the *caller's own* byte bound cut
+/// in half. `cutFromLongerBody` gates that tolerance: when nothing was cut, a
+/// decode failure means the body is genuinely not UTF-8, and dropping its trailing
+/// bytes would report binary data as clean text. A scalar is at most 4 bytes, so a
+/// cut leaves at most 3 danglers.
+private func utf8Decoding(_ data: Data, cutFromLongerBody: Bool) -> String? {
+    if let text = String(data: data, encoding: .utf8) { return text }
+    guard cutFromLongerBody else { return nil }
+
+    for dropped in 1..<4 {
+        let slice = data.dropLast(dropped)
+        guard !slice.isEmpty else { break }
+        if let text = String(data: slice, encoding: .utf8) { return text }
+    }
+    return nil
 }
 
 extension String {

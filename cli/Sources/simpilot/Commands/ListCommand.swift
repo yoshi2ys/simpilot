@@ -9,12 +9,20 @@ enum ListCommand: SimpilotCommand {
 
     static func run(context: RunContext) throws {
         _ = try ArgParser.parse(context.args, spec: argSpec)
-        let records = AgentRegistry.load()
+        let records = try AgentRegistry.load()
 
         var agents: [[String: Any]] = []
         for record in records {
-            let c = HTTPClient(baseURL: record.baseURL, timeout: 2)
-            let status: String = (try? c.get("/health")) != nil ? "ready" : "unreachable"
+            // A 401 still returns bytes, so "we got a reply" is not "ready" —
+            // that would mask a foreign agent squatting the port.
+            let c = HTTPClient(baseURL: record.baseURL, timeout: 2, token: record.token)
+            let reply = try? c.get("/health")
+            let status: String
+            switch reply {
+            case .some(let data) where StartCommand.isHealthyEnvelope(data): status = "ready"
+            case .some: status = "unauthorized"
+            case .none: status = "unreachable"
+            }
 
             var entry: [String: Any] = [
                 "port": record.port,

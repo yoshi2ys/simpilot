@@ -14,7 +14,7 @@ enum RunCommand: SimpilotCommand {
     static let category: HelpCommands.Category = .utility
     static let synopsis = "run <file> [--json] [--var <key=val,...>] [--timeout <s>] [--screenshot-dir <path>]"
     static let description = "Run a YAML scenario file with assertions"
-    static let example = "simpilot run test.yml --json"
+    static let example = "simpilot run test.yaml --json"
 
     static func run(context: RunContext) throws {
         let parsed = try ArgParser.parse(context.args, spec: argSpec)
@@ -68,11 +68,11 @@ enum RunCommand: SimpilotCommand {
             RunReporter.reportTerminal(result)
         }
 
-        // Exit directly — the report already contains all failure details.
-        // Throwing CLIError.commandFailed would produce a second JSON envelope
-        // on stdout, corrupting --json output and confusing terminal mode.
-        if result.totalFailed > 0 {
-            exit(2)
+        // The report above already carries every failure detail. Throwing a
+        // `CLIError` would print an error envelope after it, corrupting --json
+        // output and confusing terminal mode.
+        if result.exitCode != 0 {
+            throw AlreadyReported(status: result.exitCode)
         }
     }
 }

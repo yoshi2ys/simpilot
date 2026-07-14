@@ -17,7 +17,7 @@ enum OpenURLCommand: SimpilotCommand {
         let parsed = try ArgParser.parse(context.args, spec: argSpec)
         let url = parsed.positionals[0]
 
-        let agent = try resolveAgent(port: context.port, agents: AgentRegistry.load())
+        let agent = try resolveAgent(port: context.port, agents: try AgentRegistry.load())
 
         if agent.isPhysical {
             throw CLIError.invalidArgs("openurl is simulator-only (device \(agent.device) is physical)")

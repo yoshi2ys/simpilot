@@ -155,6 +155,8 @@ simpilot batch '{"commands":[
 ]}'
 ```
 
+A batch exits `2` if any sub-command fails; `data.results` still lists every one, so you can see which.
+
 ## Element Query Syntax
 
 | Format | Example | Speed |
@@ -189,6 +191,15 @@ Always prefer bare label queries. `simpilot elements --level 1` returns the opti
 ### Performance
 
 The agent parses `XCUIApplication.debugDescription` (1 IPC call, ~0.2s) instead of walking the element tree via `children(matching:)` (N IPC calls, 5-16s). Taps use coordinates from the parsed tree, bypassing XCUITest's slow element resolution.
+
+### Security
+
+The agent drives your simulator or device, so it is not safe to expose. Two rules keep it contained:
+
+- **Simulators bind `127.0.0.1` only.** The simulator shares the Mac's network stack, so the agent is unreachable from the LAN.
+- **Every network-reachable agent requires a token.** `simpilot start` generates a per-agent secret, hands it to the runner, and sends it in `X-Simpilot-Token` on every request. Requests without it get `401 unauthorized`. Physical devices must bind all interfaces to be reachable over USB/Wi-Fi, and the agent **refuses to start** in that mode without a token.
+
+Tokens live in `~/.simpilot/agents.json` (mode `0600`). The CLI reads them from there, so you never pass one by hand.
 
 ## Platform Support
 

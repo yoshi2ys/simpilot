@@ -137,19 +137,24 @@ enum StepExecutor {
         return try parseResponse(data)
     }
 
-    private static func computeHTTPTimeout(config: ScenarioConfig, stepTimeout: Double?) -> TimeInterval {
+    /// The HTTP deadline must outlast whatever budget the agent was given for
+    /// the step, or a legitimately slow operation is aborted client-side and
+    /// misreported as an unreachable agent (A5).
+    static func computeHTTPTimeout(config: ScenarioConfig, stepTimeout: Double?) -> TimeInterval {
         let logical = max(config.timeout, stepTimeout ?? config.timeout)
         return logical + HTTPClient.operationBuffer // buffer for network/processing
     }
 
-    private static func parseResponse(_ data: Data) throws -> [String: Any] {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            let body = String(data: data, encoding: .utf8) ?? "<non-UTF-8 data>"
-            throw NSError(domain: "simpilot", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "agent returned non-JSON response: \(body)"
-            ])
-        }
-        return json
+    /// Rejects a non-envelope body exactly as a direct command does, so `{"data":{}}`
+    /// cannot read as `invalid_response` under `tap` and as an anonymous failed step
+    /// under `run`. The typed error matters too: an untyped `NSError` would land in
+    /// `ScenarioRunner`'s generic `catch` and be reported by its default
+    /// `localizedDescription`.
+    ///
+    /// `success: false` is *not* rejected here — a failing step is a normal outcome
+    /// that `isSuccess` reports, not a malformed response.
+    static func parseResponse(_ data: Data) throws -> [String: Any] {
+        try decodeAgentEnvelope(data).json
     }
 
     /// Check if a response JSON indicates success. A response with no `success`

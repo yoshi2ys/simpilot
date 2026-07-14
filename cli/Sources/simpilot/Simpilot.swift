@@ -45,41 +45,96 @@ func printError(code: String, message: String) {
     }
 }
 
-func printResponse(data: Data, pretty: Bool) {
-    if let json = try? JSONSerialization.jsonObject(with: data) {
-        printJSON(json, pretty: pretty)
-    } else if let str = String(data: data, encoding: .utf8) {
-        print(str)
-    }
+/// A command has already written everything it intends to write, and only its
+/// exit status is left to deliver. `main` exits with `status` and prints nothing
+/// more.
+///
+/// Deliberately not a `CLIError` case. Swift's exhaustiveness check is
+/// per-type, not per-reachable-path, so a new case would force a branch in
+/// every `switch` over `CLIError` — `Simpilot.envelope` and `ScenarioRunner`
+/// alike — and each would have to invent a `(code, message)` for a value whose
+/// whole point is that it has none.
+///
+/// Only `Simpilot.run` knows what to do with it, so throw it only from a path
+/// that unwinds straight there: `decodeAndPrint`, or a command's own tail. A
+/// scenario step must never throw it — `ScenarioRunner`'s generic `catch` would
+/// swallow the status and report the default `localizedDescription`.
+struct AlreadyReported: Error {
+    let status: Int32
 }
 
-/// Prints the agent response, then throws `CLIError.commandFailed` when the envelope
-/// reports `success: false`. Callers that want agent-reported failures to surface as
-/// exit code 2 must use this instead of `printResponse`.
-func decodeAndPrint(data: Data, pretty: Bool) throws {
-    guard let json = try? JSONSerialization.jsonObject(with: data) else {
-        if let str = String(data: data, encoding: .utf8) {
-            print(str)
-        }
-        return
+/// What an agent envelope means to the CLI.
+enum AgentEnvelope: Equatable {
+    case success
+    case failure(status: Int32)
+    /// A JSON object, but with no boolean `success` — not an envelope.
+    case malformed
+}
+
+/// Classifies an agent response object. `invalid_regex` surfaces as exit 3
+/// (invalid args) to match the CLI-side preflight path; other agent-reported
+/// failures keep the exit-2 mapping.
+///
+/// A response carrying no boolean `success` is `malformed`, never a success:
+/// every envelope the agent builds has one (`HTTPResponse` is the single
+/// builder), and `StepExecutor.isSuccess` already fails a scenario step on its
+/// absence.
+func classify(agentResponse json: [String: Any]) -> AgentEnvelope {
+    guard let success = jsonBoolean(json["success"]) else { return .malformed }
+    guard !success else { return .success }
+    let code = (json["error"] as? [String: Any])?["code"] as? String
+    return .failure(status: code == "invalid_regex" ? 3 : 2)
+}
+
+/// `true` and `1` both decode to `NSNumber`, and `NSNumber(1) as? Bool` is `true`.
+/// A plain `as? Bool` would therefore accept a foreign server's `{"success": 1}`
+/// as a simpilot envelope — the very thing `.malformed` exists to catch. Only
+/// `kCFBoolean` carries the boolean type ID.
+private func jsonBoolean(_ value: Any?) -> Bool? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) == CFBooleanGetTypeID() else {
+        return nil
     }
+    return number.boolValue
+}
+
+/// The single owner of "is this an agent envelope at all".
+///
+/// Both response paths go through it — `decodeAndPrint` for a direct command and
+/// `StepExecutor.parseResponse` for a scenario step — so the same body cannot be
+/// an `invalid_response` on one and an anonymous failure on the other. Rejects a
+/// body that is not JSON, is not a JSON object, or carries no boolean `success`.
+func decodeAgentEnvelope(_ data: Data) throws -> (json: [String: Any], outcome: AgentEnvelope) {
+    guard let raw = try? JSONSerialization.jsonObject(with: data),
+          let json = raw as? [String: Any] else {
+        throw CLIError.invalidResponse(responsePreview(data))
+    }
+    let outcome = classify(agentResponse: json)
+    guard outcome != .malformed else {
+        throw CLIError.invalidResponse(responsePreview(data))
+    }
+    return (json, outcome)
+}
+
+/// Prints the agent's envelope — the *only* thing this command writes to stdout —
+/// then throws `AlreadyReported` when it reports `success: false`.
+///
+/// The agent's envelope is the response. Throwing a `CLIError` after printing it
+/// would make `main` print a second envelope, so `stdout` would hold two JSON
+/// objects (`json.loads` fails on the pair) and the specific code the agent chose
+/// (`element_not_found`) would be buried under a generic `command_failed`.
+///
+/// A body that is not an envelope is therefore rejected *before* anything is
+/// printed: `main` then prints its `invalid_response` envelope and stdout still
+/// holds exactly one JSON object.
+func decodeAndPrint(data: Data, pretty: Bool) throws {
+    let (json, outcome) = try decodeAgentEnvelope(data)
+
     printJSON(json, pretty: pretty)
 
-    guard let dict = json as? [String: Any],
-          (dict["success"] as? Bool) == false else {
-        return
+    if case .failure(let status) = outcome {
+        throw AlreadyReported(status: status)
     }
-    let error = dict["error"] as? [String: Any]
-    let code = error?["code"] as? String
-    let message = (error?["message"] as? String)
-        ?? code
-        ?? "agent returned success:false"
-    // invalid_regex surfaces as exit 3 (invalid args) to match the CLI-side
-    // preflight path. Other agent-reported failures keep the exit-2 mapping.
-    if code == "invalid_regex" {
-        throw CLIError.invalidArgs(message)
-    }
-    throw CLIError.commandFailed(message)
 }
 
 // MARK: - Entry Point
@@ -149,18 +204,27 @@ struct Simpilot {
             exit(2)
         }
 
-        // Resolve host from agent registry (supports physical devices with non-localhost hosts).
-        let resolvedHost: String = {
-            if let record = AgentRegistry.load().first(where: { $0.port == options.port }) {
-                return record.host
-            }
-            return "localhost"
-        }()
+        // Resolve host and token from the agent registry. Physical devices sit on
+        // a non-loopback host; every agent the CLI starts requires its token.
+        //
+        // A corrupt registry must not be fatal *here*: `stop --all` is the tool
+        // you reach for when things are broken, and it needs no registry to
+        // sweep orphans. Warn on stderr and carry on token-less; commands that
+        // genuinely need the registry (`list`, `stop --port`) load it themselves
+        // and fail with the specific message.
+        var record: AgentRecord?
+        do {
+            record = try AgentRegistry.load().first { $0.port == options.port }
+        } catch {
+            FileHandle.standardError.write(Data("simpilot: \(error)\n".utf8))
+            record = nil
+        }
 
         let client = HTTPClient(
-            host: resolvedHost,
+            host: record?.host ?? StartCommand.loopbackHost,
             port: options.port,
-            timeout: options.timeout
+            timeout: options.timeout,
+            token: record?.token
         )
 
         run(options: options, client: client)
@@ -290,6 +354,10 @@ struct Simpilot {
         )
         do {
             try cmdType.run(context: context)
+        } catch let reported as AlreadyReported {
+            // stdout already carries the command's own output. Printing an error
+            // envelope on top of it would leave stdout unparseable.
+            exit(reported.status)
         } catch let error as CLIError {
             handleCLIError(error)
         } catch {
@@ -298,26 +366,33 @@ struct Simpilot {
         }
     }
 
-    private static func handleCLIError(_ error: CLIError) -> Never {
+    /// The error envelope and exit status for a `CLIError`. Pure, so the
+    /// mapping can be tested — `handleCLIError` itself calls `exit(_:)` and
+    /// cannot be. `agent_timeout` (4) must stay distinct from
+    /// `agent_unreachable` (1): the first means "retry with a longer budget",
+    /// the second means "there is no agent there".
+    static func envelope(for error: CLIError) -> (code: String, message: String, status: Int32) {
         switch error {
         case .agentUnreachable(let url):
-            printError(code: "agent_unreachable", message: "Cannot connect to agent at \(url)")
-            exit(1)
+            return ("agent_unreachable", "Cannot connect to agent at \(url)", 1)
         case .agentTimeout(let url, let seconds):
-            printError(
-                code: "agent_timeout",
-                message: "Agent at \(url) did not respond within \(Int(seconds))s"
-            )
-            exit(4)
+            return ("agent_timeout", "Agent at \(url) did not respond within \(Int(seconds))s", 4)
         case .invalidArgs(let msg):
-            printError(code: "invalid_args", message: msg)
-            exit(3)
+            return ("invalid_args", msg, 3)
         case .commandFailed(let msg):
-            printError(code: "command_failed", message: msg)
-            exit(2)
+            return ("command_failed", msg, 2)
         case .invalidURL(let url):
-            printError(code: "invalid_args", message: "Invalid URL: \(url)")
-            exit(3)
+            return ("invalid_args", "Invalid URL: \(url)", 3)
+        case .invalidResponse(let preview):
+            // Exit 2, not 1: something answered on that port, so "unreachable"
+            // would send the caller to look for an agent that is in fact there.
+            return ("invalid_response", "Agent did not return a simpilot envelope: \(preview)", 2)
         }
+    }
+
+    private static func handleCLIError(_ error: CLIError) -> Never {
+        let (code, message, status) = envelope(for: error)
+        printError(code: code, message: message)
+        exit(status)
     }
 }

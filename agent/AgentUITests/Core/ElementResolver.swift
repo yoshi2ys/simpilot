@@ -53,11 +53,18 @@ enum ElementResolver {
         // the ObjC exception catcher in Router.safeExecute handles it.
         if result.queryCollection != nil {
             guard result.element.waitForExistence(timeout: 2) else {
-                throw ElementResolverError.elementNotFound("Element not found for query: \(result.trimmed)")
+                throw ElementResolverError.elementNotFound(notFoundMessage(query: result.trimmed))
             }
         }
 
         return result.element
+    }
+
+    /// Single wording for every `element_not_found` failure on the wire.
+    /// `/tap`, `/type`, and `/action` all route through this so an AI client
+    /// can match one string instead of two near-identical ones.
+    static func notFoundMessage(query: String) -> String {
+        return "Element not found for query: \(query)"
     }
 
     // MARK: - Private
@@ -178,22 +185,63 @@ enum ElementResolver {
         return LookupResult(element: element, queryCollection: queryCollection, trimmed: trimmed)
     }
 
-    /// Return a dictionary describing the element for JSON responses.
-    static func describe(_ element: XCUIElement) -> [String: Any] {
+    /// Single source of truth for the element dict in every HTTP response.
+    /// Keys are ALWAYS present; a field the resolution path cannot know is
+    /// NSNull rather than a fabricated default (surface honesty). The one
+    /// conditional key is `match_count`, added by `FoundElement.asDict` when
+    /// the query was ambiguous.
+    ///
+    /// `value: nil` means the element has no value at all; `value: ""` means it
+    /// has one and it is empty. Those are different facts — a test asserting
+    /// "the field I just cleared is now empty" needs the second — so `""` is
+    /// **not** folded into `null`.
+    static func elementDict(
+        type: String,
+        label: String,
+        identifier: String,
+        value: String?,
+        frame: (x: Double, y: Double, w: Double, h: Double),
+        enabled: Bool,
+        selected: Bool?,
+        hittable: Bool?
+    ) -> [String: Any] {
         return [
-            "type": elementTypeName(element.elementType),
-            "label": element.label,
-            "identifier": element.identifier,
-            "value": element.value as Any? ?? NSNull(),
+            "type": type,
+            "label": label,
+            "identifier": identifier,
+            "value": value ?? NSNull(),
             "frame": [
-                "x": element.frame.origin.x,
-                "y": element.frame.origin.y,
-                "width": element.frame.size.width,
-                "height": element.frame.size.height
+                "x": frame.x, "y": frame.y,
+                "width": frame.w, "height": frame.h
             ],
-            "enabled": element.isEnabled,
-            "selected": element.isSelected
+            "enabled": enabled,
+            "selected": selected ?? NSNull(),
+            "hittable": hittable ?? NSNull()
         ]
+    }
+
+    /// Return a dictionary describing the element for JSON responses.
+    ///
+    /// `hittable` is left unknown on purpose: `XCUIElement.isHittable` forces an
+    /// accessibility snapshot (~50–750ms), and this path never needed it.
+    /// `value` is normalized to a string because `XCUIElement.value` is `Any?`
+    /// (String for text fields, NSNumber for sliders) — the wire type must not
+    /// depend on the element kind.
+    static func describe(_ element: XCUIElement) -> [String: Any] {
+        let stringValue = element.value.flatMap { $0 as? String ?? String(describing: $0) }
+        return elementDict(
+            type: elementTypeName(element.elementType),
+            label: element.label,
+            identifier: element.identifier,
+            value: stringValue,
+            frame: (
+                x: Double(element.frame.origin.x), y: Double(element.frame.origin.y),
+                w: Double(element.frame.size.width), h: Double(element.frame.size.height)
+            ),
+            enabled: element.isEnabled,
+            selected: element.isSelected,
+            hittable: nil
+        )
     }
 
     static func elementTypeName(_ type: XCUIElement.ElementType) -> String {

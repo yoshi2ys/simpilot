@@ -38,108 +38,80 @@ final class ActionHandler {
         let app = appManager.currentApp()
         var responseData: [String: Any] = [:]
 
-        // 1. Execute action
-        do {
-            switch action {
-            case "tap":
-                guard let query = query else {
-                    return HTTPResponseBuilder.error("Missing 'query' for tap action", code: "invalid_request")
-                }
-                let resolution = TapHandler.resolveAndTap(
-                    query: query,
-                    wait: TapHandler.parseWaitArgs(from: json),
-                    gesture: .tap,
-                    in: app
-                )
-                switch resolution {
-                case .success(let element):
-                    responseData["action_result"] = element
-                default:
-                    return TapHandler.responseData(from: resolution)
-                }
-
-            case "type":
-                guard let text = json["text"] as? String else {
-                    return HTTPResponseBuilder.error("Missing 'text' for type action", code: "invalid_request")
-                }
-                let method = json["method"] as? String ?? "auto"
-                #if !os(tvOS)
-                var targetCoord: XCUICoordinate?
-                #endif
-                if let query = query {
-                    let typeWait = TapHandler.parseWaitArgs(from: json)
-                    switch TapHandler.awaitPredicates(query: query, wait: typeWait, in: app) {
-                    case .timedOut(let lastState, let failed):
-                        return TapHandler.waitTimeoutResponse(
-                            query: query, failedPredicates: failed,
-                            lastState: lastState, timeoutMs: typeWait.timeoutMs
-                        )
-                    case .notNeeded, .satisfied:
-                        break
-                    }
-                    #if !os(tvOS)
-                    if let found = DebugDescriptionParser.findElement(query: query, in: app) {
-                        let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                            .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
-                        targetCoord = coord
-                        let coordTapFailed = catchObjCException { coord.tap() }
-                        if coordTapFailed != nil {
-                            let tapElement = try ElementResolver.resolve(query: query, in: app)
-                            tapElement.tap()
-                        }
-                    } else {
-                        return HTTPResponseBuilder.error("Element not found: \(query)", code: "element_not_found")
-                    }
-                    #else
-                    let _ = try ElementResolver.resolve(query: query, in: app)
-                    XCUIRemote.shared.press(.select)
-                    #endif
-                }
-                #if os(tvOS)
-                let (usedMethod, inputError) = PasteHelper.performTextInput(text, method: method, at: nil, in: app)
-                #else
-                let (usedMethod, inputError) = PasteHelper.performTextInput(text, method: method, at: targetCoord, in: app)
-                #endif
-                if let inputError { return inputError }
-                responseData["action_result"] = ["action": "type", "text": text, "method": usedMethod] as [String: Any]
-
-            case "swipe":
-                guard let direction = json["direction"] as? String else {
-                    return HTTPResponseBuilder.error("Missing 'direction' for swipe action", code: "invalid_request")
-                }
-                let velocity = json["velocity"] as? String ?? "default"
-                let swipeResolution = SwipeHandler.resolveAndSwipe(
-                    query: query,
-                    direction: direction,
-                    velocity: velocity,
-                    wait: TapHandler.parseWaitArgs(from: json),
-                    in: app
-                )
-                switch swipeResolution {
-                case .success(let data):
-                    responseData["action_result"] = data
-                default:
-                    return SwipeHandler.responseData(from: swipeResolution)
-                }
-
-            case "tapcoord":
-                #if os(tvOS)
-                return HTTPResponseBuilder.error("tapcoord is not supported on tvOS", code: "unsupported_platform")
-                #else
-                guard let x = json["x"] as? Double, let y = json["y"] as? Double else {
-                    return HTTPResponseBuilder.error("Missing 'x' or 'y' for tapcoord", code: "invalid_request")
-                }
-                let normalized = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
-                let coord = normalized.withOffset(CGVector(dx: x, dy: y))
-                coord.tap()
-                responseData["action_result"] = ["action": "tapcoord", "x": x, "y": y]
-                #endif
-
-            default:
-                return HTTPResponseBuilder.error("Unknown action: \(action)", code: "invalid_request")
+        // 1. Execute action. Every branch delegates to a shared resolver that
+        // returns an envelope instead of throwing, so there is nothing to catch.
+        switch action {
+        case "tap":
+            guard let query = query else {
+                return HTTPResponseBuilder.error("Missing 'query' for tap action", code: "invalid_request")
             }
-        } catch {
-            return HTTPResponseBuilder.error(error.localizedDescription, code: "action_failed")
+            let resolution = TapHandler.resolveAndTap(
+                query: query,
+                wait: TapHandler.parseWaitArgs(from: json),
+                gesture: .tap,
+                in: app
+            )
+            switch resolution {
+            case .success(let element):
+                responseData["action_result"] = element
+            default:
+                return TapHandler.responseData(from: resolution)
+            }
+
+        case "type":
+            guard let text = json["text"] as? String else {
+                return HTTPResponseBuilder.error("Missing 'text' for type action", code: "invalid_request")
+            }
+            let typeResolution = TypeHandler.resolveAndType(
+                query: query,
+                text: text,
+                method: json["method"] as? String ?? "auto",
+                wait: TapHandler.parseWaitArgs(from: json),
+                in: app
+            )
+            switch typeResolution {
+            case .success(let usedMethod, let element):
+                var actionResult: [String: Any] = ["action": "type", "text": text, "method": usedMethod]
+                if let element { actionResult["element"] = element }
+                responseData["action_result"] = actionResult
+            case .failure(let failure):
+                return TypeHandler.failureResponse(for: failure)
+            }
+
+        case "swipe":
+            guard let direction = json["direction"] as? String else {
+                return HTTPResponseBuilder.error("Missing 'direction' for swipe action", code: "invalid_request")
+            }
+            let velocity = json["velocity"] as? String ?? "default"
+            let swipeResolution = SwipeHandler.resolveAndSwipe(
+                query: query,
+                direction: direction,
+                velocity: velocity,
+                wait: TapHandler.parseWaitArgs(from: json),
+                in: app
+            )
+            switch swipeResolution {
+            case .success(let data):
+                responseData["action_result"] = data
+            default:
+                return SwipeHandler.responseData(from: swipeResolution)
+            }
+
+        case "tapcoord":
+            #if os(tvOS)
+            return HTTPResponseBuilder.error("tapcoord is not supported on tvOS", code: "unsupported_platform")
+            #else
+            guard let x = json["x"] as? Double, let y = json["y"] as? Double else {
+                return HTTPResponseBuilder.error("Missing 'x' or 'y' for tapcoord", code: "invalid_request")
+            }
+            let normalized = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            let coord = normalized.withOffset(CGVector(dx: x, dy: y))
+            coord.tap()
+            responseData["action_result"] = ["action": "tapcoord", "x": x, "y": y]
+            #endif
+
+        default:
+            return HTTPResponseBuilder.error("Unknown action: \(action)", code: "invalid_request")
         }
 
         // 2. Wait for UI to settle

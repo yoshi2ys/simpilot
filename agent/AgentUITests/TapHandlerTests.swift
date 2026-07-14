@@ -16,7 +16,8 @@ final class TapHandlerTests: XCTestCase {
         DebugDescriptionParser.FoundElement(
             type: type, label: "L", identifier: "id", value: "",
             centerX: x + w / 2, centerY: y + h / 2,
-            frame: (x: x, y: y, w: w, h: h), enabled: true, hittable: nil
+            frame: (x: x, y: y, w: w, h: h), enabled: true,
+            matchCount: 1, hittable: nil
         )
     }
 

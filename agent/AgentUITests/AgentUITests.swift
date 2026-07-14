@@ -7,26 +7,22 @@ import XCTest
 // (StablePredicateTests / PredicateEvaluatorTests / DebugDescriptionParserTests).
 final class AgentUITests: XCTestCase {
     func testAgent() throws {
-        var port: UInt16 = 8222
-
-        // Try environment variable first (set by xcodebuild's scheme or process env)
-        if let envPort = ProcessInfo.processInfo.environment["SIMPILOT_PORT"],
-           let p = UInt16(envPort) {
-            port = p
-        }
-        // Fallback: read port from file written by CLI (keyed by simulator UDID)
-        else if let udid = ProcessInfo.processInfo.environment["SIMULATOR_UDID"] {
-            let portFile = "/tmp/simpilot-port-\(udid)"
-            if let contents = try? String(contentsOfFile: portFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
-               let p = UInt16(contents) {
-                port = p
-            }
+        // `simpilot start` passes port/bind/token as TEST_RUNNER_* variables,
+        // which xcodebuild forwards into this process's environment. A bad or
+        // unsafe combination fails the test loudly rather than falling back to
+        // a silently different listener.
+        let config: AgentConfig
+        do {
+            config = try AgentConfig.resolve(env: ProcessInfo.processInfo.environment)
+        } catch {
+            XCTFail("[simpilot] Agent configuration rejected: \(error)")
+            return
         }
 
-        let server = HTTPServer(port: port)
+        let server = HTTPServer(config: config)
         server.start()
 
-        print("[simpilot] Agent started on port \(port)")
+        print("[simpilot] Agent started on port \(config.port)")
 
         // Run the main RunLoop forever, with ObjC exception protection.
         // XCUITest can throw NSException asynchronously (e.g., during UI hierarchy updates

@@ -37,13 +37,24 @@ enum SimctlHelper {
     /// `SIMPILOT_DEFAULT_DEVICE` is set.
     static func firstBootedDevice() throws -> (udid: String, name: String)? {
         try findFirstDevice { _, device in
-            guard let state = device["state"] as? String, state == "Booted",
-                  let name = device["name"] as? String,
-                  let udid = device["udid"] as? String else {
+            guard let udid = bootedUDID(device), let name = device["name"] as? String else {
                 return nil
             }
             return (udid: udid, name: name)
         }?.device
+    }
+
+    /// Every booted simulator's UDID. Used by `simpilot stop --all` to sweep
+    /// agent runners the registry never knew about.
+    static func bootedDeviceUDIDs() throws -> [String] {
+        try findAllDevices { _, device in bootedUDID(device) }
+    }
+
+    /// The one definition of "this simulator is booted", shared by both lookups
+    /// above so they cannot disagree.
+    private static func bootedUDID(_ device: [String: Any]) -> String? {
+        guard device["state"] as? String == "Booted" else { return nil }
+        return device["udid"] as? String
     }
 
     /// Reverse-lookup a simulator UDID to its human-readable name. Returns
@@ -76,6 +87,16 @@ enum SimctlHelper {
             }
         }
         return nil
+    }
+
+    /// `findFirstDevice`'s collect-them-all sibling, for lookups that need every
+    /// match rather than the first.
+    private static func findAllDevices<T>(
+        where predicate: (_ runtime: String, _ device: [String: Any]) -> T?
+    ) throws -> [T] {
+        try listDevicesByRuntime().flatMap { runtime, devices in
+            devices.compactMap { predicate(runtime, $0) }
+        }
     }
 
     private static func listDevicesByRuntime() throws -> [String: [[String: Any]]] {
@@ -123,6 +144,92 @@ enum SimctlHelper {
     }
 
     /// Shutdown and delete a created simulator device.
+    /// Bundle identifier of the XCUITest runner app Xcode installs on the
+    /// simulator: the UI-test target's bundle id with `.xctrunner` appended.
+    ///
+    /// The runner is what actually holds the agent's listening socket. It is
+    /// parented by the simulator's `launchd_sim`, not by `xcodebuild`, so
+    /// SIGTERMing `xcodebuild` alone leaves it running and holding the port.
+    static let runnerBundleID = "dev.yoshi.simpilot.AgentUITests.xctrunner"
+
+    /// Best-effort shutdown of the runner app on `udid`. `simctl terminate` exits
+    /// non-zero when the app is not running and when the device is gone; no
+    /// caller can act on either, so the result is dropped.
+    static func terminateRunner(udid: String) {
+        _ = try? run(["simctl", "terminate", udid, runnerBundleID])
+    }
+
+    /// Best-effort removal of the runner app from `udid`.
+    ///
+    /// `terminate` frees the port but leaves the app installed, and `launchd_sim`
+    /// goes on relaunching it in the background for hours. Only `xcodebuild test`
+    /// puts `XCTest.framework` on the runner's search path, so every one of those
+    /// background launches aborts in dyld with `Library not loaded:
+    /// @rpath/XCTest.framework/XCTest` — and macOS raises a "quit unexpectedly"
+    /// dialog for each. `start` reinstalls the runner (it runs `xcodebuild test`,
+    /// not `test-without-building`), so removing it here is not a cost.
+    static func uninstallRunner(udid: String) {
+        _ = try? run(["simctl", "uninstall", udid, runnerBundleID])
+    }
+
+    /// Whether the runner app is installed on `udid`.
+    ///
+    /// `simctl uninstall` exits 0 whether or not the app was there, so it cannot
+    /// report what it removed; `simctl get_app_container` exits non-zero only
+    /// when the app is absent.
+    static func isRunnerInstalled(udid: String) -> Bool {
+        (try? run(["simctl", "get_app_container", udid, runnerBundleID])) != nil
+    }
+
+    /// The simulator-side teardown a runner needs, as data. Kept separate from
+    /// `teardownRunner` so the branching is unit-testable without shelling out.
+    enum TeardownStep: Equatable {
+        case terminateRunner
+        case uninstallRunner
+        case deleteClone
+    }
+
+    /// Physical devices are driven by `devicectl`, so no `simctl` step applies to
+    /// them. Removal and deletion are mutually exclusive: a `--clone`/`--create`
+    /// device is deleted outright, which takes the runner app with it, so
+    /// uninstalling it first would be wasted work.
+    static func teardownSteps(udid: String, isPhysical: Bool, isClone: Bool) -> [TeardownStep] {
+        guard !isPhysical, !udid.isEmpty else { return [] }
+        return [.terminateRunner, isClone ? .deleteClone : .uninstallRunner]
+    }
+
+    /// Tear down the simulator-side half of an agent. The single place that
+    /// knows what "removing a runner" means, so `stop`, `start`'s rollback, and
+    /// the orphan sweep cannot drift apart.
+    static func teardownRunner(udid: String, isPhysical: Bool, isClone: Bool) {
+        for step in teardownSteps(udid: udid, isPhysical: isPhysical, isClone: isClone) {
+            switch step {
+            case .terminateRunner: terminateRunner(udid: udid)
+            case .uninstallRunner: uninstallRunner(udid: udid)
+            case .deleteClone: deleteClone(udid: udid)
+            }
+        }
+    }
+
+    /// Remove leftover agent runners from every booted simulator except the ones
+    /// already torn down. Scoped by bundle identifier, so unlike a `pgrep -f`
+    /// sweep it cannot touch another project's test runner.
+    ///
+    /// Selecting on whether `simctl terminate` found something to kill would miss
+    /// the very state this sweep exists to clean: a runner that `launchd_sim`
+    /// keeps relaunching into an immediate dyld abort is dead almost all the
+    /// time. Select on *installed* instead.
+    ///
+    /// Returns the UDIDs where a runner was actually removed.
+    static func sweepOrphanRunners(excluding knownUDIDs: Set<String>) -> [String] {
+        let booted = (try? bootedDeviceUDIDs()) ?? []
+        let orphans = booted.filter { !knownUDIDs.contains($0) && isRunnerInstalled(udid: $0) }
+        for udid in orphans {
+            teardownRunner(udid: udid, isPhysical: false, isClone: false)
+        }
+        return orphans
+    }
+
     static func deleteClone(udid: String) {
         shutdownDevice(udid: udid)
         try? deleteDevice(udid: udid)

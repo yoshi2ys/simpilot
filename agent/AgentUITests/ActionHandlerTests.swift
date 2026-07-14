@@ -91,6 +91,12 @@ final class ActionHandlerTests: XCTestCase {
     }
 
     // MARK: - Source-level wiring guards
+    //
+    // These read the handler source rather than exercising it. They are a last
+    // resort, kept only where the behavior needs a live `XCUIApplication` that
+    // this pure-logic suite has no way to stand up. Anything reachable through a
+    // pure function is tested for real in the envelope section below — prefer
+    // that when adding coverage, and delete the structural guard it replaces.
 
     /// Structural test: ActionHandler's tap case must route through
     /// `TapHandler.resolveAndTap` (the shared path) and must not reintroduce
@@ -102,15 +108,14 @@ final class ActionHandlerTests: XCTestCase {
             source.contains("TapHandler.resolveAndTap"),
             "ActionHandler must call the shared TapHandler.resolveAndTap helper for the tap case."
         )
-        // Tap case previously called DebugDescriptionParser.findElement directly.
-        // The remaining reference in ActionHandler comes from the `type` case
-        // (focus-by-coord), never from tap. If tap regresses to a direct
-        // findElement call the count grows beyond the known 1 occurrence.
+        // Tap case previously called DebugDescriptionParser.findElement directly,
+        // and so did the type case until A15 moved it into TypeHandler.resolveAndType.
+        // ActionHandler now resolves nothing itself: any occurrence is a regression.
         let findElementOccurrences = source.components(separatedBy: "DebugDescriptionParser.findElement").count - 1
-        XCTAssertLessThanOrEqual(
+        XCTAssertEqual(
             findElementOccurrences,
-            1,
-            "ActionHandler.tap case must not call DebugDescriptionParser.findElement directly (only the type case may)."
+            0,
+            "ActionHandler must not call DebugDescriptionParser.findElement directly — resolution belongs to the shared helpers."
         )
     }
 
@@ -149,30 +154,103 @@ final class ActionHandlerTests: XCTestCase {
         )
     }
 
-    /// Wave 3b.1: action=type with a query must gate through awaitPredicates
-    /// before the coord-tap + PasteHelper flow. Without this, --wait-until on
-    /// `simpilot action type --query SearchField --text foo --wait-until hittable`
-    /// was silently dropped.
-    func test_actionHandler_typeCase_forwardsWaitArgs() throws {
-        let source = try loadActionHandlerSource()
-        guard let typeCaseStart = source.range(of: "case \"type\":") else {
-            XCTFail("ActionHandler source missing type case")
-            return
+    // MARK: - Failure envelopes (behavior, not source text)
+
+    /// Decode a handler's raw HTTP response into the two things a client can
+    /// actually observe: the status line and the JSON envelope.
+    private func decodeEnvelope(_ data: Data) throws -> (status: Int, json: [String: Any]) {
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let statusLine = try XCTUnwrap(text.components(separatedBy: "\r\n").first)
+        let status = try XCTUnwrap(Int(statusLine.components(separatedBy: " ")[1]))
+        let separator = try XCTUnwrap(text.range(of: "\r\n\r\n"))
+        let body = Data(String(text[separator.upperBound...]).utf8)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        return (status, json)
+    }
+
+    private func error(_ json: [String: Any]) throws -> [String: Any] {
+        try XCTUnwrap(json["error"] as? [String: Any])
+    }
+
+    func test_tapEnvelope_elementNotFound() throws {
+        let (status, json) = try decodeEnvelope(
+            TapHandler.responseData(from: .elementNotFound(query: "General"))
+        )
+        XCTAssertEqual(status, 400)
+        XCTAssertEqual(json["success"] as? Bool, false)
+        XCTAssertEqual(try error(json)["code"] as? String, "element_not_found")
+        XCTAssertEqual(try error(json)["message"] as? String, "Element not found for query: General")
+    }
+
+    func test_tapEnvelope_waitTimeout_carriesDiagnostics() throws {
+        let (status, json) = try decodeEnvelope(TapHandler.responseData(from: .waitTimeout(
+            query: "Save",
+            failedPredicates: ["hittable"],
+            lastState: ["type": "button"],
+            timeoutMs: 3000
+        )))
+        XCTAssertEqual(status, 408)
+        let err = try error(json)
+        XCTAssertEqual(err["code"] as? String, "wait_timeout")
+        XCTAssertEqual(err["query"] as? String, "Save")
+        XCTAssertEqual(err["failed_predicates"] as? [String], ["hittable"])
+        XCTAssertEqual(err["timeout_ms"] as? Int, 3000)
+        XCTAssertEqual((err["last_state"] as? [String: Any])?["type"] as? String, "button")
+    }
+
+    func test_tapEnvelope_remainingFailureCodes() throws {
+        let cases: [(TapHandler.Resolution, String)] = [
+            (.noElementToTap(query: "X"), "no_element_to_tap"),
+            (.tapFailed(query: "X", reason: "boom"), "tap_failed")
+        ]
+        for (resolution, expectedCode) in cases {
+            let (status, json) = try decodeEnvelope(TapHandler.responseData(from: resolution))
+            XCTAssertEqual(status, 400)
+            XCTAssertEqual(try error(json)["code"] as? String, expectedCode)
         }
-        let typeCaseEnd = source.range(of: "case \"", range: typeCaseStart.upperBound..<source.endIndex)?.lowerBound
-            ?? source.endIndex
-        let typeSegment = String(source[typeCaseStart.upperBound..<typeCaseEnd])
-        XCTAssertTrue(
-            typeSegment.contains("awaitPredicates"),
-            "ActionHandler type case must call TapHandler.awaitPredicates to honor wait flags"
+    }
+
+    func test_tapEnvelope_successCarriesTheElement() throws {
+        let (status, json) = try decodeEnvelope(
+            TapHandler.responseData(from: .success(element: ["type": "button", "label": "OK"]))
         )
-        XCTAssertTrue(
-            typeSegment.contains("parseWaitArgs"),
-            "ActionHandler type case must build WaitArgs from the request body"
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["success"] as? Bool, true)
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        XCTAssertEqual((data["element"] as? [String: Any])?["label"] as? String, "OK")
+    }
+
+    /// A15's real contract: `/type` and `/action type` must produce the *same
+    /// bytes* as `/tap` for the same failure. Comparing the envelopes directly
+    /// catches drift that a `source.contains(...)` scan only approximates.
+    func test_typeFailureEnvelope_isByteIdenticalToTap() {
+        XCTAssertEqual(
+            TypeHandler.failureResponse(for: .elementNotFound(query: "Search")),
+            TapHandler.responseData(from: .elementNotFound(query: "Search"))
         )
-        XCTAssertTrue(
-            typeSegment.contains("waitTimeoutResponse"),
-            "ActionHandler type case must return waitTimeoutResponse on gate timeout"
+        XCTAssertEqual(
+            TypeHandler.failureResponse(for: .waitTimeout(
+                query: "Search", failedPredicates: ["exists"],
+                lastState: nil, timeoutMs: 1500
+            )),
+            TapHandler.waitTimeoutResponse(
+                query: "Search", failedPredicates: ["exists"],
+                lastState: nil, timeoutMs: 1500
+            )
+        )
+    }
+
+    func test_typeFailureEnvelope_inputFailurePassesThroughVerbatim() {
+        // PasteHelper already built a full envelope; re-wrapping it would lose
+        // its specific code (`paste_failed` / `unsupported_platform`).
+        let pasteError = HTTPResponseBuilder.error("Paste menu not found.", code: "paste_failed")
+        XCTAssertEqual(TypeHandler.failureResponse(for: .inputFailed(pasteError)), pasteError)
+    }
+
+    func test_notFoundMessageIsTheOneWording() {
+        XCTAssertEqual(
+            ElementResolver.notFoundMessage(query: "General"),
+            "Element not found for query: General"
         )
     }
 
@@ -431,7 +509,7 @@ final class ActionHandlerTests: XCTestCase {
         return try loadHandlerSource(named: "SwipeHandler.swift")
     }
 
-    private func loadHandlerSource(named fileName: String = "ActionHandler.swift") throws -> String {
+    private func loadHandlerSource(named fileName: String) throws -> String {
         let thisFile = URL(fileURLWithPath: #filePath)
         var dir = thisFile.deletingLastPathComponent()
         while dir.path != "/" {

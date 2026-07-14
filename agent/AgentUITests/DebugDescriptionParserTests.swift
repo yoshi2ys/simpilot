@@ -150,6 +150,193 @@ final class DebugDescriptionParserTests: XCTestCase {
         XCTAssertNil(DebugDescriptionParser.findElement(query: "Zero", in: parsed))
     }
 
+    // MARK: - A13: ambiguous matches are reported, not silently resolved
+
+    /// A disabled control whose same-label sibling is enabled — the exact shape
+    /// that makes "prefer the enabled match" unsafe. `ElementPoller` observes
+    /// through `findElement`, so preferring the enabled sibling would make
+    /// `assert enabled 'General'` pass against the disabled control.
+    private static let ambiguousGeneralTree = """
+     →Application, 0x1, pid: 1, label: 'App'
+        Window (Main), 0x2, {{0.0, 0.0}, {402.0, 874.0}}
+          Button, 0x3, {{0.0, 100.0}, {200.0, 44.0}}, label: 'General', Disabled
+          StaticText, 0x4, {{8.0, 110.0}, {100.0, 20.0}}, label: 'General'
+    """
+
+    func test_findElement_ambiguousMatch_keepsParseOrderAndDoesNotPreferEnabled() {
+        let parsed = parsedElementsFromRaw(Self.ambiguousGeneralTree)
+        let found = DebugDescriptionParser.findElement(query: "General", in: parsed)
+        XCTAssertEqual(found?.type, "button", "parse order wins: the row, not its inner label")
+        XCTAssertEqual(
+            found?.enabled, false,
+            "the disabled row must be observed as disabled — an enabled sibling must not mask it"
+        )
+        XCTAssertEqual(found?.matchCount, 2)
+    }
+
+    func test_findElement_ambiguousMatch_asDictSurfacesMatchCount() {
+        let parsed = parsedElementsFromRaw(Self.ambiguousGeneralTree)
+        let found = DebugDescriptionParser.findElement(query: "General", in: parsed)
+        XCTAssertEqual(found?.asDict["match_count"] as? Int, 2)
+    }
+
+    func test_findElement_ambiguousMatch_reportsFirstEvenWhenLaterOneIsActionable() {
+        let raw = """
+         →Application, 0x1, pid: 1, label: 'App'
+            Window (Main), 0x2, {{0.0, 0.0}, {402.0, 874.0}}
+              StaticText, 0x3, {{0.0, 0.0}, {100.0, 20.0}}, label: 'General'
+              Button, 0x4, {{0.0, 100.0}, {200.0, 44.0}}, label: 'General'
+        """
+        let found = DebugDescriptionParser.findElement(query: "General", in: parsedElementsFromRaw(raw))
+        XCTAssertEqual(found?.type, "staticText", "no re-ranking; the caller sees match_count and can narrow")
+        XCTAssertEqual(found?.matchCount, 2)
+    }
+
+    func test_findElement_singleMatch_omitsMatchCountKey() throws {
+        // `#identifier` is unique in the fixture; the bare label "General" is not
+        // (see the test below) — which is precisely why match_count exists.
+        let parsed = try parsedElements(from: "settings_root.txt")
+        let found = DebugDescriptionParser.findElement(query: "#com.apple.settings.general", in: parsed)
+        XCTAssertEqual(found?.matchCount, 1)
+        XCTAssertNil(
+            found?.asDict["match_count"],
+            "match_count is the ambiguity signal — an unambiguous match must not carry it"
+        )
+    }
+
+    /// Real production data, not a synthetic tree: in Settings the "General" row
+    /// is a Button whose inner StaticText carries the same label, so `tap General`
+    /// has always been a two-way ambiguity resolved silently by parse order.
+    /// It still resolves to the Button (first, and enabled) — but now says so.
+    func test_findElement_realFixture_bareLabelIsAmbiguous_reportsMatchCount() throws {
+        let parsed = try parsedElements(from: "settings_root.txt")
+        let found = DebugDescriptionParser.findElement(query: "General", in: parsed)
+        XCTAssertEqual(found?.type, "button", "the tappable row, not its inner label")
+        XCTAssertEqual(found?.matchCount, 2)
+        XCTAssertEqual(found?.asDict["match_count"] as? Int, 2)
+    }
+
+    // Zero matches → nil is already pinned by
+    // `test_findElement_missingElement_returnsNil` above.
+
+    // MARK: - A14: one element schema for every response path
+
+    /// The eight keys `/tap`, `/type`, `/assert`, and `/scroll-to` all promise.
+    private static let elementSchemaKeys: Set<String> = [
+        "type", "label", "identifier", "value", "frame", "enabled", "selected", "hittable"
+    ]
+
+    func test_elementDict_emitsEveryKey_withNSNullForUnknowns() {
+        let dict = ElementResolver.elementDict(
+            type: "button", label: "Save", identifier: "save", value: nil,
+            frame: (x: 1, y: 2, w: 3, h: 4),
+            enabled: true, selected: nil, hittable: nil
+        )
+        XCTAssertEqual(Set(dict.keys), Self.elementSchemaKeys)
+        XCTAssertTrue(dict["value"] is NSNull, "unknown value must be NSNull, not an absent key")
+        XCTAssertTrue(dict["selected"] is NSNull)
+        XCTAssertTrue(dict["hittable"] is NSNull)
+        XCTAssertEqual(dict["enabled"] as? Bool, true)
+        XCTAssertEqual(dict["frame"] as? [String: Double], ["x": 1, "y": 2, "width": 3, "height": 4])
+    }
+
+    /// `nil` ("this element has no value") and `""` ("its value is empty") are
+    /// different facts. Folding them together would make "the field I just
+    /// cleared is now empty" inexpressible.
+    func test_elementDict_nilValue_isNSNull_butEmptyStringSurvives() {
+        func value(_ raw: String?) -> Any {
+            ElementResolver.elementDict(
+                type: "textField", label: "", identifier: "", value: raw,
+                frame: (x: 0, y: 0, w: 10, h: 10),
+                enabled: true, selected: false, hittable: true
+            )["value"]!
+        }
+        XCTAssertTrue(value(nil) is NSNull, "no value concept at all")
+        XCTAssertEqual(value("") as? String, "", "an empty value is still a value")
+    }
+
+    /// The parser only ever sees `""` when debugDescription printed no value
+    /// attribute — that is "no value", so `asDict` must map it to null.
+    func test_foundElementAsDict_missingValueAttribute_isNSNull() {
+        let raw = """
+         →Application, 0x1, pid: 1, label: 'App'
+            Window (Main), 0x2, {{0.0, 0.0}, {402.0, 874.0}}
+              Button, 0x3, {{0.0, 100.0}, {200.0, 44.0}}, label: 'Go'
+        """
+        let found = DebugDescriptionParser.findElement(query: "Go", in: parsedElementsFromRaw(raw))
+        XCTAssertTrue(found?.asDict["value"] is NSNull)
+    }
+
+    func test_elementDict_unknownFieldsAreNSNull() {
+        let dict = ElementResolver.elementDict(
+            type: "textField", label: "", identifier: "", value: nil,
+            frame: (x: 0, y: 0, w: 10, h: 10),
+            enabled: true, selected: nil, hittable: nil
+        )
+        XCTAssertTrue(dict["selected"] is NSNull)
+        XCTAssertTrue(dict["hittable"] is NSNull)
+    }
+
+    func test_elementDict_presentValue_roundTrips() {
+        let dict = ElementResolver.elementDict(
+            type: "textField", label: "Email", identifier: "email", value: "a@b.c",
+            frame: (x: 0, y: 0, w: 10, h: 10),
+            enabled: false, selected: true, hittable: false
+        )
+        XCTAssertEqual(dict["value"] as? String, "a@b.c")
+        XCTAssertEqual(dict["enabled"] as? Bool, false)
+    }
+
+    /// The A14 bug: `/tap` returned `FoundElement.asDict` on the fast path and
+    /// `ElementResolver.describe` on the fallback path, and the two disagreed on
+    /// which keys existed. `describe` cannot be called without a live
+    /// XCUIApplication, so pin its shape through the builder it now delegates to.
+    func test_foundElementAsDict_andDescribeShape_haveIdenticalKeySets() {
+        let found = DebugDescriptionParser.FoundElement(
+            type: "button", label: "Save", identifier: "save", value: "",
+            centerX: 50, centerY: 50,
+            frame: (x: 0, y: 0, w: 100, h: 100),
+            enabled: true, matchCount: 1, hittable: nil
+        )
+        // What ElementResolver.describe(_:) produces: knows `selected`, not `hittable`.
+        let describeShaped = ElementResolver.elementDict(
+            type: "button", label: "Save", identifier: "save", value: nil,
+            frame: (x: 0, y: 0, w: 100, h: 100),
+            enabled: true, selected: false, hittable: nil
+        )
+        XCTAssertEqual(Set(found.asDict.keys), Set(describeShaped.keys))
+        XCTAssertEqual(Set(found.asDict.keys), Self.elementSchemaKeys)
+    }
+
+    /// `match_count` is the single conditional key, and only on the parser path.
+    func test_foundElementAsDict_ambiguous_addsOnlyMatchCount() {
+        let found = DebugDescriptionParser.FoundElement(
+            type: "button", label: "Save", identifier: "save", value: "on",
+            centerX: 50, centerY: 50,
+            frame: (x: 0, y: 0, w: 100, h: 100),
+            enabled: true, matchCount: 3, hittable: true
+        )
+        XCTAssertEqual(Set(found.asDict.keys), Self.elementSchemaKeys.union(["match_count"]))
+        XCTAssertEqual(found.asDict["match_count"] as? Int, 3)
+        XCTAssertEqual(found.asDict["hittable"] as? Bool, true)
+        XCTAssertEqual(found.asDict["value"] as? String, "on")
+        XCTAssertTrue(found.asDict["selected"] is NSNull, "a text-tree parse cannot know `selected`")
+    }
+
+    /// Every response element dict must survive JSONSerialization — NSNull is
+    /// legal JSON null, a raw Swift `nil` or tuple would not be.
+    func test_elementDict_isJSONSerializable() throws {
+        let dict = ElementResolver.elementDict(
+            type: "button", label: "Save", identifier: "save", value: nil,
+            frame: (x: 1, y: 2, w: 3, h: 4),
+            enabled: true, selected: nil, hittable: nil
+        )
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(dict))
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        let round = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertTrue(round?["value"] is NSNull)
+    }
+
     // MARK: - parseActionableList
 
     func test_parseActionableList_includesGeneralButton() throws {

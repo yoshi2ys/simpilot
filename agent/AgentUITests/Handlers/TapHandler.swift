@@ -269,7 +269,7 @@ final class TapHandler: @unchecked Sendable {
             return HTTPResponseBuilder.json(["element": element])
         case .elementNotFound(let query):
             return HTTPResponseBuilder.error(
-                "Element not found for query: \(query)",
+                ElementResolver.notFoundMessage(query: query),
                 code: "element_not_found"
             )
         case .waitTimeout(let query, let failed, let lastState, let timeoutMs):

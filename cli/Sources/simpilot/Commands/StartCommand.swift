@@ -267,31 +267,51 @@ enum StartCommand: SimpilotCommand {
         resolvedVia: ResolvedVia,
         pretty: Bool
     ) throws {
-        let target = launchTarget(for: resolved)
-        let process = try launchXcodebuild(destination: target.destination, port: port, udid: target.udid)
+        var target = launchTarget(for: resolved)
+        let token = TokenGenerator.make()
+        let process = try launchXcodebuild(
+            destination: target.destination,
+            port: port,
+            token: token,
+            isPhysical: target.isPhysical
+        )
         let pid = process.processIdentifier
 
         // For physical devices, connect using the device hostname from devicectl
         let host: String
         if target.isPhysical, case .physical(let device) = resolved {
-            guard waitForHealth(host: device.hostname.urlHost, port: port) else {
-                process.terminate()
+            guard waitForHealth(host: device.hostname.urlHost, port: port, token: token) else {
+                rollback(process: process, target: target)
                 throw CLIError.commandFailed("Agent on physical device failed to start within 120 seconds")
             }
             host = device.hostname
         } else {
-            guard waitForHealth(port: port) else {
-                process.terminate()
+            guard waitForHealth(port: port, token: token) else {
+                rollback(process: process, target: target)
                 throw CLIError.commandFailed("Agent failed to start within 60 seconds")
             }
-            host = "localhost"
+            host = loopbackHost
+            // The `.unknown` destination launches by name, so we never learned a
+            // UDID — and a record without one can't have its runner terminated
+            // or its device deleted. The agent knows: it runs inside the
+            // simulator and reports `SIMULATOR_UDID`. Ask it now, while it's up.
+            if target.udid.isEmpty, let udid = simulatorUDID(port: port, token: token) {
+                target = LaunchTarget(destination: target.destination, udid: udid, isPhysical: false)
+            }
         }
 
-        AgentRegistry.add(AgentRecord(
-            port: port, pid: pid, udid: target.udid,
-            device: deviceName, isClone: false, startedAt: Date(),
-            host: host, isPhysical: target.isPhysical
-        ))
+        // An agent we cannot record is an agent nobody can `stop`.
+        do {
+            try AgentRegistry.add(AgentRecord(
+                port: port, pid: pid, udid: target.udid,
+                device: deviceName, isClone: false, startedAt: Date(),
+                host: host, isPhysical: target.isPhysical,
+                pidStartTime: ProcessIdentity.startTime(pid: pid), token: token
+            ))
+        } catch {
+            rollback(process: process, target: target)
+            throw error
+        }
 
         let result: [String: Any] = [
             "success": true,
@@ -339,12 +359,14 @@ enum StartCommand: SimpilotCommand {
             try SimctlHelper.bootDevice(udid: newUDID)
 
             let target = launchTarget(for: .simulator(udid: newUDID))
+            let token = TokenGenerator.make()
             let process: Process
             do {
                 process = try launchXcodebuild(
                     destination: target.destination,
                     port: port,
-                    udid: target.udid
+                    token: token,
+                    isPhysical: false
                 )
             } catch {
                 SimctlHelper.deleteClone(udid: newUDID)
@@ -353,16 +375,21 @@ enum StartCommand: SimpilotCommand {
 
             let pid = process.processIdentifier
 
-            guard waitForHealth(port: port) else {
-                process.terminate()
-                SimctlHelper.deleteClone(udid: newUDID)
+            guard waitForHealth(port: port, token: token) else {
+                rollback(process: process, target: target, deleteClone: true)
                 throw CLIError.commandFailed("Agent on port \(port) failed to start within 60 seconds")
             }
 
-            AgentRegistry.add(AgentRecord(
-                port: port, pid: pid, udid: newUDID,
-                device: newName, isClone: true, startedAt: Date()
-            ))
+            do {
+                try AgentRegistry.add(AgentRecord(
+                    port: port, pid: pid, udid: newUDID,
+                    device: newName, isClone: true, startedAt: Date(),
+                    pidStartTime: ProcessIdentity.startTime(pid: pid), token: token
+                ))
+            } catch {
+                rollback(process: process, target: target, deleteClone: true)
+                throw error
+            }
 
             started.append([
                 "pid": Int(pid),
@@ -387,16 +414,60 @@ enum StartCommand: SimpilotCommand {
 
     // MARK: - Helpers
 
+    /// Undo a launch that will not be registered.
+    ///
+    /// An agent is three things, not one: the `xcodebuild` process, the
+    /// simulator-side `AgentUITests-Runner` it spawned (parented by
+    /// `launchd_sim`, so it survives `xcodebuild` and keeps the port bound), and
+    /// for `--clone`/`--create` the device itself. Terminating only the process
+    /// — which every rollback here used to do — leaves the port held by a runner
+    /// with no registry record, so the next `start` silently shifts to port+1.
+    /// A rollback that terminated the runner but left it installed would also
+    /// leave `launchd_sim` crash-looping it, so this goes through the same
+    /// `SimctlHelper.teardownRunner` as `StopCommand.teardownAgent`. A `.unknown`
+    /// target is still cleaned up by nothing here — it has no UDID until the
+    /// agent reports one, which only happens once the health check passes. The
+    /// `stop --all` orphan sweep is the backstop for that case.
+    private static func rollback(process: Process, target: LaunchTarget, deleteClone: Bool = false) {
+        process.terminate()
+        SimctlHelper.teardownRunner(
+            udid: target.udid,
+            isPhysical: target.isPhysical,
+            isClone: deleteClone
+        )
+    }
+
+    /// Bind mode the agent must use to be reachable from this CLI. Simulators
+    /// share the Mac's network stack, so loopback suffices and keeps the agent
+    /// off the LAN; a physical device is reached over USB/Wi-Fi and has to
+    /// listen on every interface (which the agent only permits with a token).
+    static func bindMode(isPhysical: Bool) -> String {
+        isPhysical ? "all" : "loopback"
+    }
+
+    /// The whole agent-configuration contract, in one testable place.
+    ///
+    /// `xcodebuild` strips the `TEST_RUNNER_` prefix and injects the rest into
+    /// the XCUITest runner's environment, on simulators and physical devices
+    /// alike, where `AgentConfig.resolve` reads them. The agent is a separate
+    /// build target, so these key names and values cannot be a shared constant —
+    /// they are pinned by `HTTPClientTokenTests` on this side and
+    /// `AgentConfigTests` on the other.
+    static func testRunnerEnvironment(port: Int, token: String, isPhysical: Bool) -> [String: String] {
+        [
+            "TEST_RUNNER_SIMPILOT_PORT": String(port),
+            "TEST_RUNNER_SIMPILOT_TOKEN": token,
+            "TEST_RUNNER_SIMPILOT_BIND": bindMode(isPhysical: isPhysical)
+        ]
+    }
+
     private static func launchXcodebuild(
         destination: String,
         port: Int,
-        udid: String? = nil
+        token: String,
+        isPhysical: Bool
     ) throws -> Process {
         let projectDir = try findProjectDirectory()
-
-        if let udid = udid {
-            AgentRegistry.writePortFile(udid: udid, port: port)
-        }
 
         let arguments = [
             "test",
@@ -411,8 +482,11 @@ enum StartCommand: SimpilotCommand {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
         process.arguments = arguments
 
+        // Replaces the old `/tmp/simpilot-port-<UDID>` file, which only worked
+        // because the simulator shares the host's `/tmp` and sat on a
+        // predictable, squattable path.
         var env = ProcessInfo.processInfo.environment
-        env["SIMPILOT_PORT"] = String(port)
+        env.merge(testRunnerEnvironment(port: port, token: token, isPhysical: isPhysical)) { _, new in new }
         process.environment = env
         let logPath = NSTemporaryDirectory() + "simpilot-xcodebuild-\(port).log"
         let logFile = FileManager.default.createFile(atPath: logPath, contents: nil)
@@ -429,20 +503,56 @@ enum StartCommand: SimpilotCommand {
         return process
     }
 
-    private static func waitForHealth(port: Int, timeout: TimeInterval = 60) -> Bool {
-        waitForHealth(host: "localhost", port: port, timeout: timeout)
+    /// The agent binds `127.0.0.1` for simulators, so connect there directly
+    /// rather than via `localhost` — that name resolves to `::1` first, and the
+    /// IPv6 loopback is deliberately not bound.
+    static let loopbackHost = "127.0.0.1"
+
+    private static func waitForHealth(port: Int, token: String?, timeout: TimeInterval = 60) -> Bool {
+        waitForHealth(host: loopbackHost, port: port, token: token, timeout: timeout)
     }
 
-    private static func waitForHealth(host: String, port: Int, timeout: TimeInterval = 120) -> Bool {
-        let client = HTTPClient(host: host, port: port, timeout: 5)
+    private static func waitForHealth(host: String, port: Int, token: String?, timeout: TimeInterval = 120) -> Bool {
+        let client = HTTPClient(host: host, port: port, timeout: 5, token: token)
         let startTime = Date()
         while Date().timeIntervalSince(startTime) < timeout {
             Thread.sleep(forTimeInterval: 1)
-            if let _ = try? client.get("/health") {
+            if let data = try? client.get("/health"), isHealthyEnvelope(data) {
                 return true
             }
         }
         return false
+    }
+
+    /// Ask a running simulator agent which device it is on. Nil when the reply
+    /// is missing the field (a physical device, or a future agent that stopped
+    /// reporting it) — callers must treat that as "UDID unknown", not as a
+    /// failure to start.
+    private static func simulatorUDID(port: Int, token: String?) -> String? {
+        let client = HTTPClient(host: loopbackHost, port: port, timeout: 5, token: token)
+        guard let data = try? client.get("/info"),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = json["data"] as? [String: Any],
+              let environment = payload["environment"] as? [String: Any],
+              let udid = environment["SIMULATOR_UDID"] as? String,
+              !udid.isEmpty else {
+            return nil
+        }
+        return udid
+    }
+
+    /// A reply is only "healthy" if it is *our* agent answering.
+    ///
+    /// `HTTPClient` does not inspect HTTP status — non-2xx envelopes are a
+    /// legitimate result everywhere else — so a bare "we got bytes back" check
+    /// accepts a `401 unauthorized` from a *different* agent already squatting
+    /// the port. `start` would then register the new token against the old
+    /// agent's port and every later command would 401 forever.
+    static func isHealthyEnvelope(_ data: Data) -> Bool {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return json["success"] as? Bool == true
     }
 
     private static func platformForDevice(_ name: String) -> String {

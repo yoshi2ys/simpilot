@@ -18,12 +18,10 @@ enum BatchCommand: SimpilotCommand {
         if !parsed.positionals.isEmpty {
             jsonString = parsed.positionals.joined(separator: " ")
         } else {
-            // Read from stdin
-            let stdinData = FileHandle.standardInput.availableData
-            guard let str = String(data: stdinData, encoding: .utf8), !str.isEmpty else {
+            guard let str = readStdin() else {
                 throw CLIError.invalidArgs("Usage: simpilot batch '<json>' or echo '<json>' | simpilot batch")
             }
-            jsonString = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            jsonString = str
         }
 
         guard let jsonData = jsonString.data(using: .utf8),
@@ -33,5 +31,15 @@ enum BatchCommand: SimpilotCommand {
 
         let data = try context.client.post("/batch", body: json)
         try decodeAndPrint(data: data, pretty: context.pretty)
+    }
+
+    /// Reads all of stdin to EOF — `availableData` only returns the first available
+    /// chunk (typically ≤64KB) and silently truncates larger batch JSON piped in.
+    static func readStdin(from handle: FileHandle = .standardInput) -> String? {
+        let stdinData = handle.readDataToEndOfFile()
+        guard let str = String(data: stdinData, encoding: .utf8), !str.isEmpty else {
+            return nil
+        }
+        return str.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
