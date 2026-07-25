@@ -252,6 +252,58 @@ final class StdoutEnvelopeTests: XCTestCase {
         XCTAssertEqual(json["success"] as? Bool, true)
     }
 
+    // MARK: - Plain-text mode (`elements --format outline`)
+
+    /// SU1: outline is the one payload printed raw. Wrapping it back into JSON
+    /// would escape every newline and add the braces the format exists to avoid.
+    func testOutlineSuccessPrintsRawTextAndExitsZero() throws {
+        let agent = try StubAgent(
+            responseBody: #"{"success":true,"data":{"outline":"- button \"General\" @e1\n- switch \"Wi-Fi\" @e2","count":2},"duration_ms":3,"error":null}"#
+        )
+        defer { agent.stop() }
+
+        let result = try runCLI(["--port", "\(agent.port)", "elements", "--format", "outline"])
+
+        XCTAssertEqual(result.status, 0)
+        XCTAssertEqual(result.stdout, "- button \"General\" @e1\n- switch \"Wi-Fi\" @e2\n")
+        XCTAssertFalse(result.stdout.contains("{"), "outline must not arrive wrapped in an envelope")
+    }
+
+    /// The contract a caller can rely on: exit 0 ⇒ text, non-zero ⇒ exactly one
+    /// JSON envelope. An error must never arrive as unparseable prose.
+    func testOutlineFailurePrintsTheJSONEnvelope() throws {
+        let agent = try StubAgent(responseBody: Self.failureEnvelope)
+        defer { agent.stop() }
+
+        let result = try runCLI(["--port", "\(agent.port)", "elements", "--format", "outline"])
+
+        XCTAssertEqual(result.status, 2)
+        let json = try singleJSONObject(from: result.stdout)
+        let error = try XCTUnwrap(json["error"] as? [String: Any])
+        XCTAssertEqual(error["code"] as? String, "element_not_found")
+    }
+
+    /// A33 must stay closed on the new path: reading the body directly instead of
+    /// through `decodeAgentEnvelope` would echo a 502 page with exit 0.
+    func testOutlineRejectsANonEnvelopeBody() throws {
+        let agent = try StubAgent(responseBody: "<html><body>502 Bad Gateway</body></html>")
+        defer { agent.stop() }
+
+        let result = try runCLI(["--port", "\(agent.port)", "elements", "--format", "outline"])
+
+        XCTAssertEqual(result.status, 2)
+        let json = try singleJSONObject(from: result.stdout)
+        XCTAssertEqual((json["error"] as? [String: Any])?["code"] as? String, "invalid_response")
+    }
+
+    /// A success envelope that carries no `outline` string is not a usable
+    /// response for this mode — printing nothing with exit 0 would read as
+    /// "the screen has no elements".
+    func testOutlineRejectsASuccessEnvelopeMissingTheField() {
+        let body = Data(#"{"success":true,"data":{"count":0},"error":null}"#.utf8)
+        assertInvalidResponse(try decodeAndPrintPlainText(data: body, field: "outline", pretty: false))
+    }
+
     // MARK: - End-to-end: `run` keeps its report unpolluted
 
     /// `run` already dodged the double envelope with a bare `exit()`. It now

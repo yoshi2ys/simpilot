@@ -33,7 +33,9 @@ final class LongPressHandler: @unchecked Sendable {
             query: query,
             wait: TapHandler.parseWaitArgs(from: json),
             gesture: .longPress(duration: duration),
-            in: app
+            in: app,
+            snapshot: appManager.snapshot,
+            currentBundleId: appManager.currentBundleId
         )
         return TapHandler.responseData(from: resolution)
     }

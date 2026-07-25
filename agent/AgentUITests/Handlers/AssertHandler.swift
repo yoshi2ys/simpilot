@@ -62,6 +62,8 @@ final class AssertHandler: @unchecked Sendable {
         )
 
         switch result {
+        case .aliasRejected:
+            return AliasResponse.unsupported("assert", reason: .cannotBePolled)
         case .satisfied(let element):
             var data: [String: Any] = [
                 "predicate": predicate.name,

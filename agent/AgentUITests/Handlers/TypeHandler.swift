@@ -26,7 +26,9 @@ final class TypeHandler: @unchecked Sendable {
             text: text,
             method: method,
             wait: TapHandler.parseWaitArgs(from: json),
-            in: app
+            in: app,
+            snapshot: appManager.snapshot,
+            currentBundleId: appManager.currentBundleId
         )
         switch resolution {
         case .failure(let failure):
@@ -48,6 +50,12 @@ final class TypeHandler: @unchecked Sendable {
     enum TypeFailure {
         case waitTimeout(query: String, failedPredicates: [String], lastState: [String: Any]?, timeoutMs: Int)
         case elementNotFound(query: String)
+        /// An `@eN` alias that no longer names an element on this screen.
+        case aliasFailed(AliasResolutionError)
+        /// An `@eN` alias combined with a wait — unsupported, not stale.
+        case aliasNotPollable
+        /// An `@eN` alias on a platform with no coordinate path (tvOS).
+        case aliasNotSupportedOnPlatform
         /// PasteHelper already returns a full error envelope.
         case inputFailed(Data)
     }
@@ -78,7 +86,9 @@ final class TypeHandler: @unchecked Sendable {
         text: String,
         method: String,
         wait: TapHandler.WaitArgs,
-        in app: XCUIApplication
+        in app: XCUIApplication,
+        snapshot: ElementSnapshot?,
+        currentBundleId: String?
     ) -> TypeResolution {
         #if !os(tvOS)
         var targetCoord: XCUICoordinate?
@@ -86,6 +96,13 @@ final class TypeHandler: @unchecked Sendable {
         var element: [String: Any]?
 
         if let query, !query.isEmpty {
+            // Mirrors `resolveAndTap`: on tvOS the focus tap below is compiled
+            // out, so an alias has no coordinate to land on and would reach
+            // `ElementResolver` as the literal label `@e1`.
+            if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
+                return .failure(.aliasNotSupportedOnPlatform)
+            }
+
             // When the poller ran, it already parsed the tree to satisfy the
             // predicates. Reuse what it found rather than paying a second
             // debugDescription IPC that could disagree with it.
@@ -100,6 +117,8 @@ final class TypeHandler: @unchecked Sendable {
                 ))
             case .satisfied(let found):
                 polled = found
+            case .aliasRejected:
+                return .failure(.aliasNotPollable)
             case .notNeeded:
                 break
             }
@@ -116,13 +135,31 @@ final class TypeHandler: @unchecked Sendable {
             // PasteHelper fall back to the centre of the screen, so a
             // `--method paste` type would pop the menu over whatever happens to
             // sit there. Every branch below therefore sets it.
-            if let found = polled ?? DebugDescriptionParser.findElement(query: query, in: app) {
+            let resolved: DebugDescriptionParser.FoundElement?
+            if let polled {
+                resolved = polled
+            } else {
+                switch DebugDescriptionParser.resolve(
+                    query: query, in: app,
+                    snapshot: snapshot, currentBundleId: currentBundleId
+                ) {
+                case .aliasFailed(let error): return .failure(.aliasFailed(error))
+                case .found(let found): resolved = found
+                case .notFound: resolved = nil
+                }
+            }
+            if let found = resolved {
                 let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
                     .withOffset(CGVector(dx: found.centerX, dy: found.centerY))
                 element = found.asDict
                 if catchObjCException({ coord.tap() }) == nil {
                     targetCoord = coord
                 } else {
+                    if AliasResolver.isAlias(query) {
+                        return .failure(.aliasFailed(
+                            .stale("\(query) resolved, but the focus tap could not be performed at its coordinate")
+                        ))
+                    }
                     // The coordinate itself is unusable (visionOS spatial
                     // windows) — handing it to PasteHelper would raise a second
                     // NSException. Re-target through the resolved element.
@@ -171,6 +208,12 @@ final class TypeHandler: @unchecked Sendable {
                 ElementResolver.notFoundMessage(query: query),
                 code: "element_not_found"
             )
+        case .aliasFailed(let error):
+            return AliasResponse.error(error)
+        case .aliasNotPollable:
+            return AliasResponse.unsupported("type with a wait", reason: .cannotBePolled)
+        case .aliasNotSupportedOnPlatform:
+            return AliasResponse.unsupported("type on this platform", reason: .notCoordinateDriven)
         case .inputFailed(let data):
             return data
         }

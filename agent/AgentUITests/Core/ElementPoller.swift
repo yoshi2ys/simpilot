@@ -8,6 +8,11 @@ enum ElementPoller {
     enum Result {
         /// All predicates held. Contains the element that matched (or nil for a successful not-exists check).
         case satisfied(element: DebugDescriptionParser.FoundElement?)
+        /// The query was an `@eN` alias. Polling for one is incoherent — an alias
+        /// names a list that was already read, so it cannot "become" valid — and
+        /// this is a `Result` case rather than a guard at each call site so a new
+        /// poller caller cannot forget it: the switch stops compiling instead.
+        case aliasRejected(query: String)
         /// The deadline expired before all predicates held.
         /// `lastElement` is whatever we last observed (may be nil); `failedPredicates` lists the predicate names
         /// that were not satisfied on the final observation.
@@ -41,6 +46,7 @@ enum ElementPoller {
         in app: XCUIApplication
     ) -> Result {
         precondition(!predicates.isEmpty, "ElementPoller requires at least one predicate")
+        guard !AliasResolver.isAlias(query) else { return .aliasRejected(query: query) }
 
         let deadline = Date().addingTimeInterval(TimeInterval(max(timeoutMs, 0)) / 1000.0)
         let sleepInterval = TimeInterval(max(pollIntervalMs, 0)) / 1000.0

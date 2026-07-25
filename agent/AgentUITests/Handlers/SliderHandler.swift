@@ -25,6 +25,9 @@ final class SliderHandler: @unchecked Sendable {
         }
 
         let query = json["query"] as? String
+        if let query, AliasResolver.isAlias(query) {
+            return AliasResponse.unsupported("slider")
+        }
 
         let app = appManager.currentApp()
 

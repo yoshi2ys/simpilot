@@ -83,7 +83,8 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 
 | Situation | Tool | Cost |
 |---|---|---|
-| Native app — find what to tap | `elements --level 1` | ~500 tokens |
+| Native app — find what to tap | `elements --format outline` | ~150 tokens |
+| Native app — same, with frames/JSON | `elements --level 1` | ~500 tokens |
 | Native app — find specific elements | `elements --level 1 --type button --contains Login` | ~50-100 tokens |
 | Native app — screen overview | `elements --level 0` | ~50 tokens |
 | WebView — find text/links/coordinates | `source` + grep | ~varies |
@@ -99,7 +100,8 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 - **Token-conscious capture**: `screenshot --file /tmp/s.png` saves to disk cheaply. Reading the image into context is what costs tokens. Capture liberally for evidence, but only read when visual analysis is actually needed for the next decision.
 - **Screenshot resolution**: Default `--scale 1` returns a 1x point-sized PNG (~1/3 long edge of native, ~70% smaller than full resolution) — ideal for AI analysis. Use `--scale 2` for @2x, or `--scale native` for design work needing the device's full pixel resolution.
 - **JPEG for smaller screenshots**: `--format jpeg --quality 80` produces files 3-5x smaller than PNG, significantly reducing base64 token cost when sending screenshots to AI models. Use for general observation; keep PNG for pixel-precise comparison.
-- **Filter elements to reduce tokens**: `--type button,switch` and `--contains Settings` narrow `--level 1` output to only relevant elements, cutting token consumption on busy screens.
+- **Filter elements to reduce tokens**: `--type button,switch` and `--contains Settings` narrow output to only relevant elements, cutting token consumption on busy screens. They apply to `--format outline` too.
+- **Prefer `--format outline` for "what can I tap here"**: one line per element (`- button "General" @e9`) at ~1/6 the bytes of the same `--level 1` JSON, measured on a Settings screen. It prints **raw text, not an envelope** — exit 0 means text on stdout, a non-zero exit still prints one JSON error object. Use `--level 1` when you actually need frames or the `query` field. It renders level 1 only — passing another `--level` alongside it is an error, not a silent override. The `@eN` refs are **selectors**: `simpilot tap '@e11'` taps the line listed as `@e11`, which is the only way to reach elements that carry no label or identifier. They are re-validated on use — after navigating, the same alias fails loudly with `stale_alias` rather than tapping the wrong thing, so re-run `elements --format outline` after any screen change. Only `tap` / `doubletap` / `longpress` / `type` / `action` take aliases; `pinch` / `slider` / `screenshot --element` / `swipe` / `drag` / `scroll-to` / `assert` / `wait` return `alias_unsupported`.
 
 ## Fast Operation Patterns
 
@@ -200,6 +202,7 @@ simpilot screenshot --element '#myView' --format jpeg --file /tmp/view.jpg  # El
 
 # Elements
 simpilot elements [--level 0|1|2|3]                           # UI elements (see levels below)
+simpilot elements --format outline                            # Compact text, one line per element
 simpilot elements --level 1 --type button,switch              # Filter by type (comma-separated)
 simpilot elements --level 1 --contains Settings               # Filter by label (case-insensitive)
 simpilot elements --level 1 --type button --contains Login    # Combined (AND condition)

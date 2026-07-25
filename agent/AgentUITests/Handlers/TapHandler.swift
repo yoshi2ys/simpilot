@@ -23,7 +23,9 @@ final class TapHandler: @unchecked Sendable {
             query: query,
             wait: args,
             gesture: .tap,
-            in: app
+            in: app,
+            snapshot: appManager.snapshot,
+            currentBundleId: appManager.currentBundleId
         )
         return Self.responseData(from: resolution)
     }
@@ -79,6 +81,7 @@ final class TapHandler: @unchecked Sendable {
     /// ElementResolver — swipe needs an XCUIElement, not a coordinate).
     enum WaitGate {
         case notNeeded
+        case aliasRejected(query: String)
         case satisfied(element: DebugDescriptionParser.FoundElement?)
         case timedOut(lastState: [String: Any]?, failedPredicates: [String])
     }
@@ -94,6 +97,15 @@ final class TapHandler: @unchecked Sendable {
         )
         case noElementToTap(query: String)
         case tapFailed(query: String, reason: String)
+        /// An `@eN` alias that no longer names an element on this screen.
+        case aliasFailed(query: String, error: AliasResolutionError)
+        /// An `@eN` alias combined with a wait. Distinct from `aliasFailed`:
+        /// nothing is stale, the combination is simply not supported, and the
+        /// caller's repair is to drop the wait rather than re-list the screen.
+        case aliasNotPollable
+        /// An `@eN` alias on a platform with no coordinate path (tvOS). Nothing is
+        /// stale and no wait is involved — aliases simply cannot be honored here.
+        case aliasNotSupportedOnPlatform
     }
 
     static func parseWaitArgs(from json: [String: Any]) -> WaitArgs {
@@ -143,6 +155,8 @@ final class TapHandler: @unchecked Sendable {
             return .satisfied(element: element)
         case .timedOut(let last, let failed):
             return .timedOut(lastState: last?.asDict, failedPredicates: failed)
+        case .aliasRejected(let query):
+            return .aliasRejected(query: query)
         }
     }
 
@@ -154,9 +168,21 @@ final class TapHandler: @unchecked Sendable {
         query: String,
         wait: WaitArgs,
         gesture: Gesture,
-        in app: XCUIApplication
+        in app: XCUIApplication,
+        snapshot: ElementSnapshot?,
+        currentBundleId: String?
     ) -> Resolution {
+        // Refuse before the wait gate, not after: on tvOS the answer is "aliases
+        // are not honored here", which stays true however the caller waits, and
+        // `.aliasNotPollable` would send them to drop a `--timeout` that is not
+        // the problem.
+        if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
+            return .aliasNotSupportedOnPlatform
+        }
+
         switch awaitPredicates(query: query, wait: wait, in: app) {
+        case .aliasRejected:
+            return .aliasNotPollable
         case .satisfied(let element):
             // `not-exists` can satisfy with element == nil. Tapping nothing
             // is nonsense for a gesture handler, so surface it as an error
@@ -177,7 +203,12 @@ final class TapHandler: @unchecked Sendable {
         }
 
         #if !os(tvOS)
-        if let found = DebugDescriptionParser.findElement(query: query, in: app) {
+        switch DebugDescriptionParser.resolve(
+            query: query, in: app, snapshot: snapshot, currentBundleId: currentBundleId
+        ) {
+        case .aliasFailed(let error):
+            return .aliasFailed(query: query, error: error)
+        case .found(let found):
             let point = Self.tapPoint(for: found)
             let failure = catchObjCException {
                 let coord = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
@@ -189,7 +220,7 @@ final class TapHandler: @unchecked Sendable {
             }
             // Coordinate gesture failed (e.g. visionOS spatial windows) —
             // fall through to ElementResolver.
-        } else {
+        case .notFound:
             // debugDescription miss is authoritative for bare labels and
             // `#identifier` queries. Only typed queries (`button:`, `text:`)
             // need the ElementResolver fallback.
@@ -199,6 +230,16 @@ final class TapHandler: @unchecked Sendable {
             }
         }
         #endif
+
+        // An alias never reaches `ElementResolver`: it would be matched as a
+        // literal label, and the caller would be told `element_not_found` for a
+        // query whose real problem was the coordinate gesture failing. An alias
+        // only reaches this line off tvOS, having been resolved and then failed
+        // its gesture above — on tvOS it was refused before the wait gate — so
+        // "resolved" is accurate.
+        if AliasResolver.isAlias(query) {
+            return .aliasFailed(query: query, error: .stale("\(query) resolved, but the gesture could not be performed at its coordinate"))
+        }
 
         do {
             let element = try ElementResolver.resolve(query: query, in: app)
@@ -289,6 +330,12 @@ final class TapHandler: @unchecked Sendable {
                 "Coordinate tap failed for query \(query): \(reason)",
                 code: "tap_failed"
             )
+        case .aliasFailed(_, let error):
+            return AliasResponse.error(error)
+        case .aliasNotPollable:
+            return AliasResponse.unsupported("tap with a wait", reason: .cannotBePolled)
+        case .aliasNotSupportedOnPlatform:
+            return AliasResponse.unsupported("tap on this platform", reason: .notCoordinateDriven)
         }
     }
 

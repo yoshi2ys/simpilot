@@ -56,7 +56,8 @@ func printError(code: String, message: String) {
 /// whole point is that it has none.
 ///
 /// Only `Simpilot.run` knows what to do with it, so throw it only from a path
-/// that unwinds straight there: `decodeAndPrint`, or a command's own tail. A
+/// that unwinds straight there: `decodeAndPrint`, `decodeAndPrintPlainText`, or
+/// a command's own tail. A
 /// scenario step must never throw it — `ScenarioRunner`'s generic `catch` would
 /// swallow the status and report the default `localizedDescription`.
 struct AlreadyReported: Error {
@@ -135,6 +136,33 @@ func decodeAndPrint(data: Data, pretty: Bool) throws {
     if case .failure(let status) = outcome {
         throw AlreadyReported(status: status)
     }
+}
+
+/// Prints one string field of a successful envelope's `data` verbatim, instead of
+/// the envelope itself. For output whose whole point is being small (`elements
+/// --format outline`), re-serializing it as JSON would escape every newline and
+/// wrap it in the braces the format exists to avoid.
+///
+/// Failures still print the JSON envelope, so the contract a caller sees is
+/// "exit 0 ⇒ plain text, non-zero ⇒ one JSON envelope" — an error never arrives
+/// as unparseable prose.
+///
+/// It routes through `decodeAgentEnvelope` like every other response path. Reading
+/// the body directly would re-open the hole `invalid_response` closed: a 401 page
+/// or a foreign server's reply would be echoed verbatim with exit 0.
+func decodeAndPrintPlainText(data: Data, field: String, pretty: Bool) throws {
+    let (json, outcome) = try decodeAgentEnvelope(data)
+
+    if case .failure(let status) = outcome {
+        printJSON(json, pretty: pretty)
+        throw AlreadyReported(status: status)
+    }
+
+    guard let payload = json["data"] as? [String: Any],
+          let text = payload[field] as? String else {
+        throw CLIError.invalidResponse(responsePreview(data))
+    }
+    print(text)
 }
 
 // MARK: - Entry Point

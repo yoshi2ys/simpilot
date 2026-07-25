@@ -126,6 +126,7 @@ simpilot clipboard set '<text>'                     # Write text to clipboard
 ```bash
 simpilot screenshot [--file /tmp/s.png]   # Screenshot (file or base64)
 simpilot elements [--level 0|1|2|3]       # UI element tree
+simpilot elements --format outline        # Compact text (~1/6 the bytes), prints raw text
 simpilot source                           # Raw Xcode UI hierarchy
 simpilot info                             # Device and agent info
 simpilot help                             # Full command catalog (JSON)
@@ -175,6 +176,36 @@ Always prefer bare label queries. `simpilot elements --level 1` returns the opti
 | 1 | Actionable list | ~500 | Find what to tap |
 | 2 | Compact tree | ~2000 | Understand layout |
 | 3 | Full tree | ~5000+ | Debug |
+
+`--format outline` renders the level-1 list as text instead of JSON — one line per
+element, no frames — at roughly a sixth of the bytes. It renders level 1 only, so
+combining it with another `--level` / `--compact` is rejected rather than silently
+overridden:
+
+```
+- navigationBar "Settings" @e1
+- button "General" @e11
+- switch "Wi-Fi" @e14 [value=1]
+- cell @e3
+```
+
+The line shape follows agent-browser / Playwright's aria snapshot so it reads the
+same way to a model that has seen those, with a cheaper `@e9` ref. This mode prints
+**raw text on success**; a failure still prints one JSON envelope and a non-zero exit.
+
+The `@eN` refs are usable as queries:
+
+```bash
+simpilot elements --format outline
+simpilot tap '@e11'          # taps the element outline listed as @e11
+```
+
+Aliases number the unfiltered list, so `--type`/`--contains` show gaps rather than
+renumbering. They are re-validated against the live screen on every use: once you
+navigate, the same alias fails with `stale_alias` instead of tapping whatever now
+sits in that position. `tap` / `doubletap` / `longpress` / `type` / `action` accept
+them; `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`, `scroll-to`,
+`assert` and `wait` return `alias_unsupported` with the reason.
 
 ## Output Format
 

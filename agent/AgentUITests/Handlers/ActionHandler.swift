@@ -49,7 +49,9 @@ final class ActionHandler {
                 query: query,
                 wait: TapHandler.parseWaitArgs(from: json),
                 gesture: .tap,
-                in: app
+                in: app,
+                snapshot: appManager.snapshot,
+                currentBundleId: appManager.currentBundleId
             )
             switch resolution {
             case .success(let element):
@@ -67,7 +69,9 @@ final class ActionHandler {
                 text: text,
                 method: json["method"] as? String ?? "auto",
                 wait: TapHandler.parseWaitArgs(from: json),
-                in: app
+                in: app,
+                snapshot: appManager.snapshot,
+                currentBundleId: appManager.currentBundleId
             )
             switch typeResolution {
             case .success(let usedMethod, let element):
@@ -122,25 +126,33 @@ final class ActionHandler {
         if let path = screenshotPath, !path.isEmpty {
             let fullPng: Data?
             if let screenshotElement = screenshotElement {
-                var resolved: XCUIElement?
-                do {
-                    resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
-                } catch {
-                    responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
-                }
-                if let element = resolved {
-                    var pngResult: Data?
-                    let failure = catchObjCException {
-                        pngResult = element.screenshot().pngRepresentation
-                    }
-                    if let failure {
-                        responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
-                        fullPng = nil
-                    } else {
-                        fullPng = pngResult!
-                    }
-                } else {
+                if AliasResolver.isAlias(screenshotElement) {
+                    responseData["screenshot"] = [
+                        "error": AliasResponse.unsupportedMessage("screenshot --element"),
+                        "code": "alias_unsupported"
+                    ]
                     fullPng = nil
+                } else {
+                    var resolved: XCUIElement?
+                    do {
+                        resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
+                    } catch {
+                        responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
+                    }
+                    if let element = resolved {
+                        var pngResult: Data?
+                        let failure = catchObjCException {
+                            pngResult = element.screenshot().pngRepresentation
+                        }
+                        if let failure {
+                            responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
+                            fullPng = nil
+                        } else {
+                            fullPng = pngResult!
+                        }
+                    } else {
+                        fullPng = nil
+                    }
                 }
             } else {
                 fullPng = XCUIScreen.main.screenshot().pngRepresentation
