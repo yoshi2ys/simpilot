@@ -105,7 +105,7 @@ enum AliasResponse {
         )
     }
 
-    enum Reason {
+    enum Reason: CaseIterable {
         /// `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`.
         case needsElement
         /// `assert`, `wait`, and any command combining an alias with a wait — an
@@ -115,6 +115,8 @@ enum AliasResponse {
         /// `scroll-to`: the alias is on screen by construction, and the first
         /// swipe would invalidate it.
         case alreadyOnScreen
+        /// tvOS: there is no coordinate path to hand the resolved point to.
+        case notCoordinateDriven
 
         var explanation: String {
             switch self {
@@ -124,6 +126,8 @@ enum AliasResponse {
                 return "waiting cannot make an alias valid — it names a list you already read."
             case .alreadyOnScreen:
                 return "an alias is already on screen, and the first swipe would invalidate it."
+            case .notCoordinateDriven:
+                return "this platform moves focus with the remote, and an alias resolves to a coordinate."
             }
         }
     }
@@ -141,6 +145,27 @@ enum AliasResolver {
     static func isAlias(_ query: String) -> Bool {
         index(of: query) != nil
     }
+
+    /// Whether an alias can be acted on at all here.
+    ///
+    /// An alias resolves to a coordinate, and tvOS has no coordinate path to hand
+    /// one to: `resolveAndTap` / `resolveAndType` compile their whole
+    /// debugDescription fast path out under `#if !os(tvOS)` and drive the UI with
+    /// `XCUIRemote` focus instead. Without this, an alias on tvOS falls through to
+    /// `ElementResolver` and is matched as the literal label `@e1`, so the caller
+    /// is told `element_not_found` and goes hunting for a label that never existed.
+    ///
+    /// A runtime constant rather than an `#if` at each call site, for two reasons:
+    /// the guard is then *compiled on every platform*, so an iOS build typechecks
+    /// it (the tvOS branches themselves are not), and the platform fact has one
+    /// owner instead of a conditional per handler that can drift apart.
+    static let isSupportedOnThisPlatform: Bool = {
+        #if os(tvOS)
+        return false
+        #else
+        return true
+        #endif
+    }()
 
     /// The 1-based number in `@eN`, or nil when this is not an alias.
     static func index(of query: String) -> Int? {

@@ -384,4 +384,70 @@ final class AliasResolverTests: XCTestCase {
         default: XCTFail("expected .stale, got \(result)", file: file, line: line)
         }
     }
+
+    // MARK: - Platform support
+
+    /// tvOS drives focus with the remote and has no coordinate path, so an alias
+    /// cannot be honored there. Everywhere else it can.
+    func testAliasSupportTracksTheCoordinatePath() {
+        #if os(tvOS)
+        XCTAssertFalse(AliasResolver.isSupportedOnThisPlatform)
+        #else
+        XCTAssertTrue(AliasResolver.isSupportedOnThisPlatform)
+        #endif
+    }
+
+    /// The refusal on a focus-driven platform must not borrow either of the other
+    /// two alias refusals: nothing is stale (so not `stale_alias`, which tells the
+    /// caller to re-list), and no wait is involved (so not the `cannotBePolled`
+    /// wording, which tells them to drop a `--timeout` they never passed).
+    func testPlatformRefusalIsItsOwnCodeAndWording() throws {
+        let refusal = try errorObject(TapHandler.responseData(from: .aliasNotSupportedOnPlatform))
+        XCTAssertEqual(refusal["code"] as? String, "alias_unsupported")
+        XCTAssertEqual(
+            refusal["message"] as? String,
+            AliasResponse.unsupportedMessage("tap on this platform", reason: .notCoordinateDriven)
+        )
+
+        let stale = try errorObject(TapHandler.responseData(from: .aliasFailed(query: "@e1", error: .stale("x"))))
+        XCTAssertEqual(stale["code"] as? String, "stale_alias")
+        let polling = try errorObject(TapHandler.responseData(from: .aliasNotPollable))
+        XCTAssertEqual(
+            polling["message"] as? String,
+            AliasResponse.unsupportedMessage("tap with a wait", reason: .cannotBePolled)
+        )
+    }
+
+    /// `type` must refuse identically — the two resolvers are the only alias
+    /// entry points that survive to a coordinate, so they cannot disagree.
+    func testTypeRefusesOnTheSamePlatformsAsTap() throws {
+        let refusal = try errorObject(TypeHandler.failureResponse(for: .aliasNotSupportedOnPlatform))
+        XCTAssertEqual(refusal["code"] as? String, "alias_unsupported")
+        XCTAssertEqual(
+            refusal["message"] as? String,
+            AliasResponse.unsupportedMessage("type on this platform", reason: .notCoordinateDriven)
+        )
+    }
+
+    /// Every reason carries its own explanation. Table-driven over `allCases` so a
+    /// new reason that reuses another's wording — or ships with none — fails here
+    /// rather than reaching a caller as a misdiagnosis.
+    func testEveryRefusalReasonExplainsItself() {
+        let explanations = AliasResponse.Reason.allCases.map(\.explanation)
+        XCTAssertEqual(Set(explanations).count, AliasResponse.Reason.allCases.count)
+        for explanation in explanations {
+            XCTAssertFalse(explanation.isEmpty)
+        }
+    }
+
+    /// The handlers return a whole HTTP response, so the body has to be split off
+    /// before it decodes — same shape as `ActionHandlerTests.decodeEnvelope`.
+    private func errorObject(_ data: Data) throws -> [String: Any] {
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let separator = try XCTUnwrap(text.range(of: "\r\n\r\n"))
+        let body = Data(String(text[separator.upperBound...]).utf8)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["success"] as? Bool, false)
+        return try XCTUnwrap(json["error"] as? [String: Any])
+    }
 }

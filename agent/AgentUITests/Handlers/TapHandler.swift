@@ -103,6 +103,9 @@ final class TapHandler: @unchecked Sendable {
         /// nothing is stale, the combination is simply not supported, and the
         /// caller's repair is to drop the wait rather than re-list the screen.
         case aliasNotPollable
+        /// An `@eN` alias on a platform with no coordinate path (tvOS). Nothing is
+        /// stale and no wait is involved — aliases simply cannot be honored here.
+        case aliasNotSupportedOnPlatform
     }
 
     static func parseWaitArgs(from json: [String: Any]) -> WaitArgs {
@@ -169,6 +172,14 @@ final class TapHandler: @unchecked Sendable {
         snapshot: ElementSnapshot?,
         currentBundleId: String?
     ) -> Resolution {
+        // Refuse before the wait gate, not after: on tvOS the answer is "aliases
+        // are not honored here", which stays true however the caller waits, and
+        // `.aliasNotPollable` would send them to drop a `--timeout` that is not
+        // the problem.
+        if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
+            return .aliasNotSupportedOnPlatform
+        }
+
         switch awaitPredicates(query: query, wait: wait, in: app) {
         case .aliasRejected:
             return .aliasNotPollable
@@ -222,7 +233,10 @@ final class TapHandler: @unchecked Sendable {
 
         // An alias never reaches `ElementResolver`: it would be matched as a
         // literal label, and the caller would be told `element_not_found` for a
-        // query whose real problem was the coordinate gesture failing.
+        // query whose real problem was the coordinate gesture failing. An alias
+        // only reaches this line off tvOS, having been resolved and then failed
+        // its gesture above — on tvOS it was refused before the wait gate — so
+        // "resolved" is accurate.
         if AliasResolver.isAlias(query) {
             return .aliasFailed(query: query, error: .stale("\(query) resolved, but the gesture could not be performed at its coordinate"))
         }
@@ -320,6 +334,8 @@ final class TapHandler: @unchecked Sendable {
             return AliasResponse.error(error)
         case .aliasNotPollable:
             return AliasResponse.unsupported("tap with a wait", reason: .cannotBePolled)
+        case .aliasNotSupportedOnPlatform:
+            return AliasResponse.unsupported("tap on this platform", reason: .notCoordinateDriven)
         }
     }
 

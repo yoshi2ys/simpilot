@@ -54,6 +54,8 @@ final class TypeHandler: @unchecked Sendable {
         case aliasFailed(AliasResolutionError)
         /// An `@eN` alias combined with a wait — unsupported, not stale.
         case aliasNotPollable
+        /// An `@eN` alias on a platform with no coordinate path (tvOS).
+        case aliasNotSupportedOnPlatform
         /// PasteHelper already returns a full error envelope.
         case inputFailed(Data)
     }
@@ -94,6 +96,13 @@ final class TypeHandler: @unchecked Sendable {
         var element: [String: Any]?
 
         if let query, !query.isEmpty {
+            // Mirrors `resolveAndTap`: on tvOS the focus tap below is compiled
+            // out, so an alias has no coordinate to land on and would reach
+            // `ElementResolver` as the literal label `@e1`.
+            if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
+                return .failure(.aliasNotSupportedOnPlatform)
+            }
+
             // When the poller ran, it already parsed the tree to satisfy the
             // predicates. Reuse what it found rather than paying a second
             // debugDescription IPC that could disagree with it.
@@ -203,6 +212,8 @@ final class TypeHandler: @unchecked Sendable {
             return AliasResponse.error(error)
         case .aliasNotPollable:
             return AliasResponse.unsupported("type with a wait", reason: .cannotBePolled)
+        case .aliasNotSupportedOnPlatform:
+            return AliasResponse.unsupported("type on this platform", reason: .notCoordinateDriven)
         case .inputFailed(let data):
             return data
         }

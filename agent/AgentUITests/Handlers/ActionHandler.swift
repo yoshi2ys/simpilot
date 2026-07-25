@@ -131,6 +131,7 @@ final class ActionHandler {
                         "error": AliasResponse.unsupportedMessage("screenshot --element"),
                         "code": "alias_unsupported"
                     ]
+                    fullPng = nil
                 } else {
                     var resolved: XCUIElement?
                     do {
