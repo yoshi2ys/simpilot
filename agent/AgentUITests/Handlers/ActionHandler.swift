@@ -126,25 +126,32 @@ final class ActionHandler {
         if let path = screenshotPath, !path.isEmpty {
             let fullPng: Data?
             if let screenshotElement = screenshotElement {
-                var resolved: XCUIElement?
-                do {
-                    resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
-                } catch {
-                    responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
-                }
-                if let element = resolved {
-                    var pngResult: Data?
-                    let failure = catchObjCException {
-                        pngResult = element.screenshot().pngRepresentation
-                    }
-                    if let failure {
-                        responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
-                        fullPng = nil
-                    } else {
-                        fullPng = pngResult!
-                    }
+                if AliasResolver.isAlias(screenshotElement) {
+                    responseData["screenshot"] = [
+                        "error": AliasResponse.unsupportedMessage("screenshot --element"),
+                        "code": "alias_unsupported"
+                    ]
                 } else {
-                    fullPng = nil
+                    var resolved: XCUIElement?
+                    do {
+                        resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
+                    } catch {
+                        responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
+                    }
+                    if let element = resolved {
+                        var pngResult: Data?
+                        let failure = catchObjCException {
+                            pngResult = element.screenshot().pngRepresentation
+                        }
+                        if let failure {
+                            responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
+                            fullPng = nil
+                        } else {
+                            fullPng = pngResult!
+                        }
+                    } else {
+                        fullPng = nil
+                    }
                 }
             } else {
                 fullPng = XCUIScreen.main.screenshot().pngRepresentation

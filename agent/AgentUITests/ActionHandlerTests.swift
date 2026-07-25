@@ -398,6 +398,11 @@ final class ActionHandlerTests: XCTestCase {
             "ActionHandler must use ElementResolver.resolve for screenshot_element"
         )
 
+        XCTAssertTrue(
+            source.contains("AliasResolver.isAlias(screenshotElement)"),
+            "ActionHandler must refuse @eN aliases for screenshot_element before reaching ElementResolver"
+        )
+
         // 3. Wraps with catchObjCException
         XCTAssertTrue(
             source.contains("catchObjCException"),
@@ -437,7 +442,23 @@ final class ActionHandlerTests: XCTestCase {
                 section.contains("\"code\": \"screenshot_failed\""),
                 "ActionHandler screenshot error for ObjC exception must include code: screenshot_failed"
             )
+            XCTAssertTrue(
+                section.contains("\"code\": \"alias_unsupported\""),
+                "ActionHandler screenshot error for alias refusal must include code: alias_unsupported"
+            )
         }
+    }
+
+    func test_typeHandler_aliasNeverFallsBackToElementResolverAfterCoordinateFailure() throws {
+        let source = try loadHandlerSource(named: "TypeHandler.swift")
+        XCTAssertTrue(
+            source.contains("if AliasResolver.isAlias(query)"),
+            "TypeHandler must stop before ElementResolver fallback when an alias coordinate tap raises"
+        )
+        XCTAssertTrue(
+            source.contains("focus tap could not be performed at its coordinate"),
+            "TypeHandler must report a stale alias when the alias coordinate is unusable"
+        )
     }
 
     /// ActionHandler must still use XCUIScreen.main when screenshot_element is absent.

@@ -146,6 +146,11 @@ final class TypeHandler: @unchecked Sendable {
                 if catchObjCException({ coord.tap() }) == nil {
                     targetCoord = coord
                 } else {
+                    if AliasResolver.isAlias(query) {
+                        return .failure(.aliasFailed(
+                            .stale("\(query) resolved, but the focus tap could not be performed at its coordinate")
+                        ))
+                    }
                     // The coordinate itself is unusable (visionOS spatial
                     // windows) — handing it to PasteHelper would raise a second
                     // NSException. Re-target through the resolved element.

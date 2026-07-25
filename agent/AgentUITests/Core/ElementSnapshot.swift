@@ -71,6 +71,11 @@ enum AliasResolutionError: Error, Equatable {
 /// an agent that reads `element_not_found` goes hunting for a label, while the
 /// actual repair is always the same — list the screen again.
 enum AliasResponse {
+    static func unsupportedMessage(_ command: String, reason: Reason = .needsElement) -> String {
+        "\(command) does not take an @eN alias: \(reason.explanation) "
+            + "Use the element's label or #identifier."
+    }
+
     static func error(_ error: AliasResolutionError) -> Data {
         switch error {
         case .noSnapshot:
@@ -95,8 +100,7 @@ enum AliasResponse {
     /// element). Saying so beats resolving to a plausible wrong element.
     static func unsupported(_ command: String, reason: Reason = .needsElement) -> Data {
         HTTPResponseBuilder.error(
-            "\(command) does not take an @eN alias: \(reason.explanation) "
-                + "Use the element's label or #identifier.",
+            unsupportedMessage(command, reason: reason),
             code: "alias_unsupported"
         )
     }
