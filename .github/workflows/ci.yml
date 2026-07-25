@@ -9,6 +9,12 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege for a job that only builds and runs tests. Without this the
+# token's scopes come from the repository/org default, which can include write.
+# Set at the top level so a job added later starts read-only and has to ask.
+permissions:
+  contents: read
+
 # A newer push to the same branch makes the in-flight run pointless.
 concurrency:
   group: ci-${{ github.ref }}
