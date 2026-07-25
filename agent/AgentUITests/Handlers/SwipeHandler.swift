@@ -33,6 +33,10 @@ final class SwipeHandler: @unchecked Sendable {
 
     enum Resolution {
         case success(responseData: [String: Any])
+        /// Swipe resolves through `ElementResolver`, which needs a real element —
+        /// an `@eN` alias is a coordinate, so it is refused rather than matched as
+        /// a literal label.
+        case aliasUnsupported
         case elementNotFound(message: String)
         case invalidQuery(message: String)
         case invalidDirection(direction: String)
@@ -64,6 +68,8 @@ final class SwipeHandler: @unchecked Sendable {
     ) -> Resolution {
         if let query = query, !query.isEmpty {
             switch TapHandler.awaitPredicates(query: query, wait: wait, in: app) {
+            case .aliasRejected:
+                return .aliasUnsupported
             case .notNeeded, .satisfied:
                 break
             case .timedOut(let lastState, let failed):
@@ -140,6 +146,8 @@ final class SwipeHandler: @unchecked Sendable {
         switch resolution {
         case .success(let data):
             return HTTPResponseBuilder.json(data)
+        case .aliasUnsupported:
+            return AliasResponse.unsupported("swipe")
         case .elementNotFound(let msg):
             return HTTPResponseBuilder.error(msg, code: "element_not_found")
         case .invalidQuery(let msg):

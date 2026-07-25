@@ -32,6 +32,14 @@ final class ScrollToHandler {
             )
         }
 
+        // An alias names a row in the list that was just read, so it is on screen
+        // by construction — and the first swipe would invalidate it. "Scroll until
+        // this already-visible thing appears" has no coherent answer, so it is
+        // refused rather than silently resolved on the pre-check and never scrolled.
+        if AliasResolver.isAlias(query) {
+            return AliasResponse.unsupported("scroll-to", reason: .alreadyOnScreen)
+        }
+
         let app = appManager.currentApp()
 
         // Check before any swipe — element may already be visible.

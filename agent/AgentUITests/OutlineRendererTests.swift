@@ -116,10 +116,9 @@ final class OutlineRendererTests: XCTestCase {
 
     // MARK: - Aliases
 
-    /// Aliases number the *rendered* lines. `ElementsHandler` filters before
-    /// rendering, so numbering the pre-filter list would hand SU3's cache aliases
-    /// that point at elements the caller never saw.
-    func testAliasesAreOneBasedOverRenderedLines() {
+    /// Aliases are 1-based over the list as given — which `ElementsHandler` keeps
+    /// unfiltered, so an alias means the same element whatever `--type` was passed.
+    func testAliasesAreOneBasedOverTheListAsGiven() {
         let rendered = OutlineRenderer.render([
             element(label: "A"), element(label: "B"), element(label: "C")
         ])
@@ -245,6 +244,144 @@ final class ElementsHandlerFormatTests: XCTestCase {
             XCTAssertFalse(
                 ElementsHandler.outlineConflictsWithRequestedMode(format: "json", level: level, mode: nil)
             )
+        }
+    }
+}
+
+/// Coverage for SU3's alias rules. `AliasResolver.resolve` is pure over
+/// (snapshot, current app, freshly derived identities), so the whole staleness
+/// matrix runs here without a simulator.
+final class AliasResolverTests: XCTestCase {
+
+    private func identity(_ type: String, _ label: String, _ id: String = "") -> ElementSnapshot.Identity {
+        ElementSnapshot.Identity(type: type, label: label, identifier: id)
+    }
+
+    private func snapshot(_ bundleId: String?, _ identities: [ElementSnapshot.Identity]) -> ElementSnapshot {
+        ElementSnapshot(
+            bundleId: bundleId,
+            depth: DebugDescriptionParser.defaultActionableDepth,
+            elements: identities.map { ["type": $0.type, "label": $0.label, "identifier": $0.identifier] }
+        )
+    }
+
+    private let settings = "com.apple.Preferences"
+
+    // MARK: - Syntax
+
+    func testAliasSyntaxIsExact() {
+        XCTAssertTrue(AliasResolver.isAlias("@e1"))
+        XCTAssertTrue(AliasResolver.isAlias("@e42"))
+        XCTAssertEqual(AliasResolver.index(of: "@e42"), 42)
+    }
+
+    /// `@` starts plenty of real labels, so only the `@e<digits>` shape is an
+    /// alias — everything else stays an ordinary query.
+    func testNonAliasQueriesAreNotClaimed() {
+        for query in ["@e", "@e0", "@9", "@yoshi", "@e1x", "e1", "General", "", "@e-1", "@e 1"] {
+            XCTAssertFalse(AliasResolver.isAlias(query), "\(query) must not be treated as an alias")
+        }
+    }
+
+    /// The documented escape hatch for an app that really labels something `@e9`.
+    func testTypedPrefixIsNeverAnAlias() {
+        XCTAssertFalse(AliasResolver.isAlias("button:@e9"))
+    }
+
+    // MARK: - Resolution
+
+    func testResolvesWhenTheIdentityAtThatPositionIsUnchanged() {
+        let ids = [identity("button", "General"), identity("switch", "Wi-Fi")]
+        let result = AliasResolver.resolve(
+            alias: "@e2", snapshot: snapshot(settings, ids), currentBundleId: settings, fresh: ids
+        )
+        XCTAssertEqual(try? result.get(), 1)
+    }
+
+    /// Scrolling moves every row without changing which row it is. Frames are
+    /// deliberately not part of the identity for exactly this case.
+    func testScrollingDoesNotInvalidateAnAlias() {
+        let ids = [identity("button", "General"), identity("button", "Accessibility")]
+        // Same identities, different frames — frames never enter the comparison.
+        let result = AliasResolver.resolve(
+            alias: "@e1", snapshot: snapshot(settings, ids), currentBundleId: settings, fresh: ids
+        )
+        XCTAssertEqual(try? result.get(), 0)
+    }
+
+    func testNoSnapshotIsItsOwnError() {
+        let result = AliasResolver.resolve(
+            alias: "@e1", snapshot: nil, currentBundleId: settings, fresh: [identity("button", "A")]
+        )
+        XCTAssertEqual(result, .failure(.noSnapshot))
+    }
+
+    /// An alias taken in another app is stale by construction, whatever the
+    /// identities happen to say — two apps can easily share a "Done" button.
+    func testAliasFromAnotherAppIsStale() {
+        let ids = [identity("button", "Done")]
+        let result = AliasResolver.resolve(
+            alias: "@e1", snapshot: snapshot(settings, ids), currentBundleId: "com.apple.MobileSMS", fresh: ids
+        )
+        assertStale(result)
+    }
+
+    func testAliasBeyondTheRecordedListIsStale() {
+        let ids = [identity("button", "General")]
+        assertStale(AliasResolver.resolve(
+            alias: "@e5", snapshot: snapshot(settings, ids), currentBundleId: settings, fresh: ids
+        ))
+    }
+
+    func testShorterScreenIsStale() {
+        let recorded = [identity("button", "A"), identity("button", "B")]
+        assertStale(AliasResolver.resolve(
+            alias: "@e2", snapshot: snapshot(settings, recorded), currentBundleId: settings,
+            fresh: [identity("button", "A")]
+        ))
+    }
+
+    func testNavigationChangesTheIdentityAndIsStale() {
+        let recorded = [identity("button", "General")]
+        assertStale(AliasResolver.resolve(
+            alias: "@e1", snapshot: snapshot(settings, recorded), currentBundleId: settings,
+            fresh: [identity("button", "About")]
+        ))
+    }
+
+    /// Duplicate identities are ordinary, not exotic: Messages lists the same
+    /// conversation label twice, Calendar the same date string twice. Position
+    /// still distinguishes them, and swapping two identical rows is not a change
+    /// a caller can observe.
+    func testDuplicateIdentitiesStillResolveByPosition() {
+        let ids = [identity("cell", "+1 (888) 555-1212"), identity("cell", "+1 (888) 555-1212")]
+        XCTAssertEqual(
+            try? AliasResolver.resolve(
+                alias: "@e2", snapshot: snapshot(settings, ids), currentBundleId: settings, fresh: ids
+            ).get(),
+            1
+        )
+    }
+
+    /// The case aliases exist for: the nameless rows a query cannot name at all
+    /// still address distinctly by position.
+    func testNamelessElementsAreAddressable() {
+        let ids = [identity("cell", ""), identity("cell", ""), identity("cell", "")]
+        XCTAssertEqual(
+            try? AliasResolver.resolve(
+                alias: "@e3", snapshot: snapshot(settings, ids), currentBundleId: settings, fresh: ids
+            ).get(),
+            2
+        )
+    }
+
+    private func assertStale(
+        _ result: Result<Int, AliasResolutionError>,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        switch result {
+        case .failure(.stale): break
+        default: XCTFail("expected .stale, got \(result)", file: file, line: line)
         }
     }
 }

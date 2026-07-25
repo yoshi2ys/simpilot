@@ -42,6 +42,9 @@ final class ScreenshotHandler {
         let filePath = request.queryParams["file"]
         let scaleParam = request.queryParams["scale"] ?? "1"
         let elementQuery = request.queryParams["element"]
+        if let elementQuery, AliasResolver.isAlias(elementQuery) {
+            return AliasResponse.unsupported("screenshot --element")
+        }
         let format = request.queryParams["format"] ?? "png"
         guard format == "png" || format == "jpeg" else {
             return HTTPResponseBuilder.error(

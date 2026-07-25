@@ -43,10 +43,19 @@ final class ElementsHandler: @unchecked Sendable {
         var responseData: [String: Any]
 
         if format == "outline" {
-            let rendered = OutlineRenderer.render(
-                actionableElements(from: app, request: request, type: typeFilter, contains: containsFilter)
-            )
-            responseData = ["outline": rendered.text, "count": rendered.entries.count]
+            // Rendered without the filters, so `@eN` numbers the whole actionable
+            // list: a filtered outline that renumbered from 1 would hand out
+            // aliases that resolve against a list the agent never derives, and the
+            // filters exist to shorten *reading*, not to redefine the addresses.
+            let outlineDepth = Self.actionableDepth(from: request)
+            let all = actionableElements(from: app, request: request, type: nil, contains: nil)
+            appManager.recordSnapshot(ElementSnapshot(
+                bundleId: appManager.currentBundleId, depth: outlineDepth, elements: all
+            ))
+
+            let matcher = Self.filterPredicate(type: typeFilter, contains: containsFilter)
+            let shown = OutlineRenderer.render(all).keeping { matcher(all[$0]) }
+            responseData = ["outline": shown.text, "count": shown.entries.count]
         } else {
             switch mode {
             case "summary":
@@ -119,9 +128,16 @@ final class ElementsHandler: @unchecked Sendable {
         type: String?,
         contains: String?
     ) -> [[String: Any]] {
-        let depth = Int(request.queryParams["depth"] ?? "20") ?? 20
-        let elements = DebugDescriptionParser.parseActionableList(from: app, maxDepth: depth)
+        let elements = DebugDescriptionParser.parseActionableList(
+            from: app, maxDepth: Self.actionableDepth(from: request)
+        )
         return Self.applyFilters(elements, type: type, contains: contains)
+    }
+
+    /// One reading of `depth` for the actionable list, so the depth a snapshot
+    /// records and the depth its aliases resolve at cannot come from two literals.
+    static func actionableDepth(from request: HTTPRequest) -> Int {
+        Int(request.queryParams["depth"] ?? "") ?? DebugDescriptionParser.defaultActionableDepth
     }
 
     /// Filter actionable elements by type and/or label substring. Both are
@@ -131,14 +147,23 @@ final class ElementsHandler: @unchecked Sendable {
         type: String?,
         contains: String?
     ) -> [[String: Any]] {
+        elements.filter(filterPredicate(type: type, contains: contains))
+    }
+
+    /// The per-element half of `applyFilters`, exposed because outline filters by
+    /// *position* — it keeps the alias numbering of the unfiltered list, so it
+    /// cannot use a function that returns a re-packed array. One predicate for
+    /// both callers, so JSON and outline can never disagree about what a filter
+    /// matches.
+    static func filterPredicate(type: String?, contains: String?) -> ([String: Any]) -> Bool {
         let allowedTypes: Set<String>? = type.map { raw in
             Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
         }
         let needle = contains?.lowercased()
 
-        if allowedTypes == nil && needle == nil { return elements }
+        if allowedTypes == nil && needle == nil { return { _ in true } }
 
-        return elements.filter { element in
+        return { element in
             if let allowedTypes {
                 guard let t = element["type"] as? String, allowedTypes.contains(t.lowercased()) else {
                     return false

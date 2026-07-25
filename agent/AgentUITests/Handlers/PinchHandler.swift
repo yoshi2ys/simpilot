@@ -28,6 +28,9 @@ final class PinchHandler: @unchecked Sendable {
         }
 
         let query = json["query"] as? String
+        if let query, AliasResolver.isAlias(query) {
+            return AliasResponse.unsupported("pinch")
+        }
         let velocityName = json["velocity"] as? String ?? "default"
 
         // pinch(withScale:velocity:) expects velocity in scale-factor-per-second.

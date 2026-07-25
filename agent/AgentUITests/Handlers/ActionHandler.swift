@@ -49,7 +49,9 @@ final class ActionHandler {
                 query: query,
                 wait: TapHandler.parseWaitArgs(from: json),
                 gesture: .tap,
-                in: app
+                in: app,
+                snapshot: appManager.snapshot,
+                currentBundleId: appManager.currentBundleId
             )
             switch resolution {
             case .success(let element):
@@ -67,7 +69,9 @@ final class ActionHandler {
                 text: text,
                 method: json["method"] as? String ?? "auto",
                 wait: TapHandler.parseWaitArgs(from: json),
-                in: app
+                in: app,
+                snapshot: appManager.snapshot,
+                currentBundleId: appManager.currentBundleId
             )
             switch typeResolution {
             case .success(let usedMethod, let element):

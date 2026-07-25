@@ -105,6 +105,85 @@ enum DebugDescriptionParser {
         }
     }
 
+    /// What a query resolved to, once `@eN` aliases are in play.
+    ///
+    /// A failed alias is its own case rather than `notFound`: "the screen changed
+    /// since you listed it" is a different instruction to the caller than "no such
+    /// element", and collapsing them would send an agent hunting for a label when
+    /// what it needs is a fresh `elements --format outline`.
+    enum QueryResolution {
+        case found(FoundElement)
+        case notFound
+        case aliasFailed(AliasResolutionError)
+    }
+
+    /// The one entry point for a query that may be an `@eN` alias.
+    ///
+    /// A non-alias query falls straight through to `findElement` with its behavior
+    /// untouched — `ElementPoller` observes through here, so anything else would
+    /// change what `assert enabled 'X'` sees.
+    ///
+    /// The alias path re-derives the actionable list from the *live* tree and
+    /// checks position N still holds the recorded identity, then reports that
+    /// element's current geometry. The snapshot supplies identity only; trusting
+    /// its coordinates would tap where the row used to be.
+    static func resolve(
+        query: String,
+        in app: XCUIApplication,
+        snapshot: ElementSnapshot?,
+        currentBundleId: String?
+    ) -> QueryResolution {
+        guard AliasResolver.isAlias(query) else {
+            return findElement(query: query, in: app).map(QueryResolution.found) ?? .notFound
+        }
+
+        // Re-derive at the *snapshot's* depth, not a constant: `--depth` changes
+        // the list's length, and comparing position N across two depths would
+        // shift every alias with nothing to report.
+        let parsed = parseLines(app.debugDescription)
+        let depth = snapshot?.depth ?? defaultActionableDepth
+        let fresh = collectActionable(from: parsed, maxDepth: depth)
+            .map(ElementSnapshot.Identity.init(element:))
+
+        switch AliasResolver.resolve(
+            alias: query, snapshot: snapshot, currentBundleId: currentBundleId, fresh: fresh
+        ) {
+        case .failure(let error):
+            return .aliasFailed(error)
+        case .success(let position):
+            // Re-find the element in the parsed tree to recover its frame: the
+            // actionable dicts carry one, but `toFound` is the single builder for
+            // `FoundElement` and re-deriving centers here would duplicate it.
+            guard let element = actionableElement(at: position, in: parsed, maxDepth: depth) else {
+                return .aliasFailed(.stale("\(query) no longer resolves to an element"))
+            }
+            // `findElement` drops zero-size elements; the actionable list does not,
+            // so an alias can name one. Its center is (0, 0), which would tap the
+            // screen corner and report success — refuse instead.
+            guard element.frame.w > 0, element.frame.h > 0 else {
+                return .aliasFailed(.stale("\(query) names an element with no on-screen frame"))
+            }
+            return .found(toFound(element, matchCount: 1))
+        }
+    }
+
+    /// The depth the actionable list is derived at when the caller names none.
+    /// `ElementsHandler` uses the same default, so an outline taken without
+    /// `--depth` and an alias resolved against it walk the same list.
+    static let defaultActionableDepth = 20
+
+    private static func actionableElement(
+        at position: Int, in elements: [ParsedElement], maxDepth: Int
+    ) -> ParsedElement? {
+        var seen = 0
+        for element in elements where element.depth <= maxDepth {
+            guard isActionable(element) else { continue }
+            if seen == position { return element }
+            seen += 1
+        }
+        return nil
+    }
+
     /// Find an element by query in the debugDescription and return its center coordinates.
     /// This bypasses XCUITest's slow element resolution (~24s) by parsing the text tree (~0.2s).
     static func findElement(query: String, in app: XCUIApplication) -> FoundElement? {
@@ -468,16 +547,19 @@ enum DebugDescriptionParser {
         "other", "window", "application", "group"
     ]
 
+    /// The single membership rule for the actionable list. Alias resolution walks
+    /// the same predicate to recover element N, so "which elements are in the
+    /// list" cannot be answered differently by the two paths — a divergence would
+    /// silently shift every alias by the number of disagreeing elements.
+    static func isActionable(_ element: ParsedElement) -> Bool {
+        if actionableTypes.contains(element.type) { return true }
+        return !element.identifier.isEmpty && !excludedTypes.contains(element.type)
+    }
+
     private static func collectActionable(from elements: [ParsedElement], maxDepth: Int) -> [[String: Any]] {
-        var results: [[String: Any]] = []
-        for element in elements where element.depth <= maxDepth {
-            let isActionable = actionableTypes.contains(element.type)
-            let hasIdentifier = !element.identifier.isEmpty && !excludedTypes.contains(element.type)
-            if isActionable || hasIdentifier {
-                results.append(elementToDict(element))
-            }
-        }
-        return results
+        elements
+            .filter { $0.depth <= maxDepth && isActionable($0) }
+            .map(elementToDict)
     }
 
     // MARK: - Summary

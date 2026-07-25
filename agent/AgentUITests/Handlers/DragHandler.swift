@@ -50,6 +50,14 @@ final class DragHandler: @unchecked Sendable {
             )
         }
 
+        for candidate in [query, toQuery] where candidate.map(AliasResolver.isAlias) == true {
+
+            _ = candidate
+
+            return AliasResponse.unsupported("drag")
+
+        }
+
         let app = appManager.currentApp()
 
         // Resolve source coordinate

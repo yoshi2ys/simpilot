@@ -5,6 +5,20 @@ final class AppManager: @unchecked Sendable {
     private var apps: [String: XCUIApplication] = [:]
     private(set) var currentBundleId: String?
 
+    /// The `@eN` pairing from the last `elements --format outline` (SU3).
+    ///
+    /// It lives here rather than in a store of its own because every handler that
+    /// resolves a query already holds the `AppManager`, and because the staleness
+    /// rule is about the app: `currentBundleId` is the other half of the check.
+    /// Only the latest snapshot is kept — an alias names "the list I just read",
+    /// and keeping older ones would let a caller resolve against a screen two
+    /// navigations ago.
+    private(set) var snapshot: ElementSnapshot?
+
+    func recordSnapshot(_ snapshot: ElementSnapshot) {
+        self.snapshot = snapshot
+    }
+
     enum LaunchError: Error {
         case unsupportedPlatform(String)
         case launchFailed(String)

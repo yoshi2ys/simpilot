@@ -22,33 +22,40 @@ import Foundation
 enum OutlineRenderer {
 
     /// One rendered line paired with the element it came from, so the alias
-    /// numbering and the element identity have a single source (SU3's cache is
-    /// populated from this, never from a second parse — a re-numbered list would
-    /// silently point aliases at the wrong elements).
+    /// numbering and the element identity have a single source — SU3's snapshot is
+    /// built from this same pass, never from a second parse that could number a
+    /// differently-derived list.
     struct Entry {
+        /// 0-based position in the unfiltered actionable list. `alias` is this +1.
+        let index: Int
         let alias: String
+        let line: String
         let element: [String: Any]
     }
 
     struct Rendered {
-        let text: String
         let entries: [Entry]
+
+        var text: String { entries.map(\.line).joined(separator: "\n") }
+
+        /// Narrow the output without renumbering. Aliases address the **whole**
+        /// actionable list, so a filtered view shows gaps (`@e11`, `@e14`) rather
+        /// than a fresh `@e1`. Renumbering per filter would make an alias mean
+        /// something different depending on flags the next command doesn't repeat:
+        /// `elements --format outline --type button` then `tap '@e1'` would resolve
+        /// against the unfiltered list and hit the wrong row.
+        func keeping(_ isIncluded: (Int) -> Bool) -> Rendered {
+            Rendered(entries: entries.filter { isIncluded($0.index) })
+        }
     }
 
-    /// Render the output of `parseActionableList` (after `ElementsHandler.applyFilters`).
-    /// Aliases are numbered over the *rendered* lines, 1-based.
+    /// Render the output of `parseActionableList`. Aliases are 1-based over the
+    /// list as given, which must be the unfiltered one — see `keeping(_:)`.
     static func render(_ elements: [[String: Any]]) -> Rendered {
-        var lines: [String] = []
-        var entries: [Entry] = []
-        lines.reserveCapacity(elements.count)
-        entries.reserveCapacity(elements.count)
-
-        for (index, element) in elements.enumerated() {
+        Rendered(entries: elements.enumerated().map { index, element in
             let alias = "@e\(index + 1)"
-            lines.append(line(for: element, alias: alias))
-            entries.append(Entry(alias: alias, element: element))
-        }
-        return Rendered(text: lines.joined(separator: "\n"), entries: entries)
+            return Entry(index: index, alias: alias, line: line(for: element, alias: alias), element: element)
+        })
     }
 
     // MARK: - Line

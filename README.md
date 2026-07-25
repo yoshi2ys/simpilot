@@ -193,6 +193,20 @@ The line shape follows agent-browser / Playwright's aria snapshot so it reads th
 same way to a model that has seen those, with a cheaper `@e9` ref. This mode prints
 **raw text on success**; a failure still prints one JSON envelope and a non-zero exit.
 
+The `@eN` refs are usable as queries:
+
+```bash
+simpilot elements --format outline
+simpilot tap '@e11'          # taps the element outline listed as @e11
+```
+
+Aliases number the unfiltered list, so `--type`/`--contains` show gaps rather than
+renumbering. They are re-validated against the live screen on every use: once you
+navigate, the same alias fails with `stale_alias` instead of tapping whatever now
+sits in that position. `tap` / `doubletap` / `longpress` / `type` / `action` accept
+them; `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`, `scroll-to`,
+`assert` and `wait` return `alias_unsupported` with the reason.
+
 ## Output Format
 
 ```json

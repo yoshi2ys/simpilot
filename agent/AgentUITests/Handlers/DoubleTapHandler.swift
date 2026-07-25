@@ -22,7 +22,9 @@ final class DoubleTapHandler: @unchecked Sendable {
             query: query,
             wait: TapHandler.parseWaitArgs(from: json),
             gesture: .doubleTap,
-            in: app
+            in: app,
+            snapshot: appManager.snapshot,
+            currentBundleId: appManager.currentBundleId
         )
         return TapHandler.responseData(from: resolution)
     }
