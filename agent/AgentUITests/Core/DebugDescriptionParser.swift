@@ -137,11 +137,15 @@ enum DebugDescriptionParser {
             return findElement(query: query, in: app).map(QueryResolution.found) ?? .notFound
         }
 
+        // `debugDescription` is the expensive part (~0.2s of IPC). With no
+        // snapshot the answer is known without looking at the screen at all.
+        guard let snapshot else { return .aliasFailed(.noSnapshot) }
+
         // Re-derive at the *snapshot's* depth, not a constant: `--depth` changes
         // the list's length, and comparing position N across two depths would
         // shift every alias with nothing to report.
         let parsed = parseLines(app.debugDescription)
-        let depth = snapshot?.depth ?? defaultActionableDepth
+        let depth = snapshot.depth
         let fresh = collectActionable(from: parsed, maxDepth: depth)
             .map(ElementSnapshot.Identity.init(element:))
 

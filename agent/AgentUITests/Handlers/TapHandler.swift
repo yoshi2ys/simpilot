@@ -99,6 +99,10 @@ final class TapHandler: @unchecked Sendable {
         case tapFailed(query: String, reason: String)
         /// An `@eN` alias that no longer names an element on this screen.
         case aliasFailed(query: String, error: AliasResolutionError)
+        /// An `@eN` alias combined with a wait. Distinct from `aliasFailed`:
+        /// nothing is stale, the combination is simply not supported, and the
+        /// caller's repair is to drop the wait rather than re-list the screen.
+        case aliasNotPollable
     }
 
     static func parseWaitArgs(from json: [String: Any]) -> WaitArgs {
@@ -166,11 +170,8 @@ final class TapHandler: @unchecked Sendable {
         currentBundleId: String?
     ) -> Resolution {
         switch awaitPredicates(query: query, wait: wait, in: app) {
-        case .aliasRejected(let query):
-            return .aliasFailed(
-                query: query,
-                error: .stale("\(query) cannot be combined with a wait: an alias names a list you already read")
-            )
+        case .aliasRejected:
+            return .aliasNotPollable
         case .satisfied(let element):
             // `not-exists` can satisfy with element == nil. Tapping nothing
             // is nonsense for a gesture handler, so surface it as an error
@@ -317,6 +318,8 @@ final class TapHandler: @unchecked Sendable {
             )
         case .aliasFailed(_, let error):
             return AliasResponse.error(error)
+        case .aliasNotPollable:
+            return AliasResponse.unsupported("tap with a wait", reason: .cannotBePolled)
         }
     }
 

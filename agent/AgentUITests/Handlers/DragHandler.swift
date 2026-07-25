@@ -50,12 +50,10 @@ final class DragHandler: @unchecked Sendable {
             )
         }
 
-        for candidate in [query, toQuery] where candidate.map(AliasResolver.isAlias) == true {
-
-            _ = candidate
-
+        // Drag resolves through `ElementResolver`, which needs a real element;
+        // either endpoint being an alias is refused rather than matched as a label.
+        if [query, toQuery].contains(where: { $0.map(AliasResolver.isAlias) == true }) {
             return AliasResponse.unsupported("drag")
-
         }
 
         let app = appManager.currentApp()

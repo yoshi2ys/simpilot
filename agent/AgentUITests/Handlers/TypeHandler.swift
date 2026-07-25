@@ -52,6 +52,8 @@ final class TypeHandler: @unchecked Sendable {
         case elementNotFound(query: String)
         /// An `@eN` alias that no longer names an element on this screen.
         case aliasFailed(AliasResolutionError)
+        /// An `@eN` alias combined with a wait — unsupported, not stale.
+        case aliasNotPollable
         /// PasteHelper already returns a full error envelope.
         case inputFailed(Data)
     }
@@ -106,10 +108,8 @@ final class TypeHandler: @unchecked Sendable {
                 ))
             case .satisfied(let found):
                 polled = found
-            case .aliasRejected(let query):
-                return .failure(.aliasFailed(
-                    .stale("\(query) cannot be combined with a wait: an alias names a list you already read")
-                ))
+            case .aliasRejected:
+                return .failure(.aliasNotPollable)
             case .notNeeded:
                 break
             }
@@ -196,6 +196,8 @@ final class TypeHandler: @unchecked Sendable {
             )
         case .aliasFailed(let error):
             return AliasResponse.error(error)
+        case .aliasNotPollable:
+            return AliasResponse.unsupported("type with a wait", reason: .cannotBePolled)
         case .inputFailed(let data):
             return data
         }

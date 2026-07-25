@@ -17,6 +17,12 @@ final class SwipeHandler: @unchecked Sendable {
             )
         }
         let query = json["query"] as? String
+        // The poller only sees the query when a wait is requested, so a bare
+        // `{"query": "@e1"}` would otherwise reach `ElementResolver` and be
+        // matched as a literal label.
+        if let query, AliasResolver.isAlias(query) {
+            return AliasResponse.unsupported("swipe")
+        }
         let velocity = json["velocity"] as? String ?? "default"
         let app = appManager.currentApp()
         let resolution = Self.resolveAndSwipe(
