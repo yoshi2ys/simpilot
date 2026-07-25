@@ -48,6 +48,44 @@ final class ElementsCommandTests: XCTestCase {
         XCTAssertEqual(path, "/elements")
     }
 
+    // MARK: - --format
+
+    func testFormatOutlineAppearsInQuery() throws {
+        let path = try ElementsCommand.buildPath(from: ["--format", "outline"])
+        XCTAssertEqual(queryParams(path)["format"], "outline")
+    }
+
+    func testFormatIsOmittedByDefault() throws {
+        let path = try ElementsCommand.buildPath(from: ["--level", "1"])
+        XCTAssertNil(queryParams(path)["format"])
+    }
+
+    /// Rejected CLI-side so a typo exits 3 with a message naming the flag,
+    /// instead of round-tripping to the agent for the same verdict.
+    func testUnknownFormatIsRejected() {
+        XCTAssertThrowsError(try ElementsCommand.buildPath(from: ["--format", "yaml"])) { error in
+            guard case CLIError.invalidArgs(let message) = error else {
+                return XCTFail("expected invalidArgs, got \(error)")
+            }
+            XCTAssertTrue(message.contains("--format"), message)
+        }
+    }
+
+    /// `run` picks the plain-text path off the same flag `buildPath` encodes;
+    /// they must not drift.
+    func testIsOutlineTracksTheFlag() {
+        XCTAssertTrue(ElementsCommand.isOutline(["--format", "outline"]))
+        XCTAssertFalse(ElementsCommand.isOutline(["--format", "json"]))
+        XCTAssertFalse(ElementsCommand.isOutline(["--level", "1"]))
+    }
+
+    /// Both sides normalize case, so `--format OUTLINE` cannot ask the agent for
+    /// outline and then print the envelope instead of the text.
+    func testFormatCaseIsNormalizedOnBothSides() throws {
+        XCTAssertEqual(try queryParams(ElementsCommand.buildPath(from: ["--format", "OUTLINE"]))["format"], "outline")
+        XCTAssertTrue(ElementsCommand.isOutline(["--format", "OUTLINE"]))
+    }
+
     // MARK: - Helpers
 
     private func queryParams(_ path: String) -> [String: String] {

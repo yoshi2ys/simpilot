@@ -46,6 +46,9 @@ cd agent && xcodebuild test \
   -only-testing:AgentUITests/HTTPParserTests \
   -only-testing:AgentUITests/TapHandlerTests \
   -only-testing:AgentUITests/ButtonHandlerTests \
+  -only-testing:AgentUITests/AgentConfigTests \
+  -only-testing:AgentUITests/OutlineRendererTests \
+  -only-testing:AgentUITests/ElementsHandlerFormatTests \
   -quiet
 ```
 
@@ -84,6 +87,10 @@ simpilot screenshot --format jpeg --quality 80 --file /tmp/s.jpg
 
 # Elements filtering
 simpilot elements --level 1 --type button,switch --contains Settings
+
+# Compact text outline (~1/6 the bytes of --level 1 JSON; prints raw text, not an envelope)
+simpilot elements --format outline
+simpilot elements --format outline --type button --contains Settings
 
 # Scroll to find
 simpilot scroll-to 'Privacy' --direction down --max-swipes 10
@@ -133,6 +140,8 @@ simpilot run test.yaml --var "app=com.example.App" # override variables
 - **Element screenshots** (ScreenshotHandler.swift): `GET /screenshot?element=<query>` resolves via `ElementResolver.resolve()` then calls `XCUIElement.screenshot()`. Wrapped in `catchObjCException` for NSException safety (detached/offscreen elements). `ScreenshotScaler` applies to both full-screen and element screenshots unchanged. Error codes: `element_not_found` (resolver fail) vs `screenshot_failed` (ObjC exception).
 - **JPEG output** (ScreenshotConverter in ScreenshotHandler.swift): `--format jpeg` converts PNG→JPEG via `CGImageDestinationCreateWithData` + `kCGImageDestinationLossyCompressionQuality`. Default quality 80. Reduces base64 token consumption for AI agents.
 - **Elements filtering**: `GET /elements?level=1&type=button,switch&contains=Settings` applies server-side AND filtering on actionable elements. `type` matches element type, `contains` matches label substring (case-insensitive).
+- **Outline text format** (`OutlineRenderer`, `GET /elements?format=outline`): the actionable list as one line per element — `- button "General" @e9`, with `[disabled]` / `[value=…]` suffixes. Measured at ~17% of the equivalent `--level 1` JSON on a Settings screen (1,200 vs 7,184 bytes), because the JSON spends most of its bytes on key names and frames an LLM never reads. The line skeleton is agent-browser / Playwright's aria snapshot so output an LLM has seen before parses the same way, but the ref is `@e9` rather than their `[ref=e9]` — a self-delimiting bracket costs ~4 tokens a line to buy delimiting that the closing quote already provides. The role is `normalizeTypeName`'s camelCase verbatim, **not** an ARIA role: translating needs an invented name for every type ARIA has no word for, and lowercasing yields `searchfield`, which is neither vocabulary nor what `--type` accepts. An element with no label and no identifier drops the name slot (`- cell @e7`) instead of rendering `""`. No frames, **no column alignment** (a padding run per line, and one long label shifts every other line, defeating a byte diff of two snapshots), and no `entries` array — a second representation of the same elements is exactly the cost the format exists to avoid; use `--level 1` when frames are needed. It renders the **actionable (level-1) list only** — the tree modes carry nesting a flat one-line-per-element format has nowhere to put — so combining `format=outline` with an explicit `level`/`mode` that is not actionable is an `invalid_request`, not a silent override (the `DragHandler` precedent: conflicting parameters are rejected, never resolved by picking one). `--depth` applies exactly as it does to `level=1` (it bounds the tree walk, not the output shape), so it is not part of the conflict. The `@eN` aliases are **display-only until SU3** lands the resolver; `tap '@e9'` today is an ordinary label query and will not find them.
+- **Outline prints raw text but still decodes the envelope** (`decodeAndPrintPlainText`): re-serializing outline as JSON would escape every newline and re-add the braces it exists to avoid, so `elements --format outline` prints `data.outline` verbatim. It nevertheless routes through `decodeAgentEnvelope` like every other response path — reading the body directly would re-open the A33 hole where a 401 page or a wrong `--port` is echoed with exit 0. Failures still print the JSON envelope, so the caller's contract is "exit 0 ⇒ text, non-zero ⇒ exactly one JSON object"; an error never arrives as unparseable prose.
 - **scroll-to-find** (ScrollToHandler.swift): `POST /scroll-to` loops: `DebugDescriptionParser.findElement` (fast path) → swipe → settle → repeat. `max_swipes` caps iterations (default 10, must be >0). Checks before first swipe so already-visible elements return `swipes: 0`.
 - **Extended query prefixes**: 12 additional typed query prefixes (`icon`, `toggle`, `slider`, `stepper`, `picker`, `segmentedControl`, `menu`, `menuItem`, `scrollView`, `webView`, `datePicker`, `textView`) for direct element resolution. `toggle` maps to `app.toggles` (distinct from `switch` which maps to `app.switches`).
 - **Drag gesture** (DragHandler.swift): `press(forDuration:thenDragTo:)` supports element-to-element, element-to-coordinate, and coordinate-to-coordinate modes. Mutual exclusivity validation prevents silent misrouting.
