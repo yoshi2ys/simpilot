@@ -81,9 +81,12 @@ enum ErrorHint {
 
     /// Two codes, one condition: `activate` and `launch` fail the same way and are
     /// repaired the same way, so they must not drift into two wordings.
+    ///
+    /// The check is named as simulator-only because it is: an agent on a physical
+    /// device that runs `simctl listapps` learns nothing and has spent a round-trip.
     private static let appNotInstalled =
-        "Check the bundle ID, and that the app is installed on this device "
-        + "(`xcrun simctl listapps <udid>`)."
+        "Check the bundle ID, and that the app is installed on the target device. "
+        + "On a simulator, `xcrun simctl listapps <udid>` lists what is installed."
 
     /// The whole `*_failed` family plus `objc_exception`: XCUITest raised while
     /// acting on an element. Shared so the field does not read as intermittent —
