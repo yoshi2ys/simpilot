@@ -366,6 +366,32 @@ present whenever a code has one uniform repair, and absent when it does not
 `hint` rides along inside a `/batch` sub-result and inside `action`'s
 `data.screenshot` slot, so a nested failure is not the one place you have to guess.
 
+## Surface Honesty — What You May Assume
+
+simpilot never accepts a command it cannot carry out. Anything unsupported,
+contradictory, or aimed at something the screen no longer has comes back as a
+failure with a code — it is never quietly dropped, and never quietly replaced by
+a different action. So:
+
+- **Exit 0 means it happened.** Don't spend a screenshot confirming that a tap
+  landed or that an app launched. Observe again because you need to know *what
+  the new screen contains*, not to check whether the last command worked.
+- **A non-zero exit is informative, so read it instead of retrying.** Unsupported
+  is `unsupported_platform` / `invalid_args` / `alias_unsupported` **with the
+  reason**, a contradictory request is `invalid_request` naming the field, an
+  alias that no longer points where it did is `stale_alias`. Repeating the same
+  call cannot turn any of these into a success (this is the mechanism behind
+  Critical Rule 10) — change the approach the `hint` points at.
+- **Nothing is silently substituted.** A doubly-matching query reports
+  `match_count` rather than picking the "better" match for you, and `simpilot
+  start` names the slot its device came from in `resolved_via`, so check it when
+  you care which device you are driving. Conversely, `null` in a field means the
+  agent genuinely could not determine that value — it is never a stand-in default.
+- **Nested failures surface too.** A `batch` with any failed sub-command exits
+  non-zero and still returns every sub-result; a reply that isn't a simpilot
+  envelope is `invalid_response` (exit 2), never printed as if it succeeded. You
+  can branch on `success` alone.
+
 ## Common Bundle IDs
 
 | App | Bundle ID |

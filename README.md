@@ -231,6 +231,43 @@ whenever the repair is the same for every occurrence of that code:
 Codes whose repair depends entirely on the message — `invalid_request` above
 all, where the message names the field it rejected — carry no `hint` key at all.
 
+## Surface Honesty
+
+simpilot never presents a surface it cannot actually drive. A command that is
+unsupported here, that names something the screen no longer has, or that
+contradicts itself, fails with a code. It is never accepted and quietly turned
+into nothing, and never quietly turned into a *different* action. Three rules
+follow from that, and everything below is existing behavior, not aspiration:
+
+- **No silent no-ops.** Buttons with no public XCUITest API — lock/power, shake,
+  the Digital Crown — return `invalid_args`, and platforms with no buttons at all
+  return `unsupported_platform`. `@eN` aliases resolve to a coordinate, so every
+  command that needs a real `XCUIElement` (`pinch`, `slider`,
+  `screenshot --element`, `swipe`, `drag`, `scroll-to`, `assert`, `wait`) returns
+  `alias_unsupported` **with the reason**, rather than matching `@e9` as a literal
+  label and reporting `element_not_found`. On tvOS, where there is no coordinate
+  path at all, aliases are refused up front.
+- **No silent substitution.** Contradictory parameters are rejected, never
+  resolved by picking one: `--format outline` with a non-actionable `--level`, or
+  `drag` given both a target element and target coordinates, are
+  `invalid_request`. A query that matches twice reports `match_count` and keeps
+  parse order — it is never re-ranked into whichever match looks better. A stale
+  `@eN` fails as `stale_alias` instead of tapping whatever now sits in that
+  position. `simpilot start` always names the slot its device came from in
+  `resolved_via`, so falling back to `iPhone 17 Pro` is visible; `simpilot stop`
+  with no target exits `3` rather than guessing which agent you meant.
+- **No silent success.** A `batch` in which any sub-command failed exits non-zero,
+  carrying every sub-result so you can see which. A reply that is not a simpilot
+  envelope — a 401 page, a wrong `--port` landing on some other server — is
+  `invalid_response` with exit `2`, not the old echo-with-exit-0. A field the
+  resolution path genuinely cannot know is `null`, never a plausible default. And
+  an agent that starts but cannot be recorded in the registry tears itself back
+  down, rather than reporting success as an agent nobody can stop.
+
+The point is what a caller may then assume: **exit 0 means it happened.** You do
+not need a screenshot to confirm a tap landed, and a failure always arrives as a
+code you can branch on rather than as silence you have to go looking for.
+
 ## Architecture
 
 - **Agent** (`agent/`): Xcode UI test target that hosts an HTTP server via `Network.framework`. Runs indefinitely as `xcodebuild test`.
