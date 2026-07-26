@@ -22,6 +22,7 @@
 		AA0000000000000000D3 /* AgentConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D2 /* AgentConfigTests.swift */; };
 		AA0000000000000000D6 /* OutlineRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D7 /* OutlineRendererTests.swift */; };
 		AA0000000000000000E0 /* ErrorHintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000E1 /* ErrorHintTests.swift */; };
+		AA0000000000000000E4 /* ListClusterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000E5 /* ListClusterTests.swift */; };
 		AA000000000000000005 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000006 /* HTTPServer.swift */; };
 		AA000000000000000007 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000008 /* HTTPParser.swift */; };
 		AA000000000000000009 /* HTTPResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000A /* HTTPResponse.swift */; };
@@ -48,6 +49,7 @@
 		AA000000000000000023 /* ElementResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000024 /* ElementResolver.swift */; };
 		AA0000000000000000D4 /* OutlineRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D5 /* OutlineRenderer.swift */; };
 		AA0000000000000000D8 /* ElementSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000D9 /* ElementSnapshot.swift */; };
+		AA0000000000000000E2 /* ListCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000E3 /* ListCluster.swift */; };
 		AA000000000000000027 /* AppManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000028 /* AppManager.swift */; };
 		AA00000000000000002B /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA00000000000000002C /* Network.framework */; };
 		AA000000000000000037 /* TerminateHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000036 /* TerminateHandler.swift */; };
@@ -91,6 +93,7 @@
 		AA0000000000000000D2 /* AgentConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000D7 /* OutlineRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRendererTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000E1 /* ErrorHintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHintTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000E5 /* ListClusterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListClusterTests.swift; sourceTree = "<group>"; };
 		AA000000000000000006 /* HTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
 		AA000000000000000008 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
 		AA00000000000000000A /* HTTPResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPResponse.swift; sourceTree = "<group>"; };
@@ -116,6 +119,7 @@
 		AA000000000000000022 /* TapCoordHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCoordHandler.swift; sourceTree = "<group>"; };
 		AA000000000000000024 /* ElementResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementResolver.swift; sourceTree = "<group>"; };
 		AA0000000000000000D5 /* OutlineRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineRenderer.swift; sourceTree = "<group>"; };
+		AA0000000000000000E3 /* ListCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListCluster.swift; sourceTree = "<group>"; };
 		AA0000000000000000D9 /* ElementSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementSnapshot.swift; sourceTree = "<group>"; };
 		AA000000000000000028 /* AppManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppManager.swift; sourceTree = "<group>"; };
 		AA00000000000000002C /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
@@ -190,6 +194,7 @@
 				AA0000000000000000D2 /* AgentConfigTests.swift */,
 				AA0000000000000000D7 /* OutlineRendererTests.swift */,
 				AA0000000000000000E1 /* ErrorHintTests.swift */,
+				AA0000000000000000E5 /* ListClusterTests.swift */,
 				AA000000000000000044 /* AgentUITests-Bridging-Header.h */,
 				AA000000000000000055 /* Server */,
 				AA000000000000000056 /* Handlers */,
@@ -275,6 +280,7 @@
 				AA000000000000000083 /* PredicateEvaluator.swift */,
 				AA0000000000000000D5 /* OutlineRenderer.swift */,
 				AA0000000000000000D9 /* ElementSnapshot.swift */,
+				AA0000000000000000E3 /* ListCluster.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -370,6 +376,7 @@
 				AA0000000000000000D3 /* AgentConfigTests.swift in Sources */,
 				AA0000000000000000D6 /* OutlineRendererTests.swift in Sources */,
 				AA0000000000000000E0 /* ErrorHintTests.swift in Sources */,
+				AA0000000000000000E4 /* ListClusterTests.swift in Sources */,
 				AA0000000000000000D1 /* AgentConfig.swift in Sources */,
 				AA000000000000000005 /* HTTPServer.swift in Sources */,
 				AA000000000000000007 /* HTTPParser.swift in Sources */,
@@ -393,6 +400,7 @@
 				AA000000000000000023 /* ElementResolver.swift in Sources */,
 				AA0000000000000000D4 /* OutlineRenderer.swift in Sources */,
 				AA0000000000000000D8 /* ElementSnapshot.swift in Sources */,
+				AA0000000000000000E2 /* ListCluster.swift in Sources */,
 				AA000000000000000027 /* AppManager.swift in Sources */,
 				AA000000000000000037 /* TerminateHandler.swift in Sources */,
 				AA000000000000000039 /* ActivateHandler.swift in Sources */,

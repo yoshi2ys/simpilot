@@ -82,6 +82,8 @@ final class TapHandler: @unchecked Sendable {
     enum WaitGate {
         case notNeeded
         case aliasRejected(query: String)
+        /// A row selector that never resolved within the wait (SU4).
+        case rowFailed(RowResolutionError)
         case satisfied(element: DebugDescriptionParser.FoundElement?)
         case timedOut(lastState: [String: Any]?, failedPredicates: [String])
     }
@@ -99,13 +101,17 @@ final class TapHandler: @unchecked Sendable {
         case tapFailed(query: String, reason: String)
         /// An `@eN` alias that no longer names an element on this screen.
         case aliasFailed(query: String, error: AliasResolutionError)
+        /// An `@rN` / `@lMrN` row selector that named no row on this screen.
+        case rowFailed(RowResolutionError)
         /// An `@eN` alias combined with a wait. Distinct from `aliasFailed`:
         /// nothing is stale, the combination is simply not supported, and the
         /// caller's repair is to drop the wait rather than re-list the screen.
         case aliasNotPollable
-        /// An `@eN` alias on a platform with no coordinate path (tvOS). Nothing is
-        /// stale and no wait is involved — aliases simply cannot be honored here.
-        case aliasNotSupportedOnPlatform
+        /// A positional query on a platform with no coordinate path (tvOS). Nothing
+        /// is stale and no wait is involved — neither an alias nor a row selector can
+        /// be honored here. It carries the kind so the refusal names the form the
+        /// caller actually wrote.
+        case notSupportedOnPlatform(PositionalQuery)
     }
 
     static func parseWaitArgs(from json: [String: Any]) -> WaitArgs {
@@ -157,6 +163,8 @@ final class TapHandler: @unchecked Sendable {
             return .timedOut(lastState: last?.asDict, failedPredicates: failed)
         case .aliasRejected(let query):
             return .aliasRejected(query: query)
+        case .rowFailed(let error):
+            return .rowFailed(error)
         }
     }
 
@@ -172,17 +180,19 @@ final class TapHandler: @unchecked Sendable {
         snapshot: ElementSnapshot?,
         currentBundleId: String?
     ) -> Resolution {
-        // Refuse before the wait gate, not after: on tvOS the answer is "aliases
-        // are not honored here", which stays true however the caller waits, and
-        // `.aliasNotPollable` would send them to drop a `--timeout` that is not
-        // the problem.
-        if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
-            return .aliasNotSupportedOnPlatform
+        // Refuse before the wait gate, not after: on tvOS the answer is "positional
+        // queries are not honored here", which stays true however the caller waits,
+        // and `.aliasNotPollable` would send them to drop a `--timeout` that is not
+        // the problem. Both forms resolve to a coordinate, so both are refused.
+        if let kind = PositionalQuery.kind(of: query), !PositionalQuery.isSupportedOnThisPlatform {
+            return .notSupportedOnPlatform(kind)
         }
 
         switch awaitPredicates(query: query, wait: wait, in: app) {
         case .aliasRejected:
             return .aliasNotPollable
+        case .rowFailed(let error):
+            return .rowFailed(error)
         case .satisfied(let element):
             // `not-exists` can satisfy with element == nil. Tapping nothing
             // is nonsense for a gesture handler, so surface it as an error
@@ -208,6 +218,8 @@ final class TapHandler: @unchecked Sendable {
         ) {
         case .aliasFailed(let error):
             return .aliasFailed(query: query, error: error)
+        case .rowFailed(let error):
+            return .rowFailed(error)
         case .found(let found):
             let point = Self.tapPoint(for: found)
             let failure = catchObjCException {
@@ -231,14 +243,19 @@ final class TapHandler: @unchecked Sendable {
         }
         #endif
 
-        // An alias never reaches `ElementResolver`: it would be matched as a
-        // literal label, and the caller would be told `element_not_found` for a
-        // query whose real problem was the coordinate gesture failing. An alias
-        // only reaches this line off tvOS, having been resolved and then failed
-        // its gesture above — on tvOS it was refused before the wait gate — so
+        // A positional query never reaches `ElementResolver`: it would be matched as
+        // a literal label, and the caller would be told `element_not_found` for a
+        // query whose real problem was the coordinate gesture failing. Either form
+        // only reaches this line off tvOS, having been resolved and then failed its
+        // gesture above — on tvOS both were refused before the wait gate — so
         // "resolved" is accurate.
-        if AliasResolver.isAlias(query) {
+        switch PositionalQuery.kind(of: query) {
+        case .alias:
             return .aliasFailed(query: query, error: .stale("\(query) resolved, but the gesture could not be performed at its coordinate"))
+        case .row:
+            return .rowFailed(.gestureFailed("\(query) resolved, but the gesture could not be performed at its coordinate"))
+        case nil:
+            break
         }
 
         do {
@@ -332,10 +349,12 @@ final class TapHandler: @unchecked Sendable {
             )
         case .aliasFailed(_, let error):
             return AliasResponse.error(error)
+        case .rowFailed(let error):
+            return RowResponse.error(error)
         case .aliasNotPollable:
             return AliasResponse.unsupported("tap with a wait", reason: .cannotBePolled)
-        case .aliasNotSupportedOnPlatform:
-            return AliasResponse.unsupported("tap on this platform", reason: .notCoordinateDriven)
+        case .notSupportedOnPlatform(let kind):
+            return kind.unsupported("tap on this platform", reason: .notCoordinateDriven)
         }
     }
 

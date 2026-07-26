@@ -75,8 +75,16 @@ enum AliasResolutionError: Error, Equatable {
 /// rides in `error.hint` (`ErrorHint.table`) rather than in the message, so these
 /// messages state only the condition.
 enum AliasResponse {
-    static func unsupportedMessage(_ command: String, reason: Reason = .needsElement) -> String {
-        "\(command) does not take an @eN alias: \(reason.explanation)"
+    /// `kind` names the form the caller actually wrote, and has **no default**:
+    /// telling someone who wrote `@r3` that "tap does not take an @eN alias" sends
+    /// them looking for an alias they never used, so every site states which form it
+    /// is refusing and the compiler finds the ones that do not.
+    static func unsupportedMessage(
+        _ command: String,
+        kind: PositionalQuery,
+        reason: Reason = .needsElement
+    ) -> String {
+        "\(command) does not take \(kind.description): \(reason.explanation)"
     }
 
     static func error(_ error: AliasResolutionError) -> Data {
@@ -100,11 +108,15 @@ enum AliasResponse {
     /// element). Saying so beats resolving to a plausible wrong element.
     static func unsupported(_ command: String, reason: Reason = .needsElement) -> Data {
         HTTPResponseBuilder.error(
-            unsupportedMessage(command, reason: reason),
+            unsupportedMessage(command, kind: .alias, reason: reason),
             code: "alias_unsupported"
         )
     }
 
+    /// Why the command refuses. Three of the four apply to `@rN` row selectors too,
+    /// so their wording says "positional query" rather than "alias";
+    /// `.cannotBePolled` is alias-only, because a row selector is re-derived from
+    /// the live tree on every observation and polls perfectly well.
     enum Reason: CaseIterable {
         /// `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`.
         case needsElement
@@ -112,8 +124,9 @@ enum AliasResponse {
         /// alias names a list that was already read, so it cannot become valid by
         /// waiting; it can only go stale.
         case cannotBePolled
-        /// `scroll-to`: the alias is on screen by construction, and the first
-        /// swipe would invalidate it.
+        /// `scroll-to`: the target is on screen by construction — an alias because
+        /// the list was just read, a row selector because only visible rows are
+        /// numbered — and the first swipe would invalidate it.
         case alreadyOnScreen
         /// tvOS: there is no coordinate path to hand the resolved point to.
         case notCoordinateDriven
@@ -121,13 +134,13 @@ enum AliasResponse {
         var explanation: String {
             switch self {
             case .needsElement:
-                return "it needs a real element and an alias resolves to a coordinate."
+                return "it needs a real element and a positional query resolves to a coordinate."
             case .cannotBePolled:
                 return "waiting cannot make an alias valid — it names a list you already read."
             case .alreadyOnScreen:
-                return "an alias is already on screen, and the first swipe would invalidate it."
+                return "the target is already on screen, and the first swipe would invalidate it."
             case .notCoordinateDriven:
-                return "this platform moves focus with the remote, and an alias resolves to a coordinate."
+                return "this platform moves focus with the remote, and a positional query resolves to a coordinate."
             }
         }
     }
@@ -146,26 +159,10 @@ enum AliasResolver {
         index(of: query) != nil
     }
 
-    /// Whether an alias can be acted on at all here.
-    ///
-    /// An alias resolves to a coordinate, and tvOS has no coordinate path to hand
-    /// one to: `resolveAndTap` / `resolveAndType` compile their whole
-    /// debugDescription fast path out under `#if !os(tvOS)` and drive the UI with
-    /// `XCUIRemote` focus instead. Without this, an alias on tvOS falls through to
-    /// `ElementResolver` and is matched as the literal label `@e1`, so the caller
-    /// is told `element_not_found` and goes hunting for a label that never existed.
-    ///
-    /// A runtime constant rather than an `#if` at each call site, for two reasons:
-    /// the guard is then *compiled on every platform*, so an iOS build typechecks
-    /// it (the tvOS branches themselves are not), and the platform fact has one
-    /// owner instead of a conditional per handler that can drift apart.
-    static let isSupportedOnThisPlatform: Bool = {
-        #if os(tvOS)
-        return false
-        #else
-        return true
-        #endif
-    }()
+    /// Whether an alias can be acted on at all here. One fact, owned by
+    /// `PositionalQuery` — it is about the coordinate path, which `@rN` row
+    /// selectors depend on too — and forwarded so alias call sites read naturally.
+    static var isSupportedOnThisPlatform: Bool { PositionalQuery.isSupportedOnThisPlatform }
 
     /// The 1-based number in `@eN`, or nil when this is not an alias.
     static func index(of query: String) -> Int? {

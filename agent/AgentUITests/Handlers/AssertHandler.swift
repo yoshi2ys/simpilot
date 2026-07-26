@@ -64,6 +64,10 @@ final class AssertHandler: @unchecked Sendable {
         switch result {
         case .aliasRejected:
             return AliasResponse.unsupported("assert", reason: .cannotBePolled)
+        case .rowFailed(let error):
+            // Not a refusal: a row selector polls fine, so reaching here means the
+            // deadline passed with no such row on screen.
+            return RowResponse.error(error)
         case .satisfied(let element):
             var data: [String: Any] = [
                 "predicate": predicate.name,

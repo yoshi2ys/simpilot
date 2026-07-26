@@ -32,12 +32,15 @@ final class ScrollToHandler {
             )
         }
 
-        // An alias names a row in the list that was just read, so it is on screen
-        // by construction — and the first swipe would invalidate it. "Scroll until
-        // this already-visible thing appears" has no coherent answer, so it is
-        // refused rather than silently resolved on the pre-check and never scrolled.
-        if AliasResolver.isAlias(query) {
-            return AliasResponse.unsupported("scroll-to", reason: .alreadyOnScreen)
+        // Both positional forms name something already on screen — an alias because
+        // the list was just read, a row selector because only visible rows are
+        // numbered — and the first swipe would invalidate either. "Scroll until this
+        // already-visible thing appears" has no coherent answer, so it is refused
+        // rather than silently resolved on the pre-check and never scrolled.
+        if let refusal = PositionalQuery.refusal(
+            for: query, command: "scroll-to", reason: .alreadyOnScreen
+        ) {
+            return refusal
         }
 
         let app = appManager.currentApp()

@@ -25,8 +25,8 @@ final class SliderHandler: @unchecked Sendable {
         }
 
         let query = json["query"] as? String
-        if let query, AliasResolver.isAlias(query) {
-            return AliasResponse.unsupported("slider")
+        if let refusal = PositionalQuery.refusal(for: query, command: "slider") {
+            return refusal
         }
 
         let app = appManager.currentApp()

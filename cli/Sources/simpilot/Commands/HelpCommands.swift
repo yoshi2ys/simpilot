@@ -69,5 +69,7 @@ enum HelpCommands {
         .init(pattern: "datePicker:Label",      description: "Find date picker by label",                 example: "'datePicker:Birthday'"),
         .init(pattern: "textView:Label",        description: "Find text view by label",                   example: "'textView:Notes'"),
         .init(pattern: "#identifier",           description: "Match by accessibility identifier (slow)",  example: "'#loginButton'"),
+        .init(pattern: "@eN",                   description: "The line numbered @eN by `elements --format outline`", example: "'@e11'"),
+        .init(pattern: "@rN / @lMrN",           description: "Row N of the screen's list (or of list M)", example: "'@r3'"),
     ]
 }

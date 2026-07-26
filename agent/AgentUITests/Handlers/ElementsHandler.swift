@@ -48,14 +48,22 @@ final class ElementsHandler: @unchecked Sendable {
             // aliases that resolve against a list the agent never derives, and the
             // filters exist to shorten *reading*, not to redefine the addresses.
             let outlineDepth = Self.actionableDepth(from: request)
-            let all = actionableElements(from: app, request: request, type: nil, contains: nil)
+            let listing = DebugDescriptionParser.parseActionable(from: app, maxDepth: outlineDepth)
+            let all = listing.elements
             appManager.recordSnapshot(ElementSnapshot(
                 bundleId: appManager.currentBundleId, depth: outlineDepth, elements: all
             ))
 
             let matcher = Self.filterPredicate(type: typeFilter, contains: containsFilter)
             let shown = OutlineRenderer.render(all).keeping { matcher(all[$0]) }
-            responseData = ["outline": shown.text, "count": shown.entries.count]
+            responseData = [
+                "outline": Self.outlineText(
+                    shown.text,
+                    lists: listing.lists,
+                    withAliasReference: listing.listsAreComparableToAliases
+                ),
+                "count": shown.entries.count
+            ]
         } else {
             switch mode {
             case "summary":
@@ -119,9 +127,30 @@ final class ElementsHandler: @unchecked Sendable {
         return resolveMode(level: level, mode: mode) != "actionable"
     }
 
-    /// The level-1 element list: parse, then apply the query filters. Shared by
-    /// the JSON and outline formats, so a change to the depth default or to the
-    /// filter set cannot land on one and silently miss the other.
+    /// The outline as the caller receives it: the `# list @lN` header lines, then
+    /// the element lines.
+    ///
+    /// Joined here rather than inside `OutlineRenderer` because the header is not an
+    /// entry — `count` counts elements, and `keeping(_:)` filters by element
+    /// position, so a header line inside `Rendered` would have to be excluded from
+    /// both. A screen with no detected list gets no header and no leading blank
+    /// line: an empty section would read as a list that failed to render.
+    static func outlineText(
+        _ elements: String,
+        lists: [ListCluster],
+        withAliasReference: Bool = true
+    ) -> String {
+        let header = ListClusterDetector.outlineHeader(for: lists, withAliasReference: withAliasReference)
+        return (header + (elements.isEmpty ? [] : [elements])).joined(separator: "\n")
+    }
+
+    /// The level-1 element list for the JSON format: parse, then apply the query
+    /// filters. The outline format reads the same list through
+    /// `DebugDescriptionParser.parseActionable`, which returns the detected lists
+    /// alongside it, and filters by *position* to keep the alias numbering — so what
+    /// the two share is the membership rule (`collectActionable`), the depth reading
+    /// (`actionableDepth`), and the filter itself (`filterPredicate`), each of which
+    /// has one owner.
     private func actionableElements(
         from app: XCUIApplication,
         request: HTTPRequest,

@@ -102,6 +102,7 @@ Choosing the right observation tool reduces token cost and speeds up automation.
 - **JPEG for smaller screenshots**: `--format jpeg --quality 80` produces files 3-5x smaller than PNG, significantly reducing base64 token cost when sending screenshots to AI models. Use for general observation; keep PNG for pixel-precise comparison.
 - **Filter elements to reduce tokens**: `--type button,switch` and `--contains Settings` narrow output to only relevant elements, cutting token consumption on busy screens. They apply to `--format outline` too.
 - **Prefer `--format outline` for "what can I tap here"**: one line per element (`- button "General" @e9`) at ~1/6 the bytes of the same `--level 1` JSON, measured on a Settings screen. It prints **raw text, not an envelope** — exit 0 means text on stdout, a non-zero exit still prints one JSON error object. Use `--level 1` when you actually need frames or the `query` field. It renders level 1 only — passing another `--level` alongside it is an error, not a silent override. The `@eN` refs are **selectors**: `simpilot tap '@e11'` taps the line listed as `@e11`, which is the only way to reach elements that carry no label or identifier. They are re-validated on use — after navigating, or after the list shifts by a row, the same alias fails loudly with `stale_alias` rather than tapping the wrong thing, so re-run `elements --format outline` after any screen change. Only `tap` / `doubletap` / `longpress` / `type` / `action` take aliases; `pinch` / `slider` / `screenshot --element` / `swipe` / `drag` / `scroll-to` / `assert` / `wait` return `alias_unsupported`.
+- **Address list rows positionally with `@rN` / `@lMrN`**: `simpilot tap '@r3'` taps the third row of the list on screen; `@l2r3` names the second list's third row. A `# list @lN: 8 cell rows, first row @e3` header appears in `--format outline` for every repeating list detected. Unlike `@eN`, a row selector needs **no prior `elements` call** and does not go stale — it is re-derived from the live screen every time — so reach for it when you want the Nth row (`tap '@r1'`, then `tap '@r2'`, …) and for `@eN` when you want *that specific* element. Rows are numbered top to bottom over the rows **currently on screen**, so swipe first to reach rows further down (a row past the end is `row_not_found`, not a wrong tap). "On screen" is geometry: a row behind a sheet or the keyboard is still numbered, so on a screen with a modal, name the modal's list explicitly (`@l2r1`) rather than trusting a low number — and note that `assert hittable '@rN'` on a row with no label returns `row_unsupported`, because that check needs a name to re-query. A bare `@rN` needs the screen to have exactly one list — with two you get `ambiguous_list` listing each list's row count, so pass `@lM`. No list on screen at all is `list_not_found`: use a label, `#identifier`, or `@eN` there. `assert` and `wait` accept row selectors (they can be polled); `pinch` / `slider` / `screenshot --element` / `swipe` / `drag` / `scroll-to` return `row_unsupported`.
 
 ## Fast Operation Patterns
 
@@ -377,9 +378,11 @@ a different action. So:
   landed or that an app launched. Observe again because you need to know *what
   the new screen contains*, not to check whether the last command worked.
 - **A non-zero exit is informative, so read it instead of retrying.** Unsupported
-  is `unsupported_platform` / `invalid_args` / `alias_unsupported` **with the
-  reason**, a contradictory request is `invalid_request` naming the field, an
-  alias that no longer points where it did is `stale_alias`. Repeating the same
+  is `unsupported_platform` / `invalid_args` / `alias_unsupported` /
+  `row_unsupported` **with the reason**, a contradictory request is
+  `invalid_request` naming the field, an alias that no longer points where it did
+  is `stale_alias`, and a row selector the screen cannot place is
+  `list_not_found` / `ambiguous_list` / `row_not_found`. Repeating the same
   call cannot turn any of these into a success (this is the mechanism behind
   Critical Rule 10) — change the approach the `hint` points at.
 - **Nothing is silently substituted.** A doubly-matching query reports

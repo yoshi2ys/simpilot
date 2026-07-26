@@ -13,6 +13,12 @@ enum ElementPoller {
         /// this is a `Result` case rather than a guard at each call site so a new
         /// poller caller cannot forget it: the switch stops compiling instead.
         case aliasRejected(query: String)
+        /// The query was an `@rN` / `@lMrN` row selector that never resolved before
+        /// the deadline. Polling one *is* coherent — it is re-derived from the live
+        /// tree every tick — so this is a timeout with a diagnosis, not a refusal:
+        /// it says whether the screen had no list, an ambiguous one, or too few
+        /// rows, which `.timedOut` alone could not.
+        case rowFailed(RowResolutionError)
         /// The deadline expired before all predicates held.
         /// `lastElement` is whatever we last observed (may be nil); `failedPredicates` lists the predicate names
         /// that were not satisfied on the final observation.
@@ -25,19 +31,21 @@ enum ElementPoller {
     /// Poll until every predicate in `predicates` holds, or until `timeoutMs` elapses.
     ///
     /// - Parameters:
-    ///   - query: DebugDescriptionParser query (bare label, `#identifier`, or `type:value`).
+    ///   - query: DebugDescriptionParser query (bare label, `#identifier`, `type:value`,
+    ///     or an `@rN` / `@lMrN` row selector; an `@eN` alias is refused).
     ///   - predicates: conditions that must all hold simultaneously on a single observation.
     ///   - timeoutMs: maximum time to wait. 0 = check once and return immediately (no retry).
     ///   - pollIntervalMs: sleep between polls. Ignored if timeoutMs == 0.
     ///   - app: the XCUIApplication to query.
     ///
     /// Behavior:
-    ///   - On each poll, `findElement` is called once, then every predicate is evaluated against the result.
+    ///   - On each poll, `locate` is called once, then every predicate is evaluated against the result.
     ///   - Predicates evaluate against the current observation only; they do not remember prior polls.
     ///   - If every predicate holds, returns `.satisfied(element:)` with the observed element (may be nil
     ///     for predicates like `not-exists`).
     ///   - If the deadline passes, returns `.timedOut(lastElement:, failedPredicates:)` with the predicates
-    ///     that were still failing on the final observation.
+    ///     that were still failing on the final observation — or `.rowFailed` when the final observation
+    ///     could not place a row selector at all, which is a diagnosis the predicate list cannot carry.
     static func waitUntil(
         query: String,
         predicates: [Predicate],
@@ -58,7 +66,16 @@ enum ElementPoller {
         var stableState = StablePredicate.State.initial
 
         while true {
-            var observed = DebugDescriptionParser.findElement(query: query, in: app)
+            var observed: DebugDescriptionParser.FoundElement?
+            // Per-tick, and only reported once the deadline passes: a list still
+            // being rendered resolves on a later tick, so returning the first
+            // tick's failure would defeat the wait the caller asked for.
+            var rowFailure: RowResolutionError?
+            switch DebugDescriptionParser.locate(query: query, in: app) {
+            case .found(let element): observed = element
+            case .notFound: observed = nil
+            case .rowFailed(let error): rowFailure = error
+            }
             var failed = cheapPredicates
                 .filter { !PredicateEvaluator.matches($0, element: observed) }
                 .map { $0.name }
@@ -69,6 +86,17 @@ enum ElementPoller {
             let stableSatisfied = StablePredicate.advance(&stableState, observedFrame: observed?.frame)
             if needsStable, !stableSatisfied {
                 failed.append(Predicate.stable.name)
+            }
+
+            // `checkHittability` re-queries XCUITest by label or identifier, and a
+            // row often has neither — nameless rows are the reason a positional
+            // handle exists at all. `resolveIsHittable` reports `false` for those,
+            // which would be an answer simpilot cannot know: refuse instead, the way
+            // `elementDict` emits `null` rather than a plausible default.
+            if failed.isEmpty, needsHittable, let element = observed,
+               element.label.isEmpty, element.identifier.isEmpty,
+               let selector = RowSelector.parse(query) {
+                return .rowFailed(.notCheckable(selector, predicate: Predicate.hittable.name))
             }
 
             // Defer the .hittable IPC until cheap predicates clear: isHittable forces
@@ -90,10 +118,20 @@ enum ElementPoller {
                 }
             }
 
-            if failed.isEmpty {
+            // `rowFailure` beats a satisfied predicate set, because it does not mean
+            // "no such element": it means the selector could not be placed on this
+            // screen at all. `not-exists` is satisfied by `observed == nil`, so
+            // without this an ambiguous `@r3` — or one on a screen with no list —
+            // would return `success: true, found: false` for a query nobody could
+            // resolve, which is the silent success the project forbids.
+            if failed.isEmpty, rowFailure == nil {
                 return .satisfied(element: observed)
             }
             if timeoutMs <= 0 || Date() >= deadline {
+                // The row diagnosis wins over the predicate list: "this screen has
+                // two lists, so @r3 is ambiguous" is actionable where "exists
+                // failed" sends the caller looking for a missing element.
+                if let rowFailure { return .rowFailed(rowFailure) }
                 return .timedOut(lastElement: observed, failedPredicates: failed)
             }
             Thread.sleep(forTimeInterval: sleepInterval)

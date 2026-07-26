@@ -64,6 +64,45 @@ enum DebugDescriptionParser {
         return collectActionable(from: elements, maxDepth: maxDepth)
     }
 
+    /// The actionable list and the repeating lists inside it, from **one** parse.
+    ///
+    /// `elements --format outline` needs both, and the row numbering only lines up
+    /// with the `@eN` numbering if they come from the same tree: two calls would pay
+    /// a second ~0.2s `debugDescription` IPC *and* let a screen change between them,
+    /// so a header could name a list the element lines below no longer describe.
+    struct ActionableListing {
+        /// At the caller's depth — `--depth` narrows what is listed and numbered.
+        let elements: [[String: Any]]
+        /// At `defaultActionableDepth`, always: see `listsAreComparableToAliases`.
+        let lists: [ListCluster]
+        /// Whether a row's `actionableIndex` names the same line as this listing's
+        /// `@eN`. False when the caller narrowed `--depth`, because the lists are
+        /// deliberately detected at the depth a *later command* resolves `@rN` at
+        /// (a `tap` carries no depth), while the elements honor the request. SU3
+        /// carried the depth in `ElementSnapshot` for exactly this reason; a row
+        /// selector has no snapshot to carry it in, so the two are reconciled by
+        /// pinning detection and dropping the cross-reference instead of letting a
+        /// header number a list that `@lM` will not resolve to.
+        let listsAreComparableToAliases: Bool
+    }
+
+    static func parseActionable(
+        from app: XCUIApplication, maxDepth: Int = defaultActionableDepth
+    ) -> ActionableListing {
+        parseActionable(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+    }
+
+    static func parseActionable(
+        fromRawDescription desc: String, maxDepth: Int = defaultActionableDepth
+    ) -> ActionableListing {
+        let parsed = parseLines(desc)
+        return ActionableListing(
+            elements: collectActionable(from: parsed, maxDepth: maxDepth),
+            lists: ListClusterDetector.detect(in: parsed, maxDepth: defaultActionableDepth),
+            listsAreComparableToAliases: maxDepth == defaultActionableDepth
+        )
+    }
+
     // MARK: - Fast Element Resolution
 
     struct FoundElement {
@@ -115,6 +154,61 @@ enum DebugDescriptionParser {
         case found(FoundElement)
         case notFound
         case aliasFailed(AliasResolutionError)
+        /// An `@rN` / `@lMrN` row selector that named no row on this screen.
+        case rowFailed(RowResolutionError)
+    }
+
+    /// What a query resolved to against an already-parsed tree.
+    ///
+    /// Separate from `QueryResolution` because it needs no snapshot and no bundle
+    /// ID: `locate` is the layer both the poller and `resolve` share, and aliases —
+    /// which are the only form that needs those two — are handled above it.
+    enum Located {
+        case found(FoundElement)
+        case notFound
+        case rowFailed(RowResolutionError)
+
+        /// The same outcome as `resolve` reports. The two enums are deliberately
+        /// separate — `ElementPoller` would otherwise have to handle an
+        /// `.aliasFailed` it can never see — so the widening lives here, once,
+        /// rather than inline at the caller.
+        var asQueryResolution: QueryResolution {
+            switch self {
+            case .found(let element): return .found(element)
+            case .notFound: return .notFound
+            case .rowFailed(let error): return .rowFailed(error)
+            }
+        }
+    }
+
+    /// The one place a query that is *not* an alias is turned into an element.
+    ///
+    /// Row selectors (SU4) resolve here rather than in `resolve` so the poller gets
+    /// them too: unlike an alias, a row selector is re-derived from the live tree on
+    /// every observation, so `assert enabled '@r3'` and `tap '@r3' --timeout 2000`
+    /// are coherent and simply work. An ordinary query falls through to
+    /// `findElement` with its behavior untouched.
+    static func locate(
+        query: String,
+        in elements: [ParsedElement],
+        maxDepth: Int = defaultActionableDepth
+    ) -> Located {
+        guard let selector = RowSelector.parse(query) else {
+            return findElement(query: query, in: elements).map(Located.found) ?? .notFound
+        }
+        let lists = ListClusterDetector.detect(in: elements, maxDepth: maxDepth)
+        switch ListClusterDetector.row(for: selector, in: lists) {
+        case .failure(let error):
+            return .rowFailed(error)
+        case .success(let row):
+            return .found(toFound(row.element, matchCount: 1))
+        }
+    }
+
+    /// `locate` against the live tree. One `debugDescription` IPC, same as
+    /// `findElement(query:in:)`, which it replaces on the polling path.
+    static func locate(query: String, in app: XCUIApplication) -> Located {
+        locate(query: query, in: parseLines(app.debugDescription))
     }
 
     /// The one entry point for a query that may be an `@eN` alias.
@@ -134,7 +228,7 @@ enum DebugDescriptionParser {
         currentBundleId: String?
     ) -> QueryResolution {
         guard AliasResolver.isAlias(query) else {
-            return findElement(query: query, in: app).map(QueryResolution.found) ?? .notFound
+            return locate(query: query, in: app).asQueryResolution
         }
 
         // `debugDescription` is the expensive part (~0.2s of IPC). With no
@@ -180,8 +274,7 @@ enum DebugDescriptionParser {
         at position: Int, in elements: [ParsedElement], maxDepth: Int
     ) -> ParsedElement? {
         var seen = 0
-        for element in elements where element.depth <= maxDepth {
-            guard isActionable(element) else { continue }
+        for element in elements where isActionable(element, withinDepth: maxDepth) {
             if seen == position { return element }
             seen += 1
         }
@@ -560,9 +653,22 @@ enum DebugDescriptionParser {
         return !element.identifier.isEmpty && !excludedTypes.contains(element.type)
     }
 
+    /// The membership rule *plus* the depth bound — the whole predicate behind "is
+    /// this one of the elements `@eN` numbers". Three walks apply it: the list
+    /// itself, alias resolution, and SU4's list detection.
+    ///
+    /// Sharing the predicate is what keeps them from drifting on *which elements
+    /// count*; the depth they pass is a separate question each caller answers (alias
+    /// resolution from `ElementSnapshot.depth`, list detection always at
+    /// `defaultActionableDepth`), and list detection narrows further to rows that are
+    /// framed and on screen.
+    static func isActionable(_ element: ParsedElement, withinDepth maxDepth: Int) -> Bool {
+        element.depth <= maxDepth && isActionable(element)
+    }
+
     private static func collectActionable(from elements: [ParsedElement], maxDepth: Int) -> [[String: Any]] {
         elements
-            .filter { $0.depth <= maxDepth && isActionable($0) }
+            .filter { isActionable($0, withinDepth: maxDepth) }
             .map(elementToDict)
     }
 
