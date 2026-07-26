@@ -134,7 +134,11 @@ enum ElementPoller {
                 if let rowFailure { return .rowFailed(rowFailure) }
                 return .timedOut(lastElement: observed, failedPredicates: failed)
             }
-            Thread.sleep(forTimeInterval: sleepInterval)
+            // Waiting is watching for change, so the next tick must look at the
+            // screen and not at the tree this one already read (SU5). Without the
+            // drop, a `perBatch` batch would poll one frozen observation to its
+            // deadline.
+            AXTree.settle(sleepInterval)
         }
     }
 }

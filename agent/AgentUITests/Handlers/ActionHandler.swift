@@ -118,8 +118,10 @@ final class ActionHandler {
             return HTTPResponseBuilder.error("Unknown action: \(action)", code: "invalid_request")
         }
 
-        // 2. Wait for UI to settle
-        Thread.sleep(forTimeInterval: settleTimeout)
+        // 2. Wait for UI to settle, and drop the pre-action tree with it: step 4
+        // below reads the tree back, and the batch-level invalidation that follows
+        // the whole sub-command is too late for that (SU5).
+        AXTree.settle(settleTimeout)
         responseData["settled"] = true
 
         // 3. Screenshot (optional)

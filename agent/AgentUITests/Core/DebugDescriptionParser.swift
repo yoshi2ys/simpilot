@@ -22,23 +22,23 @@ enum DebugDescriptionParser {
 
     /// Parse debugDescription into a full tree (Full element tree as nested dictionaries).
     static func parseTree(from app: XCUIApplication, maxDepth: Int = 10) -> [String: Any] {
-        parseTree(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+        parseTree(fromRawDescription: AXTree.description(of: app), maxDepth: maxDepth)
     }
 
     /// Parse debugDescription into an actionable flat list (Flat list of interactive elements).
     static func parseActionableList(from app: XCUIApplication, maxDepth: Int = 20) -> [[String: Any]] {
-        parseActionableList(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+        parseActionableList(fromRawDescription: AXTree.description(of: app), maxDepth: maxDepth)
     }
 
     /// Parse debugDescription into a summary of element counts (Element type counts).
     static func parseSummary(from app: XCUIApplication) -> [String: Any] {
-        let elements = parseLines(app.debugDescription)
+        let elements = parseLines(AXTree.description(of: app))
         return buildSummary(from: elements)
     }
 
     /// Parse debugDescription into a compact tree (Tree with single-child passthrough nodes collapsed).
     static func parseCompactTree(from app: XCUIApplication, maxDepth: Int = 10) -> [String: Any] {
-        let elements = parseLines(app.debugDescription)
+        let elements = parseLines(AXTree.description(of: app))
         guard let root = buildCompactTree(from: elements, maxDepth: maxDepth) else {
             return [:]
         }
@@ -89,7 +89,7 @@ enum DebugDescriptionParser {
     static func parseActionable(
         from app: XCUIApplication, maxDepth: Int = defaultActionableDepth
     ) -> ActionableListing {
-        parseActionable(fromRawDescription: app.debugDescription, maxDepth: maxDepth)
+        parseActionable(fromRawDescription: AXTree.description(of: app), maxDepth: maxDepth)
     }
 
     static func parseActionable(
@@ -208,7 +208,7 @@ enum DebugDescriptionParser {
     /// `locate` against the live tree. One `debugDescription` IPC, same as
     /// `findElement(query:in:)`, which it replaces on the polling path.
     static func locate(query: String, in app: XCUIApplication) -> Located {
-        locate(query: query, in: parseLines(app.debugDescription))
+        locate(query: query, in: parseLines(AXTree.description(of: app)))
     }
 
     /// The one entry point for a query that may be an `@eN` alias.
@@ -238,7 +238,7 @@ enum DebugDescriptionParser {
         // Re-derive at the *snapshot's* depth, not a constant: `--depth` changes
         // the list's length, and comparing position N across two depths would
         // shift every alias with nothing to report.
-        let parsed = parseLines(app.debugDescription)
+        let parsed = parseLines(AXTree.description(of: app))
         let depth = snapshot.depth
         let fresh = collectActionable(from: parsed, maxDepth: depth)
             .map(ElementSnapshot.Identity.init(element:))
@@ -284,7 +284,7 @@ enum DebugDescriptionParser {
     /// Find an element by query in the debugDescription and return its center coordinates.
     /// This bypasses XCUITest's slow element resolution (~24s) by parsing the text tree (~0.2s).
     static func findElement(query: String, in app: XCUIApplication) -> FoundElement? {
-        let desc = app.debugDescription
+        let desc = AXTree.description(of: app)
         let elements = parseLines(desc)
         return findElement(query: query, in: elements)
     }

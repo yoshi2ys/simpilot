@@ -187,7 +187,9 @@ final class BatchHandlerTests: XCTestCase {
 
     func test_summarize_allSucceeded_reportsSuccess() throws {
         let (status, json) = try envelope(
-            of: BatchHandler.summarize(results: [okResult(), okResult()], completed: 2, failed: 0)
+            of: BatchHandler.summarize(
+                results: [okResult(), okResult()], completed: 2, failed: 0, cache: AXTree.report
+            )
         )
         XCTAssertEqual(status, 200)
         XCTAssertEqual(json["success"] as? Bool, true)
@@ -206,7 +208,9 @@ final class BatchHandlerTests: XCTestCase {
     /// batch request itself was well-formed and ran.
     func test_summarize_anyFailure_reportsFailureAt200SoTheCLIExitsNonZero() throws {
         let (status, json) = try envelope(
-            of: BatchHandler.summarize(results: [okResult(), failedResult()], completed: 1, failed: 1)
+            of: BatchHandler.summarize(
+                results: [okResult(), failedResult()], completed: 1, failed: 1, cache: AXTree.report
+            )
         )
         XCTAssertEqual(status, 200)
         XCTAssertEqual(json["success"] as? Bool, false)
@@ -219,7 +223,9 @@ final class BatchHandlerTests: XCTestCase {
     /// them there is no way to learn *which* command failed.
     func test_summarize_failureStillCarriesEveryResult() throws {
         let (_, json) = try envelope(
-            of: BatchHandler.summarize(results: [okResult(), failedResult()], completed: 1, failed: 1)
+            of: BatchHandler.summarize(
+                results: [okResult(), failedResult()], completed: 1, failed: 1, cache: AXTree.report
+            )
         )
         let data = try XCTUnwrap(json["data"] as? [String: Any])
         let results = try XCTUnwrap(data["results"] as? [[String: Any]])
@@ -239,7 +245,10 @@ final class BatchHandlerTests: XCTestCase {
     func test_summarize_reportsSkippedSeparatelyFromFailed() throws {
         let skipped = BatchHandler.failureResult(code: "skipped", message: "Skipped due to previous error")
         let (_, json) = try envelope(
-            of: BatchHandler.summarize(results: [failedResult(), skipped, skipped], completed: 0, failed: 1)
+            of: BatchHandler.summarize(
+                results: [failedResult(), skipped, skipped], completed: 0, failed: 1,
+                cache: AXTree.report
+            )
         )
         XCTAssertEqual(json["success"] as? Bool, false)
         let error = try XCTUnwrap(json["error"] as? [String: Any])
@@ -250,5 +259,27 @@ final class BatchHandlerTests: XCTestCase {
         XCTAssertEqual(data["skipped"] as? Int, 2)
         XCTAssertEqual(data["completed"] as? Int, 0)
         XCTAssertEqual(data["total_commands"] as? Int, 3)
+    }
+
+    /// SU5. The tree-reuse report is what makes the saving checkable instead of a
+    /// claim, so it rides in `data` on every batch — including one that ran with
+    /// `ax_cache: "none"`, which is the baseline a `perBatch` run is compared
+    /// against and therefore has to arrive in the same shape.
+    func test_summarize_alwaysCarriesTheTreeCacheReport() throws {
+        AXTree.begin(mode: .perBatch)
+        defer { AXTree.end() }
+        _ = AXTree.read { "tree" }
+        _ = AXTree.read { "tree" }
+
+        let (_, json) = try envelope(
+            of: BatchHandler.summarize(
+                results: [okResult()], completed: 1, failed: 0, cache: AXTree.report
+            )
+        )
+        let data = try XCTUnwrap(json["data"] as? [String: Any])
+        let cache = try XCTUnwrap(data["ax_cache"] as? [String: Any])
+        XCTAssertEqual(cache["mode"] as? String, "perBatch")
+        XCTAssertEqual(cache["tree_reads"] as? Int, 2)
+        XCTAssertEqual(cache["tree_fetches"] as? Int, 1)
     }
 }

@@ -158,6 +158,25 @@ simpilot batch '{"commands":[
 
 A batch exits `2` if any sub-command fails; `data.results` still lists every one, so you can see which.
 
+```bash
+# Reuse one screen read across the batch's read-only steps
+simpilot batch '{"ax_cache":"perBatch","commands":[
+  {"method":"GET","path":"/elements","params":{"format":"outline"}},
+  {"method":"POST","path":"/tap","body":{"query":"@e11"}}
+]}'
+```
+
+Reading the screen costs one ~0.2s IPC, and by default every command pays it. `ax_cache: "perBatch"`
+makes the batch's commands share one read, dropped as soon as a command runs that can change the
+screen — so the `tap` above resolves `@e11` against the tree `elements` just fetched, while a
+command *after* the tap reads the screen again. On a four-step read-only batch against Settings this
+was 4 reads → 1, and 795ms → 208ms.
+
+It is opt-in, and the default stays `none`, because reuse is a bet: simpilot cannot see an animation
+finishing or a background update landing between two steps. Every batch reports
+`data.ax_cache: {mode, tree_reads, tree_fetches}` — including a `none` run, so the two are directly
+comparable — and `ax_cache` values other than `none` / `perBatch` are rejected rather than ignored.
+
 ## Element Query Syntax
 
 | Format | Example | Speed |

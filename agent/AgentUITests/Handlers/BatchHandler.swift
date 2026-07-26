@@ -20,6 +20,21 @@ final class BatchHandler {
         }
 
         let stopOnError = json["stop_on_error"] as? Bool ?? false
+
+        guard let cacheMode = AXTree.Mode.parse(json["ax_cache"]) else {
+            return HTTPResponseBuilder.error(
+                "Invalid 'ax_cache': must be \(AXTree.Mode.names)",
+                code: "invalid_request"
+            )
+        }
+        // `defer` rather than a call after the loop, so every exit path leaves
+        // caching off — the state is process-wide, and a batch that returned early
+        // without resetting it would cache the tree for every command that follows.
+        // (A sub-command's NSException is caught by `Router.safeExecute` before it
+        // can reach this frame, so it is `return`s this has to cover, not unwinds.)
+        AXTree.begin(mode: cacheMode)
+        defer { AXTree.end() }
+
         var results: [[String: Any]] = []
         var completed = 0
         var failed = 0
@@ -75,6 +90,13 @@ final class BatchHandler {
             let start = CFAbsoluteTimeGetCurrent()
             let responseData = router.handleDirect(subRequest)
             let durationMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            // Immediately after the handler returns and before anything else can
+            // read the tree (SU5). A sub-command that may have moved the UI ends
+            // the cached tree's life here; the answer comes from the route's own
+            // `mutates:` flag, and an unregistered path answers yes.
+            if router.changesScreen(method: method, path: path) {
+                AXTree.invalidate()
+            }
 
             // Parse the HTTP response to extract JSON body
             if let parsed = extractJSON(from: responseData) {
@@ -99,7 +121,10 @@ final class BatchHandler {
             }
         }
 
-        return Self.summarize(results: results, completed: completed, failed: failed)
+        // Read before the `defer` above resets it.
+        return Self.summarize(
+            results: results, completed: completed, failed: failed, cache: AXTree.report
+        )
     }
 
     /// Whether a batch sub-command would re-enter the batch route.
@@ -147,14 +172,21 @@ final class BatchHandler {
     /// on `success == false` would otherwise disagree with `failed`.
     /// `results.count` *is* the command count: every branch of `handle` appends
     /// exactly one entry.
-    static func summarize(results: [[String: Any]], completed: Int, failed: Int) -> Data {
+    ///
+    /// `cache` rides along on success *and* failure, and is reported even when the
+    /// batch ran with `ax_cache=none` — that run is the baseline the caller compares
+    /// a `perBatch` run against, so it has to be reported in the same shape.
+    static func summarize(
+        results: [[String: Any]], completed: Int, failed: Int, cache: [String: Any]
+    ) -> Data {
         let skipped = results.count - completed - failed
         let data: [String: Any] = [
             "results": results,
             "total_commands": results.count,
             "completed": completed,
             "failed": failed,
-            "skipped": skipped
+            "skipped": skipped,
+            "ax_cache": cache
         ]
         guard failed > 0 else { return HTTPResponseBuilder.json(data) }
 

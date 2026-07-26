@@ -15,7 +15,7 @@ final class SourceHandler: @unchecked Sendable {
         } catch {
             return HTTPResponseBuilder.error(error.localizedDescription, code: "activate_failed")
         }
-        let source = app.debugDescription
+        let source = AXTree.description(of: app)
         return HTTPResponseBuilder.json(["source": source])
     }
 }

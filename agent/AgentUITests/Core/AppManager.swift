@@ -19,6 +19,25 @@ final class AppManager: @unchecked Sendable {
         self.snapshot = snapshot
     }
 
+    /// The one place the foreground app changes.
+    ///
+    /// Bringing an app forward replaces the whole screen, so any tree cached for
+    /// the previous one is dropped here (SU5). This is the app-switching
+    /// counterpart to `AXTree.settle`, and it is a single funnel rather than three
+    /// call sites because two of the routes that reach it are `mutates: false`:
+    /// `GET /elements?bundleId=` and `GET /source?bundleId=` activate an app and
+    /// then read the tree back *within* the command, so the batch-level
+    /// invalidation is both too late and — correctly — not asked for. `AXTreeTests`
+    /// fails if `currentBundleId` is ever assigned anywhere but here.
+    ///
+    /// It drops the tree even when the bundle ID is unchanged: re-activating the
+    /// app already in front is exactly how a caller returns from a system sheet or
+    /// another app, and the screen after that is not the screen before it.
+    private func enterForeground(_ bundleId: String?) {
+        currentBundleId = bundleId
+        AXTree.invalidate()
+    }
+
     enum LaunchError: Error {
         case unsupportedPlatform(String)
         case launchFailed(String)
@@ -42,7 +61,7 @@ final class AppManager: @unchecked Sendable {
             apps.removeValue(forKey: bundleId)
             throw LaunchError.launchFailed("Failed to launch \(bundleId): \(exceptionMsg)")
         }
-        currentBundleId = bundleId
+        enterForeground(bundleId)
         return app
         #endif
     }
@@ -53,7 +72,7 @@ final class AppManager: @unchecked Sendable {
             app.terminate()
         }
         if currentBundleId == bundleId {
-            currentBundleId = nil
+            enterForeground(nil)
         }
     }
 
@@ -77,7 +96,7 @@ final class AppManager: @unchecked Sendable {
         if let exceptionMsg = catchObjCException({ app.activate() }) {
             throw LaunchError.activateFailed("Failed to activate \(bundleId): \(exceptionMsg)")
         }
-        currentBundleId = bundleId
+        enterForeground(bundleId)
         return app
     }
 

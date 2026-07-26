@@ -57,7 +57,9 @@ final class ScrollToHandler {
 
         for swipe in 1...maxSwipes {
             performSwipe(direction: direction, on: app)
-            Thread.sleep(forTimeInterval: settle)
+            // The swipe just moved the content this loop is searching (SU5): the
+            // check below has to read the screen, not the tree from before it.
+            AXTree.settle(settle)
 
             if let found = DebugDescriptionParser.findElement(query: query, in: app) {
                 return HTTPResponseBuilder.json([

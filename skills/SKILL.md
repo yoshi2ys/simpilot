@@ -127,6 +127,18 @@ simpilot batch '{"commands":[
 If any sub-command fails, the batch exits **2** with `error.code: "batch_failed"`, and
 `data.results` still lists every sub-command so you can see which one failed.
 
+Add `"ax_cache":"perBatch"` when the batch reads the screen more than once — several `assert`s, or an
+`elements` followed by a `tap` on an `@eN` it just handed you. Reading the screen is a ~0.2s IPC that
+every command otherwise pays separately; `perBatch` shares one read and drops it the moment a command
+runs that can change the screen, so the steps after a `tap` still see the new screen. Measured on a
+four-step read-only batch in Settings: 795ms → 208ms. Every batch reports what it did in
+`data.ax_cache: {mode, tree_reads, tree_fetches}`.
+
+Do **not** reach for it when the batch is waiting on something the app does on its own — a spinner
+finishing, content loading. simpilot cannot see that kind of change happen, which is why the default
+is `none` and this is the caller's call. (`wait` and `assert` still poll the live screen inside a
+`perBatch` batch; the risk is the gap *between* two steps, not inside one.)
+
 ### Scroll to find off-screen elements
 
 Instead of manually looping swipe + elements, use `scroll-to` which searches in a single command:
