@@ -375,6 +375,96 @@ final class AliasResolverTests: XCTestCase {
         )
     }
 
+    // MARK: - ±1 window
+
+    /// The live reproduction: `@e3` recorded on General resolved against the
+    /// Settings root — both hold a nameless `cell` at that position, so identity
+    /// alone said "unchanged" and the tap opened the Apple Account sign-in sheet
+    /// with `success: true`. The neighbours disagree, which is what catches it.
+    func testNeighboursDisagreeingIsStaleEvenWhenPositionNMatches() {
+        let general = [
+            identity("button", "Settings"),
+            identity("cell", ""),
+            identity("button", "", "featureDescription"),
+        ]
+        let root = [
+            identity("collectionView", "", "sidebar"),
+            identity("cell", ""),
+            identity("button", "Apple Account"),
+        ]
+        XCTAssertEqual(general[1], root[1], "the reproduction needs position 2 to still match")
+        assertStale(AliasResolver.resolve(
+            alias: "@e2", snapshot: snapshot(settings, general), currentBundleId: settings, fresh: root
+        ))
+    }
+
+    /// The likelier failure: no navigation at all, just one row appearing. A
+    /// Settings row is three actionable elements (`cell` / `button "…"` /
+    /// `image chevron.forward`), so inserting one shifts the list by 3 and every
+    /// position still agrees on identity — 21 of 42 on the root, measured. Here the
+    /// element *before* @e7 also survives the shift; the one after does not.
+    func testOneRowInsertedIntoARepeatingListIsStale() {
+        let row = { (n: Int) in
+            [self.identity("cell", ""), self.identity("button", "Item \(n)"), self.identity("image", "chevron.forward")]
+        }
+        let recorded = (1...5).flatMap(row)
+        let fresh = row(0) + recorded
+        XCTAssertEqual(fresh[6], recorded[6], "the shift must leave position 7 matching on identity alone")
+        assertStale(AliasResolver.resolve(
+            alias: "@e7", snapshot: snapshot(settings, recorded), currentBundleId: settings, fresh: fresh
+        ))
+    }
+
+    /// Position 0 has no element before it and the last has none after. Treating a
+    /// missing slot as a mismatch would fail aliases at both ends of every list.
+    func testFirstAndLastPositionsStillResolve() {
+        let ids = [identity("cell", ""), identity("button", "General"), identity("cell", "")]
+        assertResolves("@e1", recorded: ids, fresh: ids, to: 0)
+        assertResolves("@e3", recorded: ids, fresh: ids, to: 2)
+    }
+
+    /// A neighbour is only compared where both lists have that slot, so a row
+    /// added below an alias leaves it alone.
+    func testAppendingToTheEndDoesNotInvalidateEarlierAliases() {
+        let recorded = [identity("button", "A"), identity("button", "B")]
+        assertResolves("@e2", recorded: recorded, fresh: recorded + [identity("button", "C")], to: 1)
+    }
+
+    /// Scrolling a table drops rows off the far end as cells recycle. The alias
+    /// here sits at the new last position, so its `after` slot exists in the
+    /// recorded list and not in the fresh one — the case the missing-slot rule is
+    /// there for.
+    func testTailTruncationStillResolvesAnEarlyAlias() {
+        let recorded = (1...6).map { identity("button", "Row \($0)") }
+        assertResolves("@e4", recorded: recorded, fresh: Array(recorded.prefix(4)), to: 3)
+    }
+
+    /// The hole the window does not close, pinned so it reads as a known limit
+    /// rather than a bug: where every row is identical to its neighbours, a shifted
+    /// list is indistinguishable without frames — and frames are excluded on
+    /// purpose so scrolling does not invalidate aliases.
+    func testUniformListRemainsAmbiguous() {
+        assertResolves(
+            "@e3",
+            recorded: Array(repeating: identity("cell", ""), count: 6),
+            fresh: Array(repeating: identity("cell", ""), count: 5),
+            to: 2
+        )
+    }
+
+    private func assertResolves(
+        _ alias: String,
+        recorded: [ElementSnapshot.Identity],
+        fresh: [ElementSnapshot.Identity],
+        to position: Int,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let result = AliasResolver.resolve(
+            alias: alias, snapshot: snapshot(settings, recorded), currentBundleId: settings, fresh: fresh
+        )
+        XCTAssertEqual(try? result.get(), position, "\(alias) resolved as \(result)", file: file, line: line)
+    }
+
     private func assertStale(
         _ result: Result<Int, AliasResolutionError>,
         file: StaticString = #filePath, line: UInt = #line

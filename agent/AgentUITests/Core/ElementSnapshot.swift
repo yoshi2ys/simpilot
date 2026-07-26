@@ -6,13 +6,14 @@ import Foundation
 /// each one was. A later `tap '@e9'` names that line rather than re-describing the
 /// element, which is both shorter and unambiguous where a bare label is not — in
 /// Settings, 12 of 45 actionable elements carry neither label nor identifier, and
-/// 24 of 45 share their `(type, label, identifier)` with another element. An alias
+/// 28 of 45 share their `(type, label, identifier)` with another element. An alias
 /// is the only handle that separates those.
 ///
 /// An alias is a claim about a screen that has since been free to change, so it is
 /// **re-validated, never trusted**: resolution re-derives the list from the live
-/// tree and checks that position N still holds the same identity. Returning the
-/// cached coordinates instead would tap wherever that row used to be.
+/// tree and checks that position N — and the element on either side of it — still
+/// holds the same identity. Returning the cached coordinates instead would tap
+/// wherever that row used to be.
 struct ElementSnapshot {
 
     /// What is compared across time. Frames are deliberately excluded: scrolling
@@ -60,9 +61,10 @@ struct ElementSnapshot {
 enum AliasResolutionError: Error, Equatable {
     /// No `elements --format outline` has run yet on this agent.
     case noSnapshot
-    /// The alias is out of range, the app changed, or position N now holds a
-    /// different element. All three mean the same thing to a caller: re-run
-    /// `elements --format outline` and use a fresh alias.
+    /// The alias is out of range, the app changed, position N now holds a
+    /// different element, or the element beside it does (the list shifted). All of
+    /// them mean the same thing to a caller: re-run `elements --format outline` and
+    /// use a fresh alias.
     case stale(String)
 }
 
@@ -96,7 +98,7 @@ enum AliasResponse {
     /// `XCUIElement.screenshot()`. An alias resolves to an identity and a
     /// coordinate; turning it back into a query is not possible in general
     /// (measured on iOS Settings: 12 of 45 actionable elements carry neither
-    /// label nor identifier, and 24 of 45 share an identity with another
+    /// label nor identifier, and 28 of 45 share an identity with another
     /// element). Saying so beats resolving to a plausible wrong element.
     static func unsupported(_ command: String, reason: Reason = .needsElement) -> Data {
         HTTPResponseBuilder.error(
@@ -184,6 +186,10 @@ enum AliasResolver {
     /// Pure so the whole matrix — no snapshot, app switched, list shortened,
     /// identity changed, list merely reordered — is testable without a simulator.
     /// A rule that can only run against a live app is a rule no test can mutate.
+    /// The staleness rules that need the element's *geometry* (it left the parsed
+    /// tree; its frame is zero-sized) stay at the call site in
+    /// `DebugDescriptionParser.resolve` for the same reason — new rules belong
+    /// here unless they need a live screen.
     static func resolve(
         alias: String,
         snapshot: ElementSnapshot?,
@@ -211,6 +217,55 @@ enum AliasResolver {
         guard fresh[position] == snapshot.identities[position] else {
             return .failure(.stale("\(alias) now points at a different element; the screen changed"))
         }
+        if let side = shiftedNeighbour(position: position, recorded: snapshot.identities, fresh: fresh) {
+            return .failure(.stale(
+                "\(alias) still matches at position \(index), but the element \(side) it does not; the list shifted"
+            ))
+        }
         return .success(position)
+    }
+
+    /// The ±1 window that turns "position N looks the same" into "position N *is*
+    /// the same row".
+    ///
+    /// Identity alone is not enough because most rows have no name to compare: the
+    /// nameless and duplicated rows counted above (General: 19 of 30; Keyboard: 26
+    /// of 91) compare equal to each other, so a stale alias resolves and taps
+    /// whatever now sits there — observed live on iOS 27: an `@e3` recorded on
+    /// General resolved against the Settings root and opened the Apple Account
+    /// sign-in sheet with `success: true`.
+    ///
+    /// The dangerous case is not navigation (root vs General agree at exactly one
+    /// position) but a shift within one screen: these lists repeat with period 3
+    /// (`cell` / `button "…"` / `image chevron.forward`), so inserting a single row
+    /// leaves half the positions matching: 21 of the 42 root positions a shift of 3
+    /// leaves comparable, and 14 of General's 27. One row appearing or disappearing
+    /// is an everyday event. Comparing the neighbours drops all of those to 0.
+    ///
+    /// Why ±1 rather than the alternatives, all measured on the same screens:
+    /// requiring the list *length* to match kills scrolling outright (one swipe on
+    /// Keyboard takes 66 elements to 63); refusing any non-unique identity would
+    /// reject 62% of the root, which is precisely the nameless rows an alias is the
+    /// only handle for. The window costs 1 alias in 49 across a scroll, and that one
+    /// fails loudly as `stale_alias`.
+    ///
+    /// A slot missing from either list is skipped rather than counted as a
+    /// mismatch, so appending a row does not invalidate earlier aliases.
+    ///
+    /// The hole this leaves, deliberately: a run of rows identical to their
+    /// neighbours too — a grid of nameless cells — is indistinguishable without
+    /// frames, and frames are excluded on purpose. There, a shifted alias still
+    /// resolves to the row beside the one recorded.
+    private static func shiftedNeighbour(
+        position: Int,
+        recorded: [ElementSnapshot.Identity],
+        fresh: [ElementSnapshot.Identity]
+    ) -> String? {
+        for (offset, side) in [(-1, "before"), (1, "after")] {
+            let neighbour = position + offset
+            guard neighbour >= 0, neighbour < recorded.count, neighbour < fresh.count else { continue }
+            if recorded[neighbour] != fresh[neighbour] { return side }
+        }
+        return nil
     }
 }
