@@ -58,6 +58,10 @@ struct StepResult {
     let status: Status
     let durationMs: Int
     let error: String?
+    /// The failed step's next action, kept out of `error` so the report reads the
+    /// same way the agent's envelope does — `message` what happened, `hint` what
+    /// to do about it.
+    let hint: String?
     let screenshotPath: String?
 }
 

@@ -33,11 +33,20 @@ func printJSON(_ object: Any, pretty: Bool) {
     }
 }
 
-func printError(code: String, message: String) {
+/// The CLI's own failure envelope, for errors that never reached the agent.
+///
+/// `hint` mirrors the agent's `error.hint` (`ErrorHint` on that side): the message
+/// says what went wrong, the hint says what to do next, and a caller reads the
+/// same field either way. Omitted when the repair is not uniform — a
+/// `command_failed` carrying a stray `localizedDescription` has nothing general
+/// to advise.
+func printError(code: String, message: String, hint: String? = nil) {
+    var error: [String: Any] = ["code": code, "message": message]
+    if let hint { error["hint"] = hint }
     let obj: [String: Any] = [
         "success": false,
         "data": NSNull(),
-        "error": ["code": code, "message": message]
+        "error": error
     ]
     if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys]),
        let str = String(data: data, encoding: .utf8) {
@@ -369,7 +378,7 @@ struct Simpilot {
     static func run(options: GlobalOptions, client: HTTPClient) {
         assertRegistryInvariants()
         guard let cmdType = registry.first(where: { $0.name == options.command }) else {
-            printError(code: "invalid_args", message: "Unknown command: \(options.command)")
+            printError(code: "invalid_args", message: "Unknown command: \(options.command)", hint: invalidArgsHint)
             exit(3)
         }
         let context = RunContext(
@@ -399,28 +408,51 @@ struct Simpilot {
     /// cannot be. `agent_timeout` (4) must stay distinct from
     /// `agent_unreachable` (1): the first means "retry with a longer budget",
     /// the second means "there is no agent there".
-    static func envelope(for error: CLIError) -> (code: String, message: String, status: Int32) {
+    static func envelope(for error: CLIError) -> (code: String, message: String, hint: String?, status: Int32) {
         switch error {
         case .agentUnreachable(let url):
-            return ("agent_unreachable", "Cannot connect to agent at \(url)", 1)
+            return (
+                "agent_unreachable",
+                "Cannot connect to agent at \(url)",
+                "Start one with `simpilot start`, or point `--port` at a running agent (`simpilot list`).",
+                1
+            )
         case .agentTimeout(let url, let seconds):
-            return ("agent_timeout", "Agent at \(url) did not respond within \(Int(seconds))s", 4)
+            return (
+                "agent_timeout",
+                "Agent at \(url) did not respond within \(Int(seconds))s",
+                "The agent is there but slow. Retry with a larger `--timeout` — a cold app launch or a "
+                    + "deep element dump can outlast the default.",
+                4
+            )
         case .invalidArgs(let msg):
-            return ("invalid_args", msg, 3)
+            return ("invalid_args", msg, invalidArgsHint, 3)
         case .commandFailed(let msg):
-            return ("command_failed", msg, 2)
+            return ("command_failed", msg, nil, 2)
         case .invalidURL(let url):
-            return ("invalid_args", "Invalid URL: \(url)", 3)
+            return ("invalid_args", "Invalid URL: \(url)", invalidArgsHint, 3)
         case .invalidResponse(let preview):
             // Exit 2, not 1: something answered on that port, so "unreachable"
             // would send the caller to look for an agent that is in fact there.
-            return ("invalid_response", "Agent did not return a simpilot envelope: \(preview)", 2)
+            return (
+                "invalid_response",
+                "Agent did not return a simpilot envelope: \(preview)",
+                "Something that is not a simpilot agent answered on that port. Check `--port` against "
+                    + "`simpilot list`.",
+                2
+            )
         }
     }
 
+    /// One string for every argument-level rejection, including the unknown-command
+    /// path, which does not go through `CLIError`. Two paths emitting `invalid_args`
+    /// with two different repairs is exactly what keying the advice is meant to stop.
+    static let invalidArgsHint =
+        "Run `simpilot help` for the command list, or `simpilot help <command>` for its flags."
+
     private static func handleCLIError(_ error: CLIError) -> Never {
-        let (code, message, status) = envelope(for: error)
-        printError(code: code, message: message)
+        let (code, message, hint, status) = envelope(for: error)
+        printError(code: code, message: message, hint: hint)
         exit(status)
     }
 }

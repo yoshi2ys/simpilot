@@ -169,4 +169,10 @@ enum StepExecutor {
         guard let error = response["error"] as? [String: Any] else { return nil }
         return (error["message"] as? String) ?? (error["code"] as? String)
     }
+
+    /// The agent's `error.hint` — the repair for the failure `errorMessage`
+    /// describes. Absent for codes whose repair is not uniform.
+    static func errorHint(_ response: [String: Any]) -> String? {
+        (response["error"] as? [String: Any])?["hint"] as? String
+    }
 }

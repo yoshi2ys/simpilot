@@ -42,11 +42,19 @@ final class WaitHandler: @unchecked Sendable {
                 "timeout": timeoutSeconds
             ])
         case .timedOut:
-            let code = shouldExist ? "element_not_found" : "element_still_exists"
-            let message = shouldExist
-                ? "Element did not appear within \(timeoutSeconds)s: \(query)"
-                : "Element still exists after \(timeoutSeconds)s: \(query)"
-            return HTTPResponseBuilder.error(message, code: code)
+            // Both codes are spelled out at the call rather than picked into a
+            // variable: `ErrorHintTests` reads `code:` literals out of the source
+            // to prove every code has a hint decision, and a code assembled at
+            // runtime is invisible to it.
+            return shouldExist
+                ? HTTPResponseBuilder.error(
+                    "Element did not appear within \(timeoutSeconds)s: \(query)",
+                    code: "element_not_found"
+                )
+                : HTTPResponseBuilder.error(
+                    "Element still exists after \(timeoutSeconds)s: \(query)",
+                    code: "element_still_exists"
+                )
         }
     }
 }

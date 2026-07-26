@@ -355,8 +355,16 @@ All output is JSON with a consistent envelope:
 Errors:
 
 ```json
-{"success": false, "data": null, "error": {"code": "element_not_found", "message": "..."}}
+{"success": false, "data": null, "error": {"code": "element_not_found", "message": "...", "hint": "..."}}
 ```
+
+**Read `error.hint` before deciding what to do next.** `message` says what went
+wrong, `hint` says how to repair it — which flag to change, which command to run
+first — and it is written for exactly this: it saves a round of guessing. It is
+present whenever a code has one uniform repair, and absent when it does not
+(`invalid_request`, where the message already names the rejected field). The same
+`hint` rides along inside a `/batch` sub-result and inside `action`'s
+`data.screenshot` slot, so a nested failure is not the one place you have to guess.
 
 ## Common Bundle IDs
 

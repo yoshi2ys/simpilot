@@ -216,6 +216,21 @@ them; `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`, `scroll-to`,
 {"success": true, "data": {...}, "error": null, "duration_ms": 42}
 ```
 
+A failure replaces `error` with `{"code": ..., "message": ..., "hint": ...}`.
+`message` says what went wrong; `hint` says what to do next, and is present
+whenever the repair is the same for every occurrence of that code:
+
+```json
+{"success": false, "data": null, "duration_ms": 12, "error": {
+  "code": "stale_alias",
+  "message": "@e3 now points at a different element; the screen changed",
+  "hint": "Run `elements --format outline` again and use an alias from the fresh list."
+}}
+```
+
+Codes whose repair depends entirely on the message — `invalid_request` above
+all, where the message names the field it rejected — carry no `hint` key at all.
+
 ## Architecture
 
 - **Agent** (`agent/`): Xcode UI test target that hosts an HTTP server via `Network.framework`. Runs indefinitely as `xcodebuild test`.

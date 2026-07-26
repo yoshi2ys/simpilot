@@ -20,6 +20,9 @@ enum RunReporter {
                     if let err = step.error {
                         stderrLine("         \(err)")
                     }
+                    if let hint = step.hint {
+                        stderrLine("         hint: \(hint)")
+                    }
                     if let path = step.screenshotPath {
                         stderrLine("         screenshot: \(path)")
                     }
@@ -65,6 +68,7 @@ enum RunReporter {
                                 "duration_ms": step.durationMs,
                             ]
                             if let err = step.error { s["error"] = err }
+                            if let hint = step.hint { s["hint"] = hint }
                             if let path = step.screenshotPath { s["screenshot"] = path }
                             return s
                         }

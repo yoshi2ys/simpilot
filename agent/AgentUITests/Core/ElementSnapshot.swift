@@ -69,27 +69,25 @@ enum AliasResolutionError: Error, Equatable {
 }
 
 /// One envelope for every alias failure, so `tap`, `scroll-to`, `type` and `drag`
-/// cannot describe the same condition three ways. The hint is the whole point:
-/// an agent that reads `element_not_found` goes hunting for a label, while the
-/// actual repair is always the same — list the screen again.
+/// cannot describe the same condition three ways. The distinct code is the whole
+/// point: an agent that reads `element_not_found` goes hunting for a label, while
+/// the actual repair is always the same — list the screen again. That repair now
+/// rides in `error.hint` (`ErrorHint.table`) rather than in the message, so these
+/// messages state only the condition.
 enum AliasResponse {
     static func unsupportedMessage(_ command: String, reason: Reason = .needsElement) -> String {
-        "\(command) does not take an @eN alias: \(reason.explanation) "
-            + "Use the element's label or #identifier."
+        "\(command) does not take an @eN alias: \(reason.explanation)"
     }
 
     static func error(_ error: AliasResolutionError) -> Data {
         switch error {
         case .noSnapshot:
             return HTTPResponseBuilder.error(
-                "no outline has been taken yet; run `elements --format outline` before using an @eN alias",
+                "no outline has been taken on this agent yet, so @eN names nothing",
                 code: "no_snapshot"
             )
         case .stale(let detail):
-            return HTTPResponseBuilder.error(
-                "\(detail). Run `elements --format outline` again for fresh aliases.",
-                code: "stale_alias"
-            )
+            return HTTPResponseBuilder.error(detail, code: "stale_alias")
         }
     }
 
