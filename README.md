@@ -203,7 +203,10 @@ simpilot tap '@e11'          # taps the element outline listed as @e11
 Aliases number the unfiltered list, so `--type`/`--contains` show gaps rather than
 renumbering. They are re-validated against the live screen on every use: once you
 navigate, the same alias fails with `stale_alias` instead of tapping whatever now
-sits in that position. `tap` / `doubletap` / `longpress` / `type` / `action` accept
+sits in that position. Validation compares the recorded element *and its immediate
+neighbours*, so a list that merely shifted by a row is caught too; a run of rows
+identical to their neighbours (a grid of nameless cells) is the one case that stays
+ambiguous. `tap` / `doubletap` / `longpress` / `type` / `action` accept
 them; `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`, `scroll-to`,
 `assert` and `wait` return `alias_unsupported` with the reason.
 
