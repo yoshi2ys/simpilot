@@ -219,7 +219,7 @@ enum AliasResolver {
         }
         if let side = shiftedNeighbour(position: position, recorded: snapshot.identities, fresh: fresh) {
             return .failure(.stale(
-                "\(alias) still matches at position \(index), but the element \(side) it does not; the list shifted"
+                "\(alias) still matches at position \(index), but the element \(side) it no longer matches; the list shifted"
             ))
         }
         return .success(position)
