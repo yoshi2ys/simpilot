@@ -129,7 +129,15 @@ final class ActionHandler {
                 if AliasResolver.isAlias(screenshotElement) {
                     responseData["screenshot"] = Self.screenshotFailure(
                         code: "alias_unsupported",
-                        message: AliasResponse.unsupportedMessage("screenshot --element")
+                        message: AliasResponse.unsupportedMessage("screenshot --element", kind: .alias)
+                    )
+                    fullPng = nil
+                } else if RowSelector.parse(screenshotElement) != nil {
+                    // Same reason as the alias above: `XCUIElement.screenshot()`
+                    // needs a real element, and a row selector is a coordinate.
+                    responseData["screenshot"] = Self.screenshotFailure(
+                        code: "row_unsupported",
+                        message: AliasResponse.unsupportedMessage("screenshot --element", kind: .row)
                     )
                     fullPng = nil
                 } else {

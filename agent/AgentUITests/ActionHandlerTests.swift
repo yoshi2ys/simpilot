@@ -453,6 +453,11 @@ final class ActionHandlerTests: XCTestCase {
                 "ActionHandler screenshot error for alias refusal must include code: alias_unsupported"
             )
             XCTAssertTrue(
+                section.contains("code: \"row_unsupported\""),
+                "ActionHandler screenshot error for a row selector must include code: row_unsupported — "
+                    + "an @rN is a coordinate too, and XCUIElement.screenshot() needs a real element"
+            )
+            XCTAssertTrue(
                 section.contains("code: \"write_failed\""),
                 "ActionHandler screenshot error for a failed file write must include code: write_failed"
             )
@@ -462,8 +467,8 @@ final class ActionHandlerTests: XCTestCase {
     func test_typeHandler_aliasNeverFallsBackToElementResolverAfterCoordinateFailure() throws {
         let source = try loadHandlerSource(named: "TypeHandler.swift")
         XCTAssertTrue(
-            source.contains("if AliasResolver.isAlias(query)"),
-            "TypeHandler must stop before ElementResolver fallback when an alias coordinate tap raises"
+            source.contains("switch PositionalQuery.kind(of: query)"),
+            "TypeHandler must stop before ElementResolver fallback when a positional coordinate tap raises"
         )
         XCTAssertTrue(
             source.contains("focus tap could not be performed at its coordinate"),

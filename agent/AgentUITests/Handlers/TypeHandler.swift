@@ -52,10 +52,12 @@ final class TypeHandler: @unchecked Sendable {
         case elementNotFound(query: String)
         /// An `@eN` alias that no longer names an element on this screen.
         case aliasFailed(AliasResolutionError)
+        /// An `@rN` / `@lMrN` row selector that named no row on this screen.
+        case rowFailed(RowResolutionError)
         /// An `@eN` alias combined with a wait — unsupported, not stale.
         case aliasNotPollable
-        /// An `@eN` alias on a platform with no coordinate path (tvOS).
-        case aliasNotSupportedOnPlatform
+        /// A positional query on a platform with no coordinate path (tvOS).
+        case notSupportedOnPlatform(PositionalQuery)
         /// PasteHelper already returns a full error envelope.
         case inputFailed(Data)
     }
@@ -97,10 +99,10 @@ final class TypeHandler: @unchecked Sendable {
 
         if let query, !query.isEmpty {
             // Mirrors `resolveAndTap`: on tvOS the focus tap below is compiled
-            // out, so an alias has no coordinate to land on and would reach
-            // `ElementResolver` as the literal label `@e1`.
-            if AliasResolver.isAlias(query), !AliasResolver.isSupportedOnThisPlatform {
-                return .failure(.aliasNotSupportedOnPlatform)
+            // out, so a positional query has no coordinate to land on and would
+            // reach `ElementResolver` as the literal label `@e1` / `@r1`.
+            if let kind = PositionalQuery.kind(of: query), !PositionalQuery.isSupportedOnThisPlatform {
+                return .failure(.notSupportedOnPlatform(kind))
             }
 
             // When the poller ran, it already parsed the tree to satisfy the
@@ -119,6 +121,8 @@ final class TypeHandler: @unchecked Sendable {
                 polled = found
             case .aliasRejected:
                 return .failure(.aliasNotPollable)
+            case .rowFailed(let error):
+                return .failure(.rowFailed(error))
             case .notNeeded:
                 break
             }
@@ -144,6 +148,7 @@ final class TypeHandler: @unchecked Sendable {
                     snapshot: snapshot, currentBundleId: currentBundleId
                 ) {
                 case .aliasFailed(let error): return .failure(.aliasFailed(error))
+                case .rowFailed(let error): return .failure(.rowFailed(error))
                 case .found(let found): resolved = found
                 case .notFound: resolved = nil
                 }
@@ -155,10 +160,19 @@ final class TypeHandler: @unchecked Sendable {
                 if catchObjCException({ coord.tap() }) == nil {
                     targetCoord = coord
                 } else {
-                    if AliasResolver.isAlias(query) {
+                    // Neither form may fall through to `ElementResolver`, where it
+                    // would be matched as a literal label and lose the diagnosis.
+                    switch PositionalQuery.kind(of: query) {
+                    case .alias:
                         return .failure(.aliasFailed(
                             .stale("\(query) resolved, but the focus tap could not be performed at its coordinate")
                         ))
+                    case .row:
+                        return .failure(.rowFailed(
+                            .gestureFailed("\(query) resolved, but the focus tap could not be performed at its coordinate")
+                        ))
+                    case nil:
+                        break
                     }
                     // The coordinate itself is unusable (visionOS spatial
                     // windows) — handing it to PasteHelper would raise a second
@@ -210,10 +224,12 @@ final class TypeHandler: @unchecked Sendable {
             )
         case .aliasFailed(let error):
             return AliasResponse.error(error)
+        case .rowFailed(let error):
+            return RowResponse.error(error)
         case .aliasNotPollable:
             return AliasResponse.unsupported("type with a wait", reason: .cannotBePolled)
-        case .aliasNotSupportedOnPlatform:
-            return AliasResponse.unsupported("type on this platform", reason: .notCoordinateDriven)
+        case .notSupportedOnPlatform(let kind):
+            return kind.unsupported("type on this platform", reason: .notCoordinateDriven)
         case .inputFailed(let data):
             return data
         }

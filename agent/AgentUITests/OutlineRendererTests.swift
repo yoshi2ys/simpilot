@@ -482,8 +482,10 @@ final class AliasResolverTests: XCTestCase {
     func testAliasSupportTracksTheCoordinatePath() {
         #if os(tvOS)
         XCTAssertFalse(AliasResolver.isSupportedOnThisPlatform)
+        XCTAssertFalse(PositionalQuery.isSupportedOnThisPlatform, "one fact, one owner")
         #else
         XCTAssertTrue(AliasResolver.isSupportedOnThisPlatform)
+        XCTAssertTrue(PositionalQuery.isSupportedOnThisPlatform, "one fact, one owner")
         #endif
     }
 
@@ -492,11 +494,11 @@ final class AliasResolverTests: XCTestCase {
     /// caller to re-list), and no wait is involved (so not the `cannotBePolled`
     /// wording, which tells them to drop a `--timeout` they never passed).
     func testPlatformRefusalIsItsOwnCodeAndWording() throws {
-        let refusal = try errorObject(TapHandler.responseData(from: .aliasNotSupportedOnPlatform))
+        let refusal = try errorObject(TapHandler.responseData(from: .notSupportedOnPlatform(.alias)))
         XCTAssertEqual(refusal["code"] as? String, "alias_unsupported")
         XCTAssertEqual(
             refusal["message"] as? String,
-            AliasResponse.unsupportedMessage("tap on this platform", reason: .notCoordinateDriven)
+            AliasResponse.unsupportedMessage("tap on this platform", kind: .alias, reason: .notCoordinateDriven)
         )
 
         let stale = try errorObject(TapHandler.responseData(from: .aliasFailed(query: "@e1", error: .stale("x"))))
@@ -504,18 +506,18 @@ final class AliasResolverTests: XCTestCase {
         let polling = try errorObject(TapHandler.responseData(from: .aliasNotPollable))
         XCTAssertEqual(
             polling["message"] as? String,
-            AliasResponse.unsupportedMessage("tap with a wait", reason: .cannotBePolled)
+            AliasResponse.unsupportedMessage("tap with a wait", kind: .alias, reason: .cannotBePolled)
         )
     }
 
     /// `type` must refuse identically — the two resolvers are the only alias
     /// entry points that survive to a coordinate, so they cannot disagree.
     func testTypeRefusesOnTheSamePlatformsAsTap() throws {
-        let refusal = try errorObject(TypeHandler.failureResponse(for: .aliasNotSupportedOnPlatform))
+        let refusal = try errorObject(TypeHandler.failureResponse(for: .notSupportedOnPlatform(.alias)))
         XCTAssertEqual(refusal["code"] as? String, "alias_unsupported")
         XCTAssertEqual(
             refusal["message"] as? String,
-            AliasResponse.unsupportedMessage("type on this platform", reason: .notCoordinateDriven)
+            AliasResponse.unsupportedMessage("type on this platform", kind: .alias, reason: .notCoordinateDriven)
         )
     }
 

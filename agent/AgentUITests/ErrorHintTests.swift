@@ -26,6 +26,7 @@ final class ErrorHintTests: XCTestCase {
         "tap_failed", "swipe_failed", "drag_failed", "pinch_failed", "slider_failed",
         "screenshot_failed", "unauthorized", "not_found", "batch_failed",
         "invalid_command", "invalid_args", "invalid_regex", "paste_failed",
+        "row_unsupported", "list_not_found", "ambiguous_list", "row_not_found",
     ]
 
     func test_everyHighTrafficCodeHasAHint() {

@@ -38,6 +38,20 @@ enum ErrorHint {
             "Run `elements --format outline` again and use an alias from the fresh list.",
         "alias_unsupported":
             "Pass the element's label or `#identifier` to this command instead of an `@eN` alias.",
+        "row_unsupported":
+            "Pass the element's label or `#identifier` to this command instead of an `@rN` row selector. "
+            + "`elements --format outline` shows what each row is called.",
+        "list_not_found":
+            "A row selector needs a repeating list. The `# list @lN` lines at the top of "
+            + "`elements --format outline` name every list on screen; if there is none, address the "
+            + "element by label, `#identifier`, or `@eN`.",
+        "ambiguous_list":
+            "Name the list as well as the row — `@l1r3` is row 3 of the first list. The `# list @lN` "
+            + "lines in `elements --format outline` show how many rows each one has.",
+        "row_not_found":
+            "Rows are numbered top to bottom over the rows currently on screen, so a row further down "
+            + "has to be scrolled into view first: `swipe` the list, then re-read "
+            + "`elements --format outline`.",
         "activate_failed": appNotInstalled,
         "launch_failed": appNotInstalled,
         "unsupported_platform":

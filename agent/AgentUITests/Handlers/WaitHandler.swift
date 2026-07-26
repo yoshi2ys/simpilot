@@ -35,6 +35,8 @@ final class WaitHandler: @unchecked Sendable {
         switch result {
         case .aliasRejected:
             return AliasResponse.unsupported("wait", reason: .cannotBePolled)
+        case .rowFailed(let error):
+            return RowResponse.error(error)
         case .satisfied:
             return HTTPResponseBuilder.json([
                 "found": shouldExist,

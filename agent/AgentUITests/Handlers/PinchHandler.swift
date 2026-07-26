@@ -28,8 +28,8 @@ final class PinchHandler: @unchecked Sendable {
         }
 
         let query = json["query"] as? String
-        if let query, AliasResolver.isAlias(query) {
-            return AliasResponse.unsupported("pinch")
+        if let refusal = PositionalQuery.refusal(for: query, command: "pinch") {
+            return refusal
         }
         let velocityName = json["velocity"] as? String ?? "default"
 

@@ -183,11 +183,16 @@ combining it with another `--level` / `--compact` is rejected rather than silent
 overridden:
 
 ```
+# list @l1: 8 cell rows, first row @e3
 - navigationBar "Settings" @e1
+- cell @e3
 - button "General" @e11
 - switch "Wi-Fi" @e14 [value=1]
-- cell @e3
 ```
+
+A `# list` line appears for every repeating list simpilot detected on the screen —
+same type, same width, evenly spaced, three rows or more. Its rows are addressable
+positionally (see below); the element lines themselves are unchanged.
 
 The line shape follows agent-browser / Playwright's aria snapshot so it reads the
 same way to a model that has seen those, with a cheaper `@e9` ref. This mode prints
@@ -209,6 +214,45 @@ identical to their neighbours (a grid of nameless cells) is the one case that st
 ambiguous. `tap` / `doubletap` / `longpress` / `type` / `action` accept
 them; `pinch`, `slider`, `screenshot --element`, `swipe`, `drag`, `scroll-to`,
 `assert` and `wait` return `alias_unsupported` with the reason.
+
+### Row selectors: `@rN` / `@lMrN`
+
+`@r3` is the third row of the screen's list, `@l2r3` the third row of its second
+list. Unlike an alias, a row selector is re-derived from the live screen on every
+use, so it needs no prior `elements` call and survives the taps and scrolls that
+invalidate an alias:
+
+```bash
+simpilot tap '@r3'           # third row of the only list on screen
+simpilot tap '@l2r3'         # third row of the second list
+simpilot assert enabled '@r3'
+```
+
+What it gives up is identity: it names *whatever now sits* at that position, so it
+is the right tool for "act on the Nth row" and the wrong one for "wait for X to
+appear". The rules that follow from that:
+
+- Rows are numbered **top to bottom over the rows currently on screen**. A row
+  scrolled out of view is not numbered, so every `@rN` names a row whose centre is on
+  screen — swipe first to reach rows further down. "On screen" is geometry, not
+  reachability: a row behind a sheet or the keyboard is still numbered, the same
+  limitation every coordinate tap has (`assert hittable` is the separate check).
+- `--depth` narrows what the outline lists, but lists are always detected at the
+  full depth `@rN` resolves at, so a narrowed listing drops the header's
+  `first row @eN` cross-reference rather than numbering a list `@lM` will not find.
+- A bare `@rN` resolves only when the screen has **one** list. With more, it is
+  `ambiguous_list` (which reports each list's row count), not a guess — name the
+  list with `@lM`.
+- Detection is deliberately conservative: a grid, a two-row run, and rows of
+  differing height or unevenly spaced are not lists. A screen with none gives
+  `list_not_found` — use a label, `#identifier`, or `@eN` there.
+- `tap` / `doubletap` / `longpress` / `type` / `action` / `assert` / `wait` take
+  row selectors. The commands that need a real element (`pinch`, `slider`,
+  `screenshot --element`, `swipe`, `drag`) and `scroll-to` return
+  `row_unsupported`.
+- `#2` is still "the element whose identifier is `2`" — a row is never addressed
+  with `#`, and a typed prefix always wins (`cell:@r3` means the cell labeled
+  `@r3`).
 
 ## Output Format
 
@@ -245,15 +289,19 @@ follow from that, and everything below is existing behavior, not aspiration:
   command that needs a real `XCUIElement` (`pinch`, `slider`,
   `screenshot --element`, `swipe`, `drag`, `scroll-to`, `assert`, `wait`) returns
   `alias_unsupported` **with the reason**, rather than matching `@e9` as a literal
-  label and reporting `element_not_found`. On tvOS, where there is no coordinate
-  path at all, aliases are refused up front.
+  label and reporting `element_not_found`. An `@rN` row selector is refused the same
+  way by the commands that need a real element, under its own `row_unsupported`;
+  `assert` and `wait` do take one, because it is re-derived on every observation. On
+  tvOS, where there is no coordinate path at all, `tap` and `type` refuse both up
+  front.
 - **No silent substitution.** Contradictory parameters are rejected, never
   resolved by picking one: `--format outline` with a non-actionable `--level`, or
   `drag` given both a target element and target coordinates, are
   `invalid_request`. A query that matches twice reports `match_count` and keeps
   parse order — it is never re-ranked into whichever match looks better. A stale
   `@eN` fails as `stale_alias` instead of tapping whatever now sits in that
-  position. `simpilot start` always names the slot its device came from in
+  position, and a bare `@rN` on a screen with two lists is `ambiguous_list` rather
+  than the larger one. `simpilot start` always names the slot its device came from in
   `resolved_via`, so falling back to `iPhone 17 Pro` is visible; `simpilot stop`
   with no target exits `3` rather than guessing which agent you meant.
 - **No silent success.** A `batch` in which any sub-command failed exits non-zero,

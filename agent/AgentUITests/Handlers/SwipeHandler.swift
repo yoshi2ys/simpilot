@@ -17,12 +17,6 @@ final class SwipeHandler: @unchecked Sendable {
             )
         }
         let query = json["query"] as? String
-        // The poller only sees the query when a wait is requested, so a bare
-        // `{"query": "@e1"}` would otherwise reach `ElementResolver` and be
-        // matched as a literal label.
-        if let query, AliasResolver.isAlias(query) {
-            return AliasResponse.unsupported("swipe")
-        }
         let velocity = json["velocity"] as? String ?? "default"
         let app = appManager.currentApp()
         let resolution = Self.resolveAndSwipe(
@@ -40,9 +34,10 @@ final class SwipeHandler: @unchecked Sendable {
     enum Resolution {
         case success(responseData: [String: Any])
         /// Swipe resolves through `ElementResolver`, which needs a real element —
-        /// an `@eN` alias is a coordinate, so it is refused rather than matched as
-        /// a literal label.
-        case aliasUnsupported
+        /// a positional query (`@eN`, `@rN`) is a coordinate, so it is refused
+        /// rather than matched as a literal label. The refusal envelope is built
+        /// from the kind, so it names the form the caller wrote.
+        case positionalUnsupported(PositionalQuery)
         case elementNotFound(message: String)
         case invalidQuery(message: String)
         case invalidDirection(direction: String)
@@ -73,9 +68,21 @@ final class SwipeHandler: @unchecked Sendable {
         in app: XCUIApplication
     ) -> Resolution {
         if let query = query, !query.isEmpty {
+            // Refused here rather than in `handle`: `/action swipe` calls this
+            // function directly, and a guard in `handle` left that path resolving
+            // `@e1` as a literal label. The poller sees the query only when a wait
+            // is requested, so it cannot be the only gate either.
+            if let kind = PositionalQuery.kind(of: query) {
+                return .positionalUnsupported(kind)
+            }
             switch TapHandler.awaitPredicates(query: query, wait: wait, in: app) {
-            case .aliasRejected:
-                return .aliasUnsupported
+            case .aliasRejected, .rowFailed:
+                // Unreachable: the guard above returned for both forms already.
+                // Named rather than defaulted so a future poller outcome cannot be
+                // dropped here silently — and reported as what it is, since
+                // re-deriving a kind for a query that is not positional would
+                // fabricate one.
+                return .invalidQuery(message: "swipe could not resolve \(query) to an element")
             case .notNeeded, .satisfied:
                 break
             case .timedOut(let lastState, let failed):
@@ -152,8 +159,8 @@ final class SwipeHandler: @unchecked Sendable {
         switch resolution {
         case .success(let data):
             return HTTPResponseBuilder.json(data)
-        case .aliasUnsupported:
-            return AliasResponse.unsupported("swipe")
+        case .positionalUnsupported(let kind):
+            return kind.unsupported("swipe")
         case .elementNotFound(let msg):
             return HTTPResponseBuilder.error(msg, code: "element_not_found")
         case .invalidQuery(let msg):
