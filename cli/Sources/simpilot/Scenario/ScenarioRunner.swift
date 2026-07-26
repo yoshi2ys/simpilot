@@ -24,7 +24,7 @@ enum ScenarioRunner {
             if failed && config.stopOnFailure {
                 stepResults.append(StepResult(
                     step: step, status: .skipped, durationMs: 0,
-                    error: nil, screenshotPath: nil
+                    error: nil, hint: nil, screenshotPath: nil
                 ))
                 continue
             }
@@ -32,6 +32,7 @@ enum ScenarioRunner {
             let stepStart = CFAbsoluteTimeGetCurrent()
             var success = true
             var errorMsg: String?
+            var errorHint: String?
             var screenshotPath: String?
 
             do {
@@ -39,9 +40,14 @@ enum ScenarioRunner {
                 success = StepExecutor.isSuccess(json)
                 if !success {
                     errorMsg = StepExecutor.errorMessage(json)
+                    errorHint = StepExecutor.errorHint(json)
                 }
             } catch let cliError as CLIError {
                 success = false
+                // The wording below is the runner's own, but the repair is not:
+                // it comes from the same table a direct command prints, so
+                // `run` and `tap` cannot advise two different fixes.
+                errorHint = Simpilot.envelope(for: cliError).hint
                 switch cliError {
                 case .agentUnreachable(let url):
                     errorMsg = "agent unreachable at \(url)"
@@ -73,6 +79,7 @@ enum ScenarioRunner {
             stepResults.append(StepResult(
                 step: step, status: success ? .passed : .failed, durationMs: stepMs,
                 error: (errorMsg?.isEmpty == true) ? nil : errorMsg,
+                hint: errorHint,
                 screenshotPath: screenshotPath
             ))
 

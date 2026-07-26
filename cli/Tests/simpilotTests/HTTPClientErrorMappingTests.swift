@@ -69,6 +69,24 @@ final class HTTPClientErrorMappingTests: XCTestCase {
         XCTAssertEqual(invalidURL.code, "invalid_args")
         XCTAssertEqual(invalidURL.status, 3)
     }
+
+    /// SU2: an error the CLI raises itself carries the next action, exactly as an
+    /// agent envelope's `error.hint` does. `command_failed` is the one exception —
+    /// it wraps an arbitrary `localizedDescription` and has nothing general to say.
+    func testTransportErrorsCarryARepairHint() {
+        let cases: [(CLIError, String)] = [
+            (.agentUnreachable("http://x:8222"), "simpilot start"),
+            (.agentTimeout("http://x:8222", 30), "--timeout"),
+            (.invalidArgs("bad"), "simpilot help"),
+            (.invalidURL("http://[::1:8222"), "simpilot help"),
+            (.invalidResponse("<html>"), "--port"),
+        ]
+        for (error, expected) in cases {
+            let hint = Simpilot.envelope(for: error).hint ?? ""
+            XCTAssertTrue(hint.contains(expected), "\(error) hint was '\(hint)'")
+        }
+        XCTAssertNil(Simpilot.envelope(for: .commandFailed("boom")).hint)
+    }
 }
 
 /// Accepts one connection and never replies, so the client hits its deadline.

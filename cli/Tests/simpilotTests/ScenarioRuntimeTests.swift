@@ -223,6 +223,40 @@ final class ScenarioRuntimeTests: XCTestCase {
         XCTAssertNoThrow(try JSONSerialization.data(withJSONObject: RunReporter.buildJSON(result)))
     }
 
+    // MARK: - hint (SU2)
+
+    func testErrorHintReadsTheAgentsHintField() {
+        XCTAssertEqual(
+            StepExecutor.errorHint(["error": ["code": "stale_alias", "hint": "list it again"]]),
+            "list it again"
+        )
+        XCTAssertNil(
+            StepExecutor.errorHint(["error": ["code": "invalid_request", "message": "no field"]]),
+            "a code with no uniform repair carries no hint"
+        )
+        XCTAssertNil(StepExecutor.errorHint(["success": true]))
+    }
+
+    /// A step that fails before reaching the agent still reports a repair, and it
+    /// is the same one a direct command prints for that `CLIError`.
+    func testAFailedStepCarriesItsHintIntoTheReport() throws {
+        let result = ScenarioRunner.run(
+            file: scenarioFile(of: Self.failingStep),
+            client: unreachableClient()
+        )
+        let steps = try XCTUnwrap(
+            (try XCTUnwrap(
+                (try XCTUnwrap(RunReporter.buildJSON(result)["data"] as? [String: Any]))["scenarios"]
+                    as? [[String: Any]]
+            ))[0]["steps"] as? [[String: Any]]
+        )
+        XCTAssertEqual(
+            steps[0]["hint"] as? String,
+            Simpilot.envelope(for: .agentUnreachable("")).hint
+        )
+        XCTAssertNil(steps[1]["hint"], "a skipped step has nothing to repair")
+    }
+
     func testStepLabelNamesTheActionAndItsTarget() {
         XCTAssertTrue(RunReporter.stepLabel(.tap(query: "Login", waitUntil: nil, timeout: nil)).contains("Login"))
         XCTAssertTrue(RunReporter.stepLabel(.sleep(seconds: 1.5)).lowercased().contains("sleep"))

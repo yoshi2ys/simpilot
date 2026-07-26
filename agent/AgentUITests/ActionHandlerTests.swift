@@ -433,18 +433,28 @@ final class ActionHandlerTests: XCTestCase {
                 returnCount, 0,
                 "ActionHandler screenshot section must NOT return early — action_result and elements must be preserved"
             )
-            // 5. Error objects must include structured code field
+            // 5. Error objects must include structured code field, and go through
+            // the one builder so each also carries the hint for that code (SU2).
+            XCTAssertFalse(
+                section.contains("[\"error\":"),
+                "every screenshot failure must be built by screenshotFailure, not inline — "
+                    + "an inline dict is how the write failure went a release with no code and no hint"
+            )
             XCTAssertTrue(
-                section.contains("\"code\": \"element_not_found\""),
+                section.contains("code: \"element_not_found\""),
                 "ActionHandler screenshot error for resolver failure must include code: element_not_found"
             )
             XCTAssertTrue(
-                section.contains("\"code\": \"screenshot_failed\""),
+                section.contains("code: \"screenshot_failed\""),
                 "ActionHandler screenshot error for ObjC exception must include code: screenshot_failed"
             )
             XCTAssertTrue(
-                section.contains("\"code\": \"alias_unsupported\""),
+                section.contains("code: \"alias_unsupported\""),
                 "ActionHandler screenshot error for alias refusal must include code: alias_unsupported"
+            )
+            XCTAssertTrue(
+                section.contains("code: \"write_failed\""),
+                "ActionHandler screenshot error for a failed file write must include code: write_failed"
             )
         }
     }

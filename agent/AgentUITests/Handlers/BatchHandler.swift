@@ -120,7 +120,7 @@ final class BatchHandler {
     /// response carries, so `summarize` and the CLI see one consistent schema.
     static func failureResult(code: String, message: String, durationMs: Int = 0) -> [String: Any] {
         ["success": false, "data": NSNull(),
-         "error": ["code": code, "message": message],
+         "error": HTTPResponseBuilder.errorObject(code: code, message: message),
          "duration_ms": durationMs]
     }
 

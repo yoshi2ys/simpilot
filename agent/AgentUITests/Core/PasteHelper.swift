@@ -73,7 +73,7 @@ enum PasteHelper {
         }
 
         return HTTPResponseBuilder.error(
-            "Paste menu not found. Use --method type for keyboard input.",
+            "Paste menu not found.",
             code: "paste_failed"
         )
     }

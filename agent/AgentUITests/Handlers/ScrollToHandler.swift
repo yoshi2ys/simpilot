@@ -66,9 +66,22 @@ final class ScrollToHandler {
             }
         }
 
-        return HTTPResponseBuilder.error(
+        return Self.notFound(query: query, direction: direction, maxSwipes: maxSwipes)
+    }
+
+    /// Exhausted the swipe budget without the element appearing.
+    ///
+    /// Static so the hint can be tested without a live app. It overrides the
+    /// standard `element_not_found` hint, which tells the caller to reach for
+    /// `scroll-to` — absurd advice from `scroll-to` itself.
+    static func notFound(query: String, direction: String, maxSwipes: Int) -> Data {
+        HTTPResponseBuilder.error(
             "Element not found after \(maxSwipes) swipes",
             code: "element_not_found",
+            // The message and `extra` already report the direction and the swipe
+            // count; repeating them here would be three statements of two facts.
+            hint: "Try a larger `--max-swipes`, the opposite `--direction`, or check the label "
+                + "with `elements --format outline`.",
             extra: [
                 "swipes": maxSwipes,
                 "direction": direction,

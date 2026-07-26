@@ -127,17 +127,20 @@ final class ActionHandler {
             let fullPng: Data?
             if let screenshotElement = screenshotElement {
                 if AliasResolver.isAlias(screenshotElement) {
-                    responseData["screenshot"] = [
-                        "error": AliasResponse.unsupportedMessage("screenshot --element"),
-                        "code": "alias_unsupported"
-                    ]
+                    responseData["screenshot"] = Self.screenshotFailure(
+                        code: "alias_unsupported",
+                        message: AliasResponse.unsupportedMessage("screenshot --element")
+                    )
                     fullPng = nil
                 } else {
                     var resolved: XCUIElement?
                     do {
                         resolved = try ElementResolver.resolve(query: screenshotElement, in: app)
                     } catch {
-                        responseData["screenshot"] = ["error": "Element not found: \(screenshotElement)", "code": "element_not_found"]
+                        responseData["screenshot"] = Self.screenshotFailure(
+                            code: "element_not_found",
+                            message: "Element not found: \(screenshotElement)"
+                        )
                     }
                     if let element = resolved {
                         var pngResult: Data?
@@ -145,7 +148,10 @@ final class ActionHandler {
                             pngResult = element.screenshot().pngRepresentation
                         }
                         if let failure {
-                            responseData["screenshot"] = ["error": "Screenshot failed for element '\(screenshotElement)': \(failure)", "code": "screenshot_failed"]
+                            responseData["screenshot"] = Self.screenshotFailure(
+                                code: "screenshot_failed",
+                                message: "Screenshot failed for element '\(screenshotElement)': \(failure)"
+                            )
                             fullPng = nil
                         } else {
                             fullPng = pngResult!
@@ -164,10 +170,10 @@ final class ActionHandler {
                 // whole action.
                 let spec = ScreenshotHandler.scaleSpec(from: screenshotScaleRaw)
                 if case .invalid = spec {
-                    responseData["screenshot"] = [
-                        "error": "Invalid screenshot scale; must be a positive number or 'native'",
-                        "code": "invalid_request"
-                    ]
+                    responseData["screenshot"] = Self.screenshotFailure(
+                        code: "invalid_request",
+                        message: "Invalid screenshot scale; must be a positive number or 'native'"
+                    )
                 } else {
                     let pngData: Data
                     let scaleOut: Any
@@ -194,7 +200,10 @@ final class ActionHandler {
                             "scale": scaleOut, "format": outputFormat
                         ]
                     } catch {
-                        responseData["screenshot"] = ["error": "Failed to write: \(error.localizedDescription)"]
+                        responseData["screenshot"] = Self.screenshotFailure(
+                            code: "write_failed",
+                            message: "Failed to write: \(error.localizedDescription)"
+                        )
                     }
                 }
             }
@@ -215,5 +224,19 @@ final class ActionHandler {
         }
 
         return HTTPResponseBuilder.json(responseData)
+    }
+
+    /// The screenshot slot's soft failure: the action itself succeeded, only its
+    /// screenshot leg did not, so this rides inside a `success: true` envelope.
+    ///
+    /// It keeps its own `{error, code}` keys rather than the envelope's
+    /// `{code, message}` — renaming them would break every caller reading
+    /// `data.screenshot.error` — so it builds the shared error object and renames
+    /// the one key that differs. Going through `errorObject` rather than reading
+    /// `ErrorHint` directly leaves one owner of *which* errors carry a hint.
+    static func screenshotFailure(code: String, message: String) -> [String: Any] {
+        var slot = HTTPResponseBuilder.errorObject(code: code, message: message)
+        slot["error"] = slot.removeValue(forKey: "message")
+        return slot
     }
 }
