@@ -110,8 +110,10 @@ enum AXTree {
     }
 
     /// Leave caching off, which is the state every non-batch command runs in.
-    /// Called from a `defer` so an NSException unwinding out of a sub-command
-    /// cannot leave the agent caching the tree forever.
+    /// Called from a `defer` so a `BatchHandler.handle` that returns early cannot
+    /// leave the agent caching the tree forever — the state is process-wide. It is
+    /// `return`s this covers, not unwinds: a sub-command's NSException is contained
+    /// by `Router.safeExecute`'s `@try`/`@catch` and never reaches this frame.
     static func end() {
         mode = .off
         cached = nil

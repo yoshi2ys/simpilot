@@ -159,7 +159,7 @@ simpilot batch '{"commands":[
 A batch exits `2` if any sub-command fails; `data.results` still lists every one, so you can see which.
 
 ```bash
-# Reuse one screen read across the batch's read-only steps
+# Reuse one screen read until a step changes the screen
 simpilot batch '{"ax_cache":"perBatch","commands":[
   {"method":"GET","path":"/elements","params":{"format":"outline"}},
   {"method":"POST","path":"/tap","body":{"query":"@e11"}}
