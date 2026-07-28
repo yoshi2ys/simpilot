@@ -107,4 +107,5 @@ jobs:
             -only-testing:AgentUITests/AliasResolverTests \
             -only-testing:AgentUITests/ErrorHintTests \
             -only-testing:AgentUITests/ListClusterTests \
+            -only-testing:AgentUITests/AXTreeTests \
             -quiet

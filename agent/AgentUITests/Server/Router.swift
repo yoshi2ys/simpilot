@@ -3,7 +3,14 @@ import Foundation
 typealias HandlerFunc = (HTTPRequest) -> Data
 
 final class Router {
-    private var routes: [String: HandlerFunc] = [:]
+    /// A registered endpoint and the one thing the router needs to know about it
+    /// beyond how to run it: whether it can change what is on screen (SU5).
+    private struct Route {
+        let handler: HandlerFunc
+        let mutates: Bool
+    }
+
+    private var routes: [String: Route] = [:]
     private let appManager = AppManager()
     /// Held only so `/info` can report the resolved port/bind rather than
     /// re-reading the environment. Authentication lives at the socket boundary
@@ -18,16 +25,32 @@ final class Router {
     /// Execute a handler directly without main-thread dispatch or duration injection.
     /// Used by BatchHandler to avoid deadlocks when calling sub-commands.
     func handleDirect(_ request: HTTPRequest) -> Data {
-        let key = "\(request.method) \(request.path)"
-        guard let handler = routes[key] else {
+        let key = Self.key(method: request.method, path: request.path)
+        guard let route = routes[key] else {
             return HTTPResponseBuilder.error("No route for \(key)", code: "not_found", status: 404)
         }
-        return safeExecute(handler, request: request)
+        return safeExecute(route.handler, request: request)
+    }
+
+    /// Whether running this endpoint can change what is on screen, so a tree
+    /// fetched before it must not be reused after it (SU5).
+    ///
+    /// The answer lives on the registration rather than in a second table beside
+    /// it: the routing table is the one place every endpoint is named exactly
+    /// once, and `route(_:_:_:mutates:)` has no default, so a new endpoint does
+    /// not compile until someone decides. An unregistered path answers `true` —
+    /// `handleDirect` 404s it, but the safe direction has to be this one anyway.
+    func changesScreen(method: String, path: String) -> Bool {
+        routes[Self.key(method: method, path: path)]?.mutates ?? true
+    }
+
+    private static func key(method: String, path: String) -> String {
+        "\(method) \(path)"
     }
 
     func handle(_ request: HTTPRequest) -> Data {
-        let key = "\(request.method) \(request.path)"
-        guard let handler = routes[key] else {
+        let key = Self.key(method: request.method, path: request.path)
+        guard let route = routes[key] else {
             return HTTPResponseBuilder.error(
                 "No route for \(key)",
                 code: "not_found",
@@ -38,7 +61,7 @@ final class Router {
         let start = CFAbsoluteTimeGetCurrent()
         var result: Data!
         DispatchQueue.main.sync {
-            result = self.safeExecute(handler, request: request)
+            result = self.safeExecute(route.handler, request: request)
         }
         let durationMs = (CFAbsoluteTimeGetCurrent() - start) * 1000
         return injectDuration(into: result, durationMs: durationMs)
@@ -117,54 +140,63 @@ final class Router {
         let pinchHandler = PinchHandler(appManager: appManager)
         let sliderHandler = SliderHandler(appManager: appManager)
 
-        route("GET", "/health", healthHandler.handle)
-        route("POST", "/launch", launchHandler.handle)
-        route("POST", "/terminate", terminateHandler.handle)
-        route("POST", "/activate", activateHandler.handle)
-        route("POST", "/tap", tapHandler.handle)
-        route("POST", "/tapcoord", tapCoordHandler.handle)
-        route("POST", "/type", typeHandler.handle)
-        route("GET", "/screenshot", screenshotHandler.handle)
-        route("GET", "/elements", elementsHandler.handle)
-        route("GET", "/source", sourceHandler.handle)
-        route("GET", "/info", infoHandler.handle)
-        route("POST", "/swipe", swipeHandler.handle)
-        route("POST", "/longpress", longPressHandler.handle)
-        route("POST", "/doubletap", doubleTapHandler.handle)
-        route("POST", "/wait", waitHandler.handle)
-        route("POST", "/assert", assertHandler.handle)
-        route("POST", "/scroll-to", scrollToHandler.handle)
-        route("POST", "/drag", dragHandler.handle)
-        route("POST", "/pinch", pinchHandler.handle)
-        route("POST", "/slider", sliderHandler.handle)
+        route("GET", "/health", healthHandler.handle, mutates: false)
+        route("POST", "/launch", launchHandler.handle, mutates: true)
+        route("POST", "/terminate", terminateHandler.handle, mutates: true)
+        route("POST", "/activate", activateHandler.handle, mutates: true)
+        route("POST", "/tap", tapHandler.handle, mutates: true)
+        route("POST", "/tapcoord", tapCoordHandler.handle, mutates: true)
+        route("POST", "/type", typeHandler.handle, mutates: true)
+        route("GET", "/screenshot", screenshotHandler.handle, mutates: false)
+        route("GET", "/elements", elementsHandler.handle, mutates: false)
+        route("GET", "/source", sourceHandler.handle, mutates: false)
+        route("GET", "/info", infoHandler.handle, mutates: false)
+        route("POST", "/swipe", swipeHandler.handle, mutates: true)
+        route("POST", "/longpress", longPressHandler.handle, mutates: true)
+        route("POST", "/doubletap", doubleTapHandler.handle, mutates: true)
+        route("POST", "/wait", waitHandler.handle, mutates: false)
+        route("POST", "/assert", assertHandler.handle, mutates: false)
+        route("POST", "/scroll-to", scrollToHandler.handle, mutates: true)
+        route("POST", "/drag", dragHandler.handle, mutates: true)
+        route("POST", "/pinch", pinchHandler.handle, mutates: true)
+        route("POST", "/slider", sliderHandler.handle, mutates: true)
 
         let clipboardHandler = ClipboardHandler()
-        route("GET", "/clipboard", clipboardHandler.handleGet)
-        route("POST", "/clipboard", clipboardHandler.handleSet)
+        route("GET", "/clipboard", clipboardHandler.handleGet, mutates: false)
+        route("POST", "/clipboard", clipboardHandler.handleSet, mutates: true)
 
         let appearanceHandler = AppearanceHandler()
-        route("GET", "/appearance", appearanceHandler.handleGet)
-        route("POST", "/appearance", appearanceHandler.handleSet)
+        route("GET", "/appearance", appearanceHandler.handleGet, mutates: false)
+        route("POST", "/appearance", appearanceHandler.handleSet, mutates: true)
 
         let locationHandler = LocationHandler()
-        route("POST", "/location", locationHandler.handle)
+        route("POST", "/location", locationHandler.handle, mutates: true)
 
         let rotateHandler = RotateHandler()
-        route("POST", "/rotate", rotateHandler.handle)
+        route("POST", "/rotate", rotateHandler.handle, mutates: true)
 
         let buttonHandler = ButtonHandler()
-        route("POST", "/button", buttonHandler.handle)
+        route("POST", "/button", buttonHandler.handle, mutates: true)
 
         let alertHandler = AlertHandler()
-        route("POST", "/alert", alertHandler.handle)
+        route("POST", "/alert", alertHandler.handle, mutates: true)
 
         let batchHandler = BatchHandler(router: self)
         let actionHandler = ActionHandler(appManager: appManager)
-        route("POST", "/batch", batchHandler.handle)
-        route("POST", "/action", actionHandler.handle)
+        route("POST", "/batch", batchHandler.handle, mutates: true)
+        route("POST", "/action", actionHandler.handle, mutates: true)
     }
 
-    private func route(_ method: String, _ path: String, _ handler: @escaping HandlerFunc) {
-        routes["\(method) \(path)"] = handler
+    /// `mutates` has no default on purpose: a new endpoint must not inherit an
+    /// answer nobody chose. `true` is the safe side — it costs one tree fetch,
+    /// where `false` on an endpoint that does move the UI would let the next
+    /// sub-command in a `perBatch` batch pick a coordinate off the old screen.
+    /// Endpoints that only change device state (`POST /clipboard`,
+    /// `POST /location`) are `true` for that reason: the classification is about
+    /// what the app may do in response, not about what the handler touches.
+    private func route(
+        _ method: String, _ path: String, _ handler: @escaping HandlerFunc, mutates: Bool
+    ) {
+        routes[Self.key(method: method, path: path)] = Route(handler: handler, mutates: mutates)
     }
 }
